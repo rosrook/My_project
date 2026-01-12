@@ -141,7 +141,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         file_path = sys.argv[1]
     else:
-        file_path = "your_file.parquet"
+        file_path = "/mnt/tidal-alsh01/dataset/perceptionVLMData/processed_v1.0/datasets--OpenImages/data/train/part_0.parquet"
         print(f"用法: python explore_parquet.py <parquet_file_path>")
         print(f"使用默认路径: {file_path}\n")
     
