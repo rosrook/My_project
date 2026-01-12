@@ -24,9 +24,22 @@ import os
 import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add parent directories to path
+# When running from My_project/, we need My_project/ in the path
+# so Python can find the ProbingFactorGeneration package
+current_dir = Path(__file__).resolve().parent
+probing_root = current_dir.parent  # ProbingFactorGeneration directory
+project_root = probing_root.parent  # My_project directory
 
+# Add My_project to path (this allows "from ProbingFactorGeneration import ...")
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Also add ProbingFactorGeneration to path as fallback
+if str(probing_root) not in sys.path:
+    sys.path.insert(0, str(probing_root))
+
+# Now import from ProbingFactorGeneration
 from ProbingFactorGeneration.core import ImageLoader, TemplateClaimGenerator, FailureAggregator, FilteringFactorMapper
 from ProbingFactorGeneration.models import BaselineModel, JudgeModel
 from ProbingFactorGeneration.io import DataSaver
