@@ -1,0 +1,27 @@
+================================================================================
+快速探索: /mnt/tidal-alsh01/dataset/perceptionVLMData/processed_v1.0/datasets--OpenImages/data/train/part_0.parquet
+输出文件: /home/zhuxuzhou/My_project/Other_tools/part_0_quick_explore_20260112_105159.txt
+================================================================================
+
+【文件基本信息】
+行数: 5,000
+列数: 3
+文件大小: 0.00 MB
+
+【列信息】
+  1. jpg: binary
+  2. conversations: list<element: struct<assistant: string, usr: string>>
+
+【数据预览（前3行，只显示关键列）】
+                                                     jpg                                          conversations
+0  b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x01...  [{'assistant': 'Yes, there are 3 Human eye at the ...
+1  b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00...  [{'assistant': 'Yes, there are one Woman at the fo...
+2  b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00...  [{'assistant': 'Yes, there are 3 Mammal at the fol...
+
+【所有列名（共2列）】
+   1. jpg (object)
+   2. conversations (object)
+
+================================================================================
+快速预览完成！如需详细分析，请使用 explore_parquet.py
+================================================================================
