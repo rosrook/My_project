@@ -61,9 +61,12 @@ def explore_parquet_quick(file_path, output_file=None):
         for i, field in enumerate(schema):
             print(f"  {i+1}. {field.name}: {field.type}")
         
-        # 3. 只读取前5行进行预览
+        # 3. 只读取前3行进行预览
         print("\n【数据预览（前3行，只显示关键列）】")
-        df = pd.read_parquet(file_path, nrows=3)
+        # pandas read_parquet 不支持 nrows，需要先读取全部再切片
+        df_full = pd.read_parquet(file_path)
+        df = df_full.head(3)  # 只取前3行
+        del df_full  # 释放内存
         
         # 只显示前5列
         display_cols = df.columns[:5].tolist()
@@ -107,12 +110,19 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # 如果没有指定输出文件，生成默认文件名
+    # 如果没有指定输出文件，生成默认文件名（保存在当前目录，不在数据源目录）
     if args.output is None:
         input_path = Path(args.file_path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = input_path.parent / f"{input_path.stem}_quick_explore_{timestamp}.txt"
+        # 输出到当前目录，避免写入数据源目录
+        output_file = Path.cwd() / f"{input_path.stem}_quick_explore_{timestamp}.txt"
     else:
-        output_file = args.output
+        output_file = Path(args.output)
+        # 确保输出文件不在数据源目录
+        input_path = Path(args.file_path)
+        if output_file.parent == input_path.parent:
+            # 如果输出目录和数据源目录相同，改为当前目录
+            output_file = Path.cwd() / output_file.name
+            print(f"警告: 输出文件不能在数据源目录，已改为: {output_file}")
     
-    explore_parquet_quick(args.file_path, output_file=str(output_file))
+    explore_parquet_quick(args.file_path, output_file=str(output_file.resolve()))

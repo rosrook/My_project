@@ -200,13 +200,20 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    # 如果没有指定输出文件，生成默认文件名
+    # 如果没有指定输出文件，生成默认文件名（保存在当前目录，不在数据源目录）
     if args.output is None:
         input_path = Path(args.file_path)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file = input_path.parent / f"{input_path.stem}_explore_{timestamp}.txt"
+        # 输出到当前目录，避免写入数据源目录
+        output_file = Path.cwd() / f"{input_path.stem}_explore_{timestamp}.txt"
     else:
-        output_file = args.output
+        output_file = Path(args.output)
+        # 确保输出文件不在数据源目录
+        input_path = Path(args.file_path)
+        if output_file.parent == input_path.parent:
+            # 如果输出目录和数据源目录相同，改为当前目录
+            output_file = Path.cwd() / output_file.name
+            print(f"警告: 输出文件不能在数据源目录，已改为: {output_file}")
     
     # 探索文件
     df = explore_parquet(
@@ -215,7 +222,7 @@ if __name__ == "__main__":
         show_stats=args.show_stats,
         max_sample_length=args.max_sample_length,
         preview_cols=args.preview_cols,
-        output_file=str(output_file)
+        output_file=str(output_file.resolve())
     )
     
     # 如果需要进一步分析,可以继续使用返回的 DataFrame
