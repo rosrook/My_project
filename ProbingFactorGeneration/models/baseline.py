@@ -58,6 +58,7 @@ import asyncio
 import base64
 import io
 import json
+import os
 
 try:
     from ProbingFactorGeneration.utils.async_client import AsyncGeminiClient
@@ -123,6 +124,16 @@ class BaselineModel:
         self.request_delay = request_delay or MODEL_CONFIG.get("REQUEST_DELAY", 0.1)
         self.use_lb_client = use_lb_client if use_lb_client is not None else MODEL_CONFIG.get("USE_LB_CLIENT", True)
         
+        # Store service_name, env, api_key for LBOpenAIAsyncClient (only needed for API models)
+        if not self.use_local_model:
+            self.service_name = MODEL_CONFIG.get("SERVICE_NAME") or os.getenv("SERVICE_NAME")
+            self.env = MODEL_CONFIG.get("ENV", "prod") or os.getenv("ENV", "prod")
+            self.api_key = MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY", "1")
+        else:
+            self.service_name = None
+            self.env = None
+            self.api_key = None
+        
         # Model parameters
         self.max_tokens = self.model_config.get("max_tokens", MODEL_CONFIG.get("MAX_TOKENS", 1000))
         self.temperature = self.model_config.get("temperature", MODEL_CONFIG.get("TEMPERATURE", 0.3))
@@ -171,12 +182,16 @@ class BaselineModel:
                         "Please install or implement utils.async_client.AsyncGeminiClient"
                     )
                 
+                # Pass service_name, env, api_key for LBOpenAIAsyncClient
                 self._async_client = AsyncGeminiClient(
                     model_name=self.model_name,
                     gpu_id=self.gpu_id,
                     max_concurrent=self.max_concurrent,
                     request_delay=self.request_delay,
-                    use_lb_client=self.use_lb_client
+                    use_lb_client=self.use_lb_client,
+                    service_name=self.service_name,
+                    env=self.env,
+                    api_key=self.api_key
                 )
             
             # Enter async context
