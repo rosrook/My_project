@@ -29,12 +29,23 @@ try:
         LlavaNextProcessor = None
         LlavaNextForConditionalGeneration = None
     HAS_TRANSFORMERS = True
-except ImportError:
+except ImportError as e:
     HAS_TRANSFORMERS = False
     AutoProcessor = None
     AutoModelForCausalLM = None
     LlavaNextProcessor = None
     LlavaNextForConditionalGeneration = None
+    _TRANSFORMERS_IMPORT_ERROR = e
+except Exception as e:
+    # Catch any other import errors (e.g., missing dependencies)
+    HAS_TRANSFORMERS = False
+    AutoProcessor = None
+    AutoModelForCausalLM = None
+    LlavaNextProcessor = None
+    LlavaNextForConditionalGeneration = None
+    _TRANSFORMERS_IMPORT_ERROR = e
+else:
+    _TRANSFORMERS_IMPORT_ERROR = None
 
 # Import framework config
 try:
@@ -80,9 +91,10 @@ class AsyncLLaVAClient:
             load_in_4bit: Whether to load model in 4-bit (requires bitsandbytes)
         """
         if not HAS_TRANSFORMERS:
-            raise ImportError(
-                "transformers library is required. Install with: pip install transformers"
-            )
+            error_msg = "transformers library is required. Install with: pip install transformers"
+            if '_TRANSFORMERS_IMPORT_ERROR' in globals() and _TRANSFORMERS_IMPORT_ERROR is not None:
+                error_msg += f"\nImport error: {_TRANSFORMERS_IMPORT_ERROR}"
+            raise ImportError(error_msg)
         
         self.model_path = model_path
         self.gpu_id = gpu_id
