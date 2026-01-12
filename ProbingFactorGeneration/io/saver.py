@@ -37,31 +37,22 @@ class DataSaver:
             
         Returns:
             Path to saved file
-            
-        TODO:
-            - Implement JSON saving
-            - Implement CSV saving (flatten nested structures)
-            - Implement YAML saving
-            - Handle file path resolution
-            - Add error handling
         """
-        # TODO: Implement save logic
-        # output_path = Path(output_path)
-        # if not output_path.is_absolute():
-        #     output_path = self.output_dir / output_path
-        # output_path.parent.mkdir(parents=True, exist_ok=True)
-        # 
-        # if format.lower() == "json":
-        #     self._save_json(data, output_path)
-        # elif format.lower() == "csv":
-        #     self._save_csv(data, output_path)
-        # elif format.lower() == "yaml":
-        #     self._save_yaml(data, output_path)
-        # else:
-        #     raise ValueError(f"Unsupported format: {format}")
-        # 
-        # return output_path
-        raise NotImplementedError("DataSaver.save() not implemented")
+        output_path = Path(output_path)
+        if not output_path.is_absolute():
+            output_path = self.output_dir / output_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if format.lower() == "json":
+            self._save_json(data, output_path)
+        elif format.lower() == "csv":
+            self._save_csv(data, output_path)
+        elif format.lower() == "yaml":
+            self._save_yaml(data, output_path)
+        else:
+            raise ValueError(f"Unsupported format: {format}")
+        
+        return output_path
     
     def save_results(self, results: List[Dict[str, Any]], 
                     filename: str = "probing_results", 
@@ -73,30 +64,24 @@ class DataSaver:
             results: List of result dictionaries, each containing:
                     {
                         "image_id": str,
-                        "claims": List[Dict],
-                        "baseline_answers": List[Dict],
+                        "claim_templates": List[Dict],
+                        "completions": List[Dict],
                         "verifications": List[Dict],
                         "aggregated_failures": Dict,
-                        "filtering_factors": List[str] or Dict
+                        "suggested_filtering_factors": List[str]
                     }
             filename: Base filename (without extension)
             format: Output format
             
         Returns:
             Path to saved file
-            
-        TODO:
-            - Format results for saving
-            - Save in structured format
         """
-        # TODO: Implement results saving
-        # output_path = self.output_dir / f"{filename}.{format}"
-        # structured_data = {
-        #     "results": results,
-        #     "summary": self._generate_summary(results)
-        # }
-        # return self.save(structured_data, output_path, format)
-        raise NotImplementedError("DataSaver.save_results() not implemented")
+        output_path = self.output_dir / f"{filename}.{format}"
+        structured_data = {
+            "results": results,
+            "summary": self._generate_summary(results)
+        }
+        return self.save(structured_data, output_path, format)
     
     def compute_error_rate_by_claim_type(self, results: List[Dict[str, Any]]) -> Dict[str, float]:
         """
@@ -112,34 +97,27 @@ class DataSaver:
                 "content_type_2": float,
                 ...
             }
-            
-        TODO:
-            - Calculate error rates per content type
-            - Handle cases with no claims of a certain type
         """
-        # TODO: Implement error rate computation
-        # claim_type_stats = {}
-        # 
-        # for result in results:
-        #     claims = result.get("claims", [])
-        #     verifications = result.get("verifications", [])
-        # 
-        #     for claim, verif in zip(claims, verifications):
-        #         content_type = claim.get("content_type", "unknown")
-        #         if content_type not in claim_type_stats:
-        #             claim_type_stats[content_type] = {"total": 0, "errors": 0}
-        # 
-        #         claim_type_stats[content_type]["total"] += 1
-        #         if not verif.get("is_correct", True):
-        #             claim_type_stats[content_type]["errors"] += 1
-        # 
-        # error_rates = {
-        #     ctype: stats["errors"] / stats["total"] if stats["total"] > 0 else 0.0
-        #     for ctype, stats in claim_type_stats.items()
-        # }
-        # 
-        # return error_rates
-        raise NotImplementedError("DataSaver.compute_error_rate_by_claim_type() not implemented")
+        claim_type_stats = {}
+        
+        for result in results:
+            verifications = result.get("verifications", [])
+            
+            for verif in verifications:
+                content_type = verif.get("content_type", "unknown")
+                if content_type not in claim_type_stats:
+                    claim_type_stats[content_type] = {"total": 0, "errors": 0}
+                
+                claim_type_stats[content_type]["total"] += 1
+                if not verif.get("is_correct", True):
+                    claim_type_stats[content_type]["errors"] += 1
+        
+        error_rates = {
+            ctype: stats["errors"] / stats["total"] if stats["total"] > 0 else 0.0
+            for ctype, stats in claim_type_stats.items()
+        }
+        
+        return error_rates
     
     def compute_filtering_factor_distribution(self, results: List[Dict[str, Any]]) -> Dict[str, int]:
         """
@@ -155,27 +133,21 @@ class DataSaver:
                 "factor_2": int,
                 ...
             }
-            
-        TODO:
-            - Aggregate filtering factors across all results
-            - Count occurrences of each factor
         """
-        # TODO: Implement distribution computation
-        # factor_distribution = {}
-        # 
-        # for result in results:
-        #     factors = result.get("filtering_factors", [])
-        #     if isinstance(factors, dict):
-        #         # If it's a distribution dict, merge it
-        #         for factor, count in factors.items():
-        #             factor_distribution[factor] = factor_distribution.get(factor, 0) + count
-        #     elif isinstance(factors, list):
-        #         # If it's a list, count occurrences
-        #         for factor in factors:
-        #             factor_distribution[factor] = factor_distribution.get(factor, 0) + 1
-        # 
-        # return factor_distribution
-        raise NotImplementedError("DataSaver.compute_filtering_factor_distribution() not implemented")
+        factor_distribution = {}
+        
+        for result in results:
+            factors = result.get("suggested_filtering_factors", [])
+            if isinstance(factors, dict):
+                # If it's a distribution dict, merge it
+                for factor, count in factors.items():
+                    factor_distribution[factor] = factor_distribution.get(factor, 0) + count
+            elif isinstance(factors, list):
+                # If it's a list, count occurrences
+                for factor in factors:
+                    factor_distribution[factor] = factor_distribution.get(factor, 0) + 1
+        
+        return factor_distribution
     
     def _save_json(self, data: Dict[str, Any], path: Path):
         """Save data as JSON file."""
@@ -202,9 +174,36 @@ class DataSaver:
         """
         Generate summary statistics for results.
         
-        TODO:
-            - Calculate overall statistics
-            - Include error rates and distributions
+        Args:
+            results: List of result dictionaries
+            
+        Returns:
+            Summary dictionary with statistics
         """
-        # TODO: Implement summary generation
-        return {}
+        if not results:
+            return {
+                "total_images": 0,
+                "total_claims": 0,
+                "total_failures": 0,
+                "overall_success_rate": 0.0
+            }
+        
+        total_images = len(results)
+        total_claims = sum(
+            r.get("aggregated_failures", {}).get("total_claims", 0) for r in results
+        )
+        total_failures = sum(
+            r.get("aggregated_failures", {}).get("failed_claims", 0) for r in results
+        )
+        
+        error_rates = self.compute_error_rate_by_claim_type(results)
+        factor_distribution = self.compute_filtering_factor_distribution(results)
+        
+        return {
+            "total_images": total_images,
+            "total_claims": total_claims,
+            "total_failures": total_failures,
+            "overall_success_rate": (total_claims - total_failures) / total_claims if total_claims > 0 else 0.0,
+            "error_rates_by_claim_type": error_rates,
+            "filtering_factor_distribution": factor_distribution
+        }
