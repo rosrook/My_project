@@ -71,8 +71,9 @@ except ImportError:
 # Try to import AsyncLLaVAClient for local models
 try:
     from ProbingFactorGeneration.utils.async_llava_client import AsyncLLaVAClient
-except ImportError:
+except (ImportError, Exception) as e:
     AsyncLLaVAClient = None
+    # Don't print error here, as it might just be missing optional dependencies
 
 from ProbingFactorGeneration.config import MODEL_CONFIG
 
