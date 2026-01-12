@@ -40,6 +40,9 @@ if str(project_root) not in sys.path:
 if str(probing_root) not in sys.path:
     sys.path.insert(0, str(probing_root))
 
+# Store probing_root for resolving config file paths
+PROBING_ROOT = probing_root
+
 # Now import from ProbingFactorGeneration
 from ProbingFactorGeneration.core import ImageLoader, TemplateClaimGenerator, FailureAggregator, FilteringFactorMapper
 from ProbingFactorGeneration.models import BaselineModel, JudgeModel
@@ -114,14 +117,24 @@ async def run_pipeline(
     
     # 2. 初始化 Claim Generator
     print("\nStep 2: Initializing TemplateClaimGenerator...")
+    
+    # Resolve config path (relative to ProbingFactorGeneration root)
     claim_template_path = Path(claim_template_config)
+    if not claim_template_path.is_absolute():
+        # If relative path, resolve relative to ProbingFactorGeneration root
+        claim_template_path = PROBING_ROOT / claim_template_config
+    else:
+        claim_template_path = Path(claim_template_config)
+    
     if not claim_template_path.exists():
-        print(f"  ✗ Claim template config not found: {claim_template_config}")
+        print(f"  ✗ Claim template config not found: {claim_template_path}")
+        print(f"    Searched at: {claim_template_path.absolute()}")
+        print(f"    ProbingFactorGeneration root: {PROBING_ROOT}")
         print(f"    Please ensure the file exists or update the path.")
         return
     
-    template_generator = TemplateClaimGenerator(config_path=claim_template_config)
-    print(f"  ✓ Claim template loaded from {claim_template_config}")
+    template_generator = TemplateClaimGenerator(config_path=str(claim_template_path))
+    print(f"  ✓ Claim template loaded from {claim_template_path}")
     
     # 3. 初始化 Baseline Model
     print("\nStep 3: Initializing BaselineModel...")
