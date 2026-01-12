@@ -15,6 +15,7 @@ import io
 import json
 import os
 import re
+from tempfile import NamedTemporaryFile
 from typing import Union, Optional, List, Dict, Any
 from PIL import Image
 import torch
@@ -138,64 +139,44 @@ class AsyncLLaVAClient:
         if os.getenv("VERBOSE", "false").lower() == "true":
             print(f"[INFO] Loading model from {self.model_path}")
         
-        # Load processor - use AutoProcessor for compatibility
+        # Check if qwen_vl_utils is installed (required for LLaVA OneVision models)
         try:
-            # Try LLaVA Next processor first (if available)
-            if LlavaNextProcessor is not None:
-                self.processor = LlavaNextProcessor.from_pretrained(self.model_path)
-            else:
-                # Fall back to AutoProcessor
-                self.processor = AutoProcessor.from_pretrained(self.model_path)
-        except Exception as e:
-            # Fall back to AutoProcessor if specific processor fails
-            self.processor = AutoProcessor.from_pretrained(self.model_path)
-        
-        # Prepare model loading kwargs
-        model_kwargs = {
-            "torch_dtype": self.torch_dtype,
-            "device_map": "auto" if self.device == "cuda" else None,
-        }
-        
-        # Add quantization options if requested
-        if self.load_in_8bit or self.load_in_4bit:
-            try:
-                from transformers import BitsAndBytesConfig
-                quantization_config = BitsAndBytesConfig(
-                    load_in_8bit=self.load_in_8bit,
-                    load_in_4bit=self.load_in_4bit,
-                )
-                model_kwargs["quantization_config"] = quantization_config
-            except ImportError:
-                raise ImportError(
-                    "bitsandbytes is required for quantization. "
-                    "Install with: pip install bitsandbytes"
-                )
-        
-        # Load model - use AutoModelForCausalLM for compatibility
-        try:
-            # Try LLaVA Next model first (if available)
-            if LlavaNextForConditionalGeneration is not None:
-                self.model = LlavaNextForConditionalGeneration.from_pretrained(
-                    self.model_path,
-                    **model_kwargs
-                )
-            else:
-                # Fall back to AutoModelForCausalLM
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    self.model_path,
-                    **model_kwargs
-                )
-        except Exception as e:
-            # Fall back to AutoModelForCausalLM if specific model class fails
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                **model_kwargs
+            from qwen_vl_utils import process_vision_info
+        except ImportError:
+            raise ImportError(
+                "qwen_vl_utils 未安装！请运行: pip install qwen-vl-utils\n"
+                "这是 LLaVA-OneVision / Qwen2-VL 模型的必需依赖。"
             )
         
-        if self.device == "cpu":
+        # Load model - use AutoModelForCausalLM + trust_remote_code=True (按照 eval_vqa_hardness 的方式)
+        use_device_map = "auto" if self.device == "cuda" else None
+        
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self.model_path,
+            torch_dtype="auto",  # 使用 "auto" 让 transformers 自动选择
+            device_map=use_device_map,
+            trust_remote_code=True  # 必须添加
+        )
+        
+        # 如果未使用device_map，手动移动到指定设备
+        if use_device_map is None and self.device != "cpu":
             self.model = self.model.to(self.device)
         
         self.model.eval()
+        
+        # Load processor - use AutoProcessor + trust_remote_code=True + max_pixels/min_pixels
+        max_pixels = 3240000
+        min_pixels = 200704
+        self.processor = AutoProcessor.from_pretrained(
+            self.model_path,
+            trust_remote_code=True,  # 必须添加
+            max_pixels=max_pixels,   # 必须添加
+            min_pixels=min_pixels    # 必须添加
+        )
+        
+        # 保存 qwen_vl_utils 的引用供后续使用
+        self.process_vision_info = process_vision_info
+        
         self._model_loaded = True
         
         if os.getenv("VERBOSE", "false").lower() == "true":
@@ -249,6 +230,8 @@ class AsyncLLaVAClient:
         """
         Generate response from model (synchronous, runs in thread).
         
+        使用 qwen_vl_utils 的方式（按照 eval_vqa_hardness/vqa_evaluator.py 的实现）。
+        
         Args:
             text: Input text prompt
             image: PIL Image object
@@ -262,63 +245,102 @@ class AsyncLLaVAClient:
         if not self._model_loaded:
             self._load_model()
         
-        # Prepare prompt
-        # LLaVA models typically use a chat template
-        # Format: "USER: <image>\n{text}\nASSISTANT:"
-        prompt = f"USER: <image>\n{text}\nASSISTANT:"
-        
-        # Process inputs
-        inputs = self.processor(
-            text=prompt,
-            images=image,
-            return_tensors="pt"
-        ).to(self.device)
-        
-        # Generate
-        with torch.no_grad():
-            # Adjust generation parameters based on response format
-            generation_kwargs = {
-                "max_new_tokens": max_tokens,
-                "temperature": temperature if temperature > 0 else 1.0,
-                "do_sample": temperature > 0,
-            }
+        # 使用 qwen_vl_utils 的方式（按照 eval_vqa_hardness）
+        temp_image_path = None
+        try:
+            # 步骤1: 保存图片为临时文件（qwen_vl_utils 需要文件路径或 URL）
+            temp_file = NamedTemporaryFile(delete=False, suffix='.jpg')
+            temp_image_path = temp_file.name
+            image.save(temp_image_path, 'JPEG')
+            temp_file.close()
             
-            # If JSON format requested, add instruction to prompt
-            if response_format and response_format.get("type") == "json_object":
-                # Modify prompt to request JSON output
-                json_prompt = f"{prompt}\nPlease respond in valid JSON format only."
-                inputs = self.processor(
-                    text=json_prompt,
-                    images=image,
-                    return_tensors="pt"
-                ).to(self.device)
+            # 确保路径格式正确（添加 file:// 前缀，按照 vlmevalkit 的 ensure_image_url）
+            if not temp_image_path.startswith(('http://', 'https://', 'file://', 'data:image')):
+                image_url = f"file://{temp_image_path}"
+            else:
+                image_url = temp_image_path
             
-            outputs = self.model.generate(
-                **inputs,
-                **generation_kwargs
+            # 步骤2: 构建消息（完全按照 vlmevalkit LLaVA_OneVision_1_5.generate_inner 的格式）
+            content_list = [
+                {"type": "image", "image": image_url},
+                {"type": "text", "text": text}
+            ]
+            messages = [
+                {"role": "user", "content": content_list}
+            ]
+            
+            # 步骤3: 使用 processor.apply_chat_template（完全按照 vlmevalkit）
+            text_prompt = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
             )
+            
+            # 如果 JSON 格式请求，修改 prompt
+            if response_format and response_format.get("type") == "json_object":
+                # 在消息中添加 JSON 格式要求
+                content_list = [
+                    {"type": "image", "image": image_url},
+                    {"type": "text", "text": f"{text}\nPlease respond in valid JSON format only."}
+                ]
+                messages = [{"role": "user", "content": content_list}]
+                text_prompt = self.processor.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+            
+            # 步骤4: 使用 qwen_vl_utils.process_vision_info 处理视觉信息（完全按照 vlmevalkit）
+            image_inputs, video_inputs = self.process_vision_info(messages)
+            
+            # 步骤5: 调用 processor（完全按照 vlmevalkit）
+            inputs = self.processor(
+                text=[text_prompt],
+                images=image_inputs,
+                videos=video_inputs,
+                padding=True,
+                return_tensors="pt",
+            ).to(self.device)
+            
+            # 步骤6: 生成答案（完全按照 vlmevalkit）
+            generate_kwargs = {
+                "max_new_tokens": max_tokens,
+            }
+            # 添加 temperature 支持（如果 > 0）
+            if temperature > 0:
+                generate_kwargs["temperature"] = temperature
+                generate_kwargs["do_sample"] = True
+            
+            with torch.no_grad():
+                generated_ids = self.model.generate(**inputs, **generate_kwargs)
+            
+            # 步骤7: Trim input_ids（只保留新生成的部分，完全按照 vlmevalkit）
+            generated_ids_trimmed = [
+                out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+            ]
+            
+            # 步骤8: 解码（完全按照 vlmevalkit）
+            output_text = self.processor.batch_decode(
+                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
+            response = output_text[0]
+            
+            # 如果 JSON 格式请求，验证并提取 JSON
+            if response_format and response_format.get("type") == "json_object":
+                # Try to extract JSON object from response
+                json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+                if json_match:
+                    response = json_match.group(0)
+                # Validate JSON
+                try:
+                    json.loads(response)  # Validate
+                except json.JSONDecodeError:
+                    # If not valid JSON, wrap the response in a JSON object
+                    response = json.dumps({"response": response})
         
-        # Decode output
-        generated_text = self.processor.decode(outputs[0], skip_special_tokens=True)
-        
-        # Extract assistant response (everything after "ASSISTANT:")
-        if "ASSISTANT:" in generated_text:
-            response = generated_text.split("ASSISTANT:")[-1].strip()
-        else:
-            response = generated_text.strip()
-        
-        # If JSON format requested, try to extract JSON from response
-        if response_format and response_format.get("type") == "json_object":
-            # Try to extract JSON object from response
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
-            if json_match:
-                response = json_match.group(0)
-            # Validate JSON
-            try:
-                json.loads(response)  # Validate
-            except json.JSONDecodeError:
-                # If not valid JSON, wrap the response in a JSON object
-                response = json.dumps({"response": response})
+        finally:
+            # 清理临时文件
+            if temp_image_path and os.path.exists(temp_image_path):
+                try:
+                    os.unlink(temp_image_path)
+                except:
+                    pass
         
         return response
     
