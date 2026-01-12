@@ -116,6 +116,10 @@ class ImageLoader:
         """
         Load records from a single parquet file.
         
+        Supports multiple data formats:
+        - OpenImages format: 'jpg' column (binary), 'conversations' column
+        - Standard format: 'image_path', 'image_bytes', 'image_base64', etc.
+        
         Args:
             parquet_file: Path to parquet file
             
@@ -128,11 +132,23 @@ class ImageLoader:
             df = table.to_pandas()
             
             records = []
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 record = {}
                 
-                # Try to extract image path (common column names)
-                if 'image_path' in df.columns:
+                # Try to extract image data in priority order
+                # 1. Check for 'jpg' column (OpenImages format - binary data)
+                if 'jpg' in df.columns:
+                    jpg_data = row['jpg']
+                    # Handle binary data
+                    if isinstance(jpg_data, bytes):
+                        record['image_bytes'] = jpg_data
+                    elif hasattr(jpg_data, 'as_py'):  # PyArrow binary type
+                        record['image_bytes'] = jpg_data.as_py()
+                    else:
+                        record['image_bytes'] = bytes(jpg_data)
+                
+                # 2. Try to extract image path (common column names)
+                elif 'image_path' in df.columns:
                     record['image_path'] = row['image_path']
                 elif 'path' in df.columns:
                     record['image_path'] = row['path']
@@ -140,16 +156,14 @@ class ImageLoader:
                     record['image_path'] = row['file_path']
                 elif 'image_url' in df.columns:
                     record['image_path'] = row['image_url']
-                # If no path column, check for base64
-                elif 'image_bytes' in df.columns or 'image_base64' in df.columns:
-                    # Will handle in next block
-                    pass
                 
-                # Try to extract image bytes/base64
-                if 'image_bytes' in df.columns:
+                # 3. Try to extract image bytes/base64 (standard formats)
+                elif 'image_bytes' in df.columns:
                     record['image_bytes'] = row['image_bytes']
                 elif 'image_base64' in df.columns:
-                    record['image_bytes'] = row['image_base64']  # Store as image_bytes for consistency
+                    image_data = row['image_base64']
+                    # Store as image_bytes for consistency (will decode in load())
+                    record['image_bytes'] = image_data
                 
                 # Must have either image_path or image_bytes
                 if 'image_path' not in record and 'image_bytes' not in record:
@@ -163,14 +177,15 @@ class ImageLoader:
                 elif 'image_path' in record:
                     # Use path stem as ID
                     record['image_id'] = Path(record['image_path']).stem
-                elif 'image_bytes' in record:
-                    # Generate ID based on index
-                    record['image_id'] = f"image_{len(records)}"
+                else:
+                    # Generate ID based on file name and index
+                    file_stem = parquet_file.stem
+                    record['image_id'] = f"{file_stem}_{idx}"
                 
-                # Store all other columns as metadata
+                # Store all other columns as metadata (including conversations, etc.)
                 for col in df.columns:
                     if col not in ['image_path', 'path', 'file_path', 'image_url', 
-                                 'image_id', 'id', 'image_bytes', 'image_base64']:
+                                 'image_id', 'id', 'image_bytes', 'image_base64', 'jpg']:
                         record[col] = row[col]
                 
                 records.append(record)
@@ -179,6 +194,8 @@ class ImageLoader:
             
         except Exception as e:
             print(f"Warning: Error reading {parquet_file}: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def _load_parquet_files(self, force_reload: bool = False) -> List[dict]:
@@ -385,6 +402,34 @@ class ImageLoader:
         # Fall back to extracting from path
         path = Path(image_path_str)
         return path.stem
+    
+    def get_image_metadata(self, image_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
+        """
+        Get metadata for an image (excluding image data fields).
+        
+        Args:
+            image_path: Path to the image file or "<bytes:image_id>" format
+            
+        Returns:
+            Dictionary containing metadata (e.g., conversations) or None if not found
+        """
+        image_path_str = str(image_path)
+        image_id = self.get_image_id(image_path)
+        
+        # Find the record with this image_id
+        if self._image_metadata:
+            for record in self._image_metadata:
+                if record.get('image_id') == image_id:
+                    # Return metadata excluding image data fields
+                    metadata = {}
+                    exclude_fields = {'image_path', 'path', 'file_path', 'image_url', 
+                                    'image_bytes', 'image_base64', 'jpg', 'image_id', 'id'}
+                    for key, value in record.items():
+                        if key not in exclude_fields:
+                            metadata[key] = value
+                    return metadata if metadata else None
+        
+        return None
     
     def get_all_image_paths(self) -> List[str]:
         """

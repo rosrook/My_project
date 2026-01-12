@@ -35,7 +35,8 @@ class ProbingFactorPipeline:
         failure_aggregator: FailureAggregator,
         filtering_factor_mapper: FilteringFactorMapper,
         data_saver: DataSaver,
-        failure_reason_matcher: Optional[Any] = None
+        failure_reason_matcher: Optional[Any] = None,
+        include_source_metadata: bool = False
     ):
         """
         Initialize pipeline with all required modules.
@@ -49,6 +50,7 @@ class ProbingFactorPipeline:
             filtering_factor_mapper: FilteringFactorMapper instance
             data_saver: DataSaver instance
             failure_reason_matcher: FailureReasonMatcher instance (optional, auto-created if not provided)
+            include_source_metadata: If True, include source metadata (e.g., conversations) in results (for reference only)
         """
         self.image_loader = image_loader
         self.claim_generator = claim_generator
@@ -57,6 +59,7 @@ class ProbingFactorPipeline:
         self.failure_aggregator = failure_aggregator
         self.filtering_factor_mapper = filtering_factor_mapper
         self.data_saver = data_saver
+        self.include_source_metadata = include_source_metadata
         
         # Initialize FailureReasonMatcher if not provided
         if failure_reason_matcher is None and HAS_FAILURE_MATCHER:
@@ -155,7 +158,8 @@ class ProbingFactorPipeline:
                 "completions": List[Dict],  # Baseline completions (completed_claim, explanation, is_related)
                 "verifications": List[Dict],  # Enhanced verifications with failure_id, failure_category, suggested_filtering_factors
                 "aggregated_failures": Dict,  # Aggregated failure statistics
-                "suggested_filtering_factors": List[str]  # All unique filtering factors for this image (from failed claims)
+                "suggested_filtering_factors": List[str],  # All unique filtering factors for this image (from failed claims)
+                "source_metadata": Dict (optional)  # Source metadata (e.g., conversations) if include_source_metadata=True
             }
         """
         # Step 1: Load image
@@ -275,6 +279,12 @@ class ProbingFactorPipeline:
             "aggregated_failures": aggregated_with_factors,
             "suggested_filtering_factors": image_filtering_factors  # All unique filtering factors for this image (from failed claims)
         }
+        
+        # Optionally include source metadata (e.g., conversations) for reference
+        if self.include_source_metadata:
+            source_metadata = self.image_loader.get_image_metadata(image_path)
+            if source_metadata:
+                result["source_metadata"] = source_metadata  # For reference only, not used in processing
         
         return result
     

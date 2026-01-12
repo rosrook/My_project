@@ -56,7 +56,8 @@ async def run_pipeline(
     claim_template_config: str = "configs/claim_template.example_v1_1.json",
     use_local_baseline: bool = False,
     random_seed: int = 42,
-    parquet_sample_size: Optional[int] = None
+    parquet_sample_size: Optional[int] = None,
+    include_source_metadata: bool = False
 ):
     """
     运行完整的 pipeline。
@@ -83,6 +84,7 @@ async def run_pipeline(
     print(f"  Judge model: {judge_model_name}")
     print(f"  Claim template: {claim_template_config}")
     print(f"  Random seed: {random_seed}")
+    print(f"  Include source metadata: {include_source_metadata}")
     print()
     
     # 1. 初始化 ImageLoader（从 parquet 文件加载）
@@ -172,9 +174,12 @@ async def run_pipeline(
         judge_model=judge_model,
         failure_aggregator=failure_aggregator,
         filtering_factor_mapper=filtering_factor_mapper,
-        data_saver=data_saver
+        data_saver=data_saver,
+        include_source_metadata=include_source_metadata
     )
     print("  ✓ Pipeline created")
+    if include_source_metadata:
+        print("  ✓ Source metadata (e.g., conversations) will be included in results")
     
     # 7. 运行 Pipeline
     print("\n" + "=" * 80)
@@ -308,6 +313,12 @@ def main():
         help="Random seed for sampling"
     )
     
+    parser.add_argument(
+        "--include_source_metadata",
+        action="store_true",
+        help="Include source metadata (e.g., conversations) in results (for reference only)"
+    )
+    
     args = parser.parse_args()
     
     # 验证参数
@@ -324,7 +335,8 @@ def main():
         claim_template_config=args.claim_template_config,
         use_local_baseline=args.use_local_baseline,
         random_seed=args.random_seed,
-        parquet_sample_size=args.parquet_sample_size
+        parquet_sample_size=args.parquet_sample_size,
+        include_source_metadata=args.include_source_metadata
     ))
 
 
