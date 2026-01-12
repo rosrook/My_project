@@ -117,8 +117,10 @@ class ImageLoader:
         Load records from a single parquet file.
         
         Supports multiple data formats:
-        - OpenImages format: 'jpg' column (binary), 'conversations' column
+        - OpenImages format: 'jpg' column (binary), 'conversations' column (list<struct>)
         - Standard format: 'image_path', 'image_bytes', 'image_base64', etc.
+        
+        Uses PyArrow directly to handle complex types (binary, list, struct) that pandas cannot convert.
         
         Args:
             parquet_file: Path to parquet file
@@ -127,66 +129,89 @@ class ImageLoader:
             List of record dictionaries
         """
         try:
-            # Read parquet file
-            table = pq.read_table(parquet_file)
-            df = table.to_pandas()
+            # Read parquet file using PyArrow (avoid pandas conversion for complex types)
+            table = pq.read_table(parquet_file, use_threads=False)
+            
+            if table.num_rows == 0:
+                return []
             
             records = []
-            for idx, row in df.iterrows():
+            file_stem = parquet_file.stem
+            
+            # Process row by row using PyArrow arrays (avoid pandas conversion issues)
+            for row_idx in range(table.num_rows):
                 record = {}
                 
-                # Try to extract image data in priority order
-                # 1. Check for 'jpg' column (OpenImages format - binary data)
-                if 'jpg' in df.columns:
-                    jpg_data = row['jpg']
-                    # Handle binary data
-                    if isinstance(jpg_data, bytes):
-                        record['image_bytes'] = jpg_data
-                    elif hasattr(jpg_data, 'as_py'):  # PyArrow binary type
-                        record['image_bytes'] = jpg_data.as_py()
+                # Process each column
+                for col_idx, col_name in enumerate(table.column_names):
+                    col = table.column(col_idx)
+                    
+                    # Get the value for this row
+                    try:
+                        value = col[row_idx]
+                        
+                        # Handle binary type (jpg column)
+                        if col_name == 'jpg':
+                            if isinstance(value, bytes):
+                                record['image_bytes'] = value
+                            elif hasattr(value, 'as_py'):
+                                # PyArrow binary type
+                                record['image_bytes'] = value.as_py()
+                            elif value is not None:
+                                # Convert to bytes
+                                record['image_bytes'] = bytes(value)
+                            # Note: image_bytes will be set above, continue to next column
+                            continue
+                        
+                        # Handle list/struct types (conversations column) - convert to Python native
+                        # Check if column type is list or struct using PyArrow type checking
+                        col_type = col.type
+                        is_list_type = str(col_type).startswith('list')
+                        is_struct_type = str(col_type).startswith('struct')
+                        
+                        if is_list_type or is_struct_type:
+                            if hasattr(value, 'as_py'):
+                                record[col_name] = value.as_py()
+                            elif value is not None:
+                                # Try to convert nested structures
+                                record[col_name] = self._convert_arrow_value(value)
+                            else:
+                                record[col_name] = None
+                        
+                        # Handle other types - try to convert to Python native
+                        elif value is not None:
+                            if hasattr(value, 'as_py'):
+                                record[col_name] = value.as_py()
+                            else:
+                                record[col_name] = value
+                        else:
+                            record[col_name] = None
+                            
+                    except Exception as e:
+                        # Skip problematic values
+                        record[col_name] = None
+                
+                # Must have image data (jpg column provides image_bytes)
+                if 'image_bytes' not in record:
+                    # Try alternative image sources
+                    if 'image_path' in record and record['image_path']:
+                        pass  # Has image_path, OK
+                    elif 'path' in record and record['path']:
+                        record['image_path'] = record['path']
+                    elif 'file_path' in record and record['file_path']:
+                        record['image_path'] = record['file_path']
+                    elif 'image_url' in record and record['image_url']:
+                        record['image_path'] = record['image_url']
                     else:
-                        record['image_bytes'] = bytes(jpg_data)
+                        # No image data found, skip this record
+                        continue
                 
-                # 2. Try to extract image path (common column names)
-                elif 'image_path' in df.columns:
-                    record['image_path'] = row['image_path']
-                elif 'path' in df.columns:
-                    record['image_path'] = row['path']
-                elif 'file_path' in df.columns:
-                    record['image_path'] = row['file_path']
-                elif 'image_url' in df.columns:
-                    record['image_path'] = row['image_url']
-                
-                # 3. Try to extract image bytes/base64 (standard formats)
-                elif 'image_bytes' in df.columns:
-                    record['image_bytes'] = row['image_bytes']
-                elif 'image_base64' in df.columns:
-                    image_data = row['image_base64']
-                    # Store as image_bytes for consistency (will decode in load())
-                    record['image_bytes'] = image_data
-                
-                # Must have either image_path or image_bytes
-                if 'image_path' not in record and 'image_bytes' not in record:
-                    continue  # Skip records without image data
-                
-                # Try to extract image ID
-                if 'image_id' in df.columns:
-                    record['image_id'] = str(row['image_id'])
-                elif 'id' in df.columns:
-                    record['image_id'] = str(row['id'])
-                elif 'image_path' in record:
-                    # Use path stem as ID
-                    record['image_id'] = Path(record['image_path']).stem
-                else:
-                    # Generate ID based on file name and index
-                    file_stem = parquet_file.stem
-                    record['image_id'] = f"{file_stem}_{idx}"
-                
-                # Store all other columns as metadata (including conversations, etc.)
-                for col in df.columns:
-                    if col not in ['image_path', 'path', 'file_path', 'image_url', 
-                                 'image_id', 'id', 'image_bytes', 'image_base64', 'jpg']:
-                        record[col] = row[col]
+                # Generate image ID if not present
+                if 'image_id' not in record or not record['image_id']:
+                    if 'image_path' in record and record['image_path']:
+                        record['image_id'] = Path(record['image_path']).stem
+                    else:
+                        record['image_id'] = f"{file_stem}_{row_idx}"
                 
                 records.append(record)
             
@@ -197,6 +222,36 @@ class ImageLoader:
             import traceback
             traceback.print_exc()
             return []
+    
+    def _convert_arrow_value(self, value):
+        """
+        Convert PyArrow value to Python native type (recursive for nested structures).
+        
+        Args:
+            value: PyArrow value (can be nested)
+            
+        Returns:
+            Python native value
+        """
+        import pyarrow as pa
+        
+        if value is None:
+            return None
+        
+        # Use as_py() if available (handles most conversions)
+        if hasattr(value, 'as_py'):
+            return value.as_py()
+        
+        # Handle list types
+        if isinstance(value, (list, pa.lib.ListArray)):
+            return [self._convert_arrow_value(item) for item in value]
+        
+        # Handle dict/struct types
+        if isinstance(value, dict):
+            return {k: self._convert_arrow_value(v) for k, v in value.items()}
+        
+        # Fallback: return as-is
+        return value
     
     def _load_parquet_files(self, force_reload: bool = False) -> List[dict]:
         """
