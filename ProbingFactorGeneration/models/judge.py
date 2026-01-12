@@ -12,6 +12,7 @@ from PIL import Image
 import asyncio
 import json
 import re
+import os
 
 try:
     from ProbingFactorGeneration.config import FailureTaxonomy, MODEL_CONFIG
@@ -61,6 +62,11 @@ class JudgeModel:
         self.request_delay = request_delay or MODEL_CONFIG.get("REQUEST_DELAY", 0.1)
         self.use_lb_client = use_lb_client if use_lb_client is not None else MODEL_CONFIG.get("USE_LB_CLIENT", True)
         
+        # Store service_name, env, api_key for LBOpenAIAsyncClient
+        self.service_name = MODEL_CONFIG.get("SERVICE_NAME") or os.getenv("SERVICE_NAME")
+        self.env = MODEL_CONFIG.get("ENV", "prod") or os.getenv("ENV", "prod")
+        self.api_key = MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY", "1")
+        
         # Model parameters
         self.max_tokens = self.model_config.get("max_tokens", MODEL_CONFIG.get("MAX_TOKENS", 1000))
         self.temperature = self.model_config.get("temperature", MODEL_CONFIG.get("TEMPERATURE", 0.3))
@@ -85,12 +91,16 @@ class JudgeModel:
             )
         
         if self._async_client is None:
+            # Pass service_name, env, api_key for LBOpenAIAsyncClient
             self._async_client = AsyncGeminiClient(
                 model_name=self.model_name,
                 gpu_id=self.gpu_id,
                 max_concurrent=self.max_concurrent,
                 request_delay=self.request_delay,
-                use_lb_client=self.use_lb_client
+                use_lb_client=self.use_lb_client,
+                service_name=self.service_name,
+                env=self.env,
+                api_key=self.api_key
             )
             await self._async_client.__aenter__()
         
