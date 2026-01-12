@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Union, Optional
 from pathlib import Path
 import json
 from PIL import Image
-from ...config import ContentType
+from ProbingFactorGeneration.config import ContentType
 
 
 class PredefinedClaimGenerator:

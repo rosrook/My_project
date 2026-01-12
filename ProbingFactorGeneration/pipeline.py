@@ -7,14 +7,14 @@ from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 from PIL import Image
 
-from core import ImageLoader, ClaimGenerator, FailureAggregator, FilteringFactorMapper
-from core.generators.template_claim_generator import TemplateClaimGenerator
-from models import BaselineModel, JudgeModel
-from io import DataSaver
+from ProbingFactorGeneration.core import ImageLoader, ClaimGenerator, FailureAggregator, FilteringFactorMapper
+from ProbingFactorGeneration.core.generators.template_claim_generator import TemplateClaimGenerator
+from ProbingFactorGeneration.models import BaselineModel, JudgeModel
+from ProbingFactorGeneration.io import DataSaver
 import asyncio
 
 try:
-    from core.mappers.failure_reason_matcher import FailureReasonMatcher
+    from ProbingFactorGeneration.core.mappers.failure_reason_matcher import FailureReasonMatcher
     HAS_FAILURE_MATCHER = True
 except ImportError:
     HAS_FAILURE_MATCHER = False

@@ -31,12 +31,8 @@ except ImportError:
 
 # Import framework config
 try:
-    from ..config import MODEL_CONFIG
+    from ProbingFactorGeneration.config import MODEL_CONFIG
 except ImportError:
-    # Fallback: try absolute import
-    try:
-        from ProbingFactorGeneration.config import MODEL_CONFIG
-    except ImportError:
         # Minimal fallback config
         MODEL_CONFIG = {
             "MODEL_NAME": None,

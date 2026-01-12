@@ -60,7 +60,7 @@ import io
 import json
 
 try:
-    from ...utils.async_client import AsyncGeminiClient
+    from ProbingFactorGeneration.utils.async_client import AsyncGeminiClient
 except ImportError:
     # Fallback: Define a placeholder if utils.async_client is not available
     AsyncGeminiClient = None
@@ -69,11 +69,11 @@ except ImportError:
 
 # Try to import AsyncLLaVAClient for local models
 try:
-    from ...utils.async_llava_client import AsyncLLaVAClient
+    from ProbingFactorGeneration.utils.async_llava_client import AsyncLLaVAClient
 except ImportError:
     AsyncLLaVAClient = None
 
-from ...config import MODEL_CONFIG
+from ProbingFactorGeneration.config import MODEL_CONFIG
 
 
 class BaselineModel:

@@ -4,7 +4,7 @@ ClaimGenerator module: Generate probing claims from images.
 
 from typing import List, Dict, Any, Union
 from PIL import Image
-from ...config import ContentType
+from ProbingFactorGeneration.config import ContentType
 
 
 class ClaimGenerator:

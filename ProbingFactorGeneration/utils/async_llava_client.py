@@ -38,11 +38,8 @@ except ImportError:
 
 # Import framework config
 try:
-    from ..config import MODEL_CONFIG
+    from ProbingFactorGeneration.config import MODEL_CONFIG
 except ImportError:
-    try:
-        from ProbingFactorGeneration.config import MODEL_CONFIG
-    except ImportError:
         MODEL_CONFIG = {
             "MODEL_NAME": None,
             "MAX_CONCURRENT": 1,  # Local models typically need lower concurrency

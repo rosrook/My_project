@@ -3,7 +3,16 @@ FilteringFactorMapper module: Map failure reasons to filtering factors.
 """
 
 from typing import List, Dict, Any, Set
-from ...config import get_filtering_factor, get_all_filtering_factors
+
+try:
+    from ProbingFactorGeneration.config import get_filtering_factor, get_all_filtering_factors
+except ImportError:
+    # Fallback functions if config doesn't have these
+    def get_filtering_factor(failure_reason: str) -> str:
+        return failure_reason
+    
+    def get_all_filtering_factors() -> List[str]:
+        return []
 
 
 class FilteringFactorMapper:

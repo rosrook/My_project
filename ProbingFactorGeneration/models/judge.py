@@ -12,16 +12,20 @@ from PIL import Image
 import asyncio
 import json
 import re
-from ..config import FailureTaxonomy
 
 try:
-    from ...utils.async_client import AsyncGeminiClient
+    from ProbingFactorGeneration.config import FailureTaxonomy, MODEL_CONFIG
+except ImportError:
+    # Fallback if config doesn't have FailureTaxonomy
+    FailureTaxonomy = None
+    from ProbingFactorGeneration.config import MODEL_CONFIG
+
+try:
+    from ProbingFactorGeneration.utils.async_client import AsyncGeminiClient
 except ImportError:
     AsyncGeminiClient = None
     print("Warning: utils.async_client.AsyncGeminiClient not found. "
           "Please implement AsyncGeminiClient or install the required package.")
-
-from ..config import MODEL_CONFIG
 
 
 class JudgeModel:
