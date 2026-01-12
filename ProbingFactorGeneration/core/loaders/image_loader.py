@@ -2,9 +2,10 @@
 ImageLoader module: Load images and batches for processing.
 
 Supports loading from parquet files and controlling sampling size.
+Optimized for memory efficiency with lazy loading and selective file reading.
 """
 
-from typing import List, Union, Any, Optional
+from typing import List, Union, Any, Optional, Set, Dict
 from pathlib import Path
 from PIL import Image
 import random
@@ -27,7 +28,15 @@ class ImageLoader:
     Supports:
     - Loading from parquet files (OpenImages dataset format)
     - Controlling sampling size
-    - Single image loading and batch processing
+    - Lazy loading for memory efficiency
+    - Random sampling of parquet files before reading
+    - Handling both image paths and base64 encoded images
+    
+    Memory optimization:
+    - Only reads parquet files when needed
+    - Supports sampling parquet files before loading
+    - Lazy loading of image paths (not actual images)
+    - Images are loaded only when load() is called
     """
     
     def __init__(
@@ -36,7 +45,9 @@ class ImageLoader:
         batch_size: int = 1,
         parquet_dir: Union[str, Path] = None,
         sample_size: Optional[int] = None,
-        random_seed: Optional[int] = None
+        parquet_sample_size: Optional[int] = None,
+        random_seed: Optional[int] = None,
+        lazy_load: bool = True
     ):
         """
         Initialize ImageLoader.
@@ -44,30 +55,36 @@ class ImageLoader:
         Args:
             image_dir: Directory containing images (for direct image loading)
             batch_size: Default batch size for batch loading
-            parquet_dir: Directory containing parquet files (e.g., /mnt/tidal-alsh01/dataset/.../train/)
+            parquet_dir: Directory containing parquet files (e.g., /mnt/tidal-alsh01/.../train/)
             sample_size: Number of images to sample from parquet files (None = use all)
+            parquet_sample_size: Number of parquet files to randomly sample before reading (None = use all)
             random_seed: Random seed for reproducible sampling
+            lazy_load: If True, only load parquet files when needed (memory efficient)
         """
         self.image_dir = Path(image_dir) if image_dir else None
         self.parquet_dir = Path(parquet_dir) if parquet_dir else None
         self.batch_size = batch_size
         self.sample_size = sample_size
+        self.parquet_sample_size = parquet_sample_size
         self.random_seed = random_seed
+        self.lazy_load = lazy_load
         
-        # Cache for loaded image paths from parquet files
+        # Cache for loaded data
         self._image_paths: Optional[List[str]] = None
         self._image_metadata: Optional[List[dict]] = None
+        self._parquet_files: Optional[List[Path]] = None
+        self._loaded_parquet_files: Set[Path] = set()  # Track which files have been loaded
         
         # Set random seed if provided
         if random_seed is not None:
             random.seed(random_seed)
     
-    def _load_parquet_files(self) -> List[dict]:
+    def _discover_parquet_files(self) -> List[Path]:
         """
-        Load image paths and metadata from all parquet files in parquet_dir.
+        Discover all parquet files in parquet_dir.
         
         Returns:
-            List of dictionaries containing image metadata (path, id, etc.)
+            List of parquet file paths
         """
         if not self.parquet_dir:
             return []
@@ -75,107 +92,183 @@ class ImageLoader:
         if not self.parquet_dir.exists():
             raise FileNotFoundError(f"Parquet directory not found: {self.parquet_dir}")
         
+        parquet_files = list(self.parquet_dir.glob("*.parquet"))
+        if not parquet_files:
+            raise FileNotFoundError(f"No parquet files found in {self.parquet_dir}")
+        
+        return parquet_files
+    
+    def _get_parquet_files(self) -> List[Path]:
+        """Get parquet files (with optional sampling)."""
+        if self._parquet_files is None:
+            all_files = self._discover_parquet_files()
+            
+            # Sample parquet files if requested
+            if self.parquet_sample_size is not None and self.parquet_sample_size < len(all_files):
+                self._parquet_files = random.sample(all_files, self.parquet_sample_size)
+                print(f"Sampled {self.parquet_sample_size} parquet files from {len(all_files)} total files")
+            else:
+                self._parquet_files = all_files
+        
+        return self._parquet_files
+    
+    def _load_single_parquet_file(self, parquet_file: Path) -> List[dict]:
+        """
+        Load records from a single parquet file.
+        
+        Args:
+            parquet_file: Path to parquet file
+            
+        Returns:
+            List of record dictionaries
+        """
+        try:
+            # Read parquet file
+            table = pq.read_table(parquet_file)
+            df = table.to_pandas()
+            
+            records = []
+            for _, row in df.iterrows():
+                record = {}
+                
+                # Try to extract image path (common column names)
+                if 'image_path' in df.columns:
+                    record['image_path'] = row['image_path']
+                elif 'path' in df.columns:
+                    record['image_path'] = row['path']
+                elif 'file_path' in df.columns:
+                    record['image_path'] = row['file_path']
+                elif 'image_url' in df.columns:
+                    record['image_path'] = row['image_url']
+                # If no path column, check for base64
+                elif 'image_bytes' in df.columns or 'image_base64' in df.columns:
+                    # Will handle in next block
+                    pass
+                
+                # Try to extract image bytes/base64
+                if 'image_bytes' in df.columns:
+                    record['image_bytes'] = row['image_bytes']
+                elif 'image_base64' in df.columns:
+                    record['image_bytes'] = row['image_base64']  # Store as image_bytes for consistency
+                
+                # Must have either image_path or image_bytes
+                if 'image_path' not in record and 'image_bytes' not in record:
+                    continue  # Skip records without image data
+                
+                # Try to extract image ID
+                if 'image_id' in df.columns:
+                    record['image_id'] = str(row['image_id'])
+                elif 'id' in df.columns:
+                    record['image_id'] = str(row['id'])
+                elif 'image_path' in record:
+                    # Use path stem as ID
+                    record['image_id'] = Path(record['image_path']).stem
+                elif 'image_bytes' in record:
+                    # Generate ID based on index
+                    record['image_id'] = f"image_{len(records)}"
+                
+                # Store all other columns as metadata
+                for col in df.columns:
+                    if col not in ['image_path', 'path', 'file_path', 'image_url', 
+                                 'image_id', 'id', 'image_bytes', 'image_base64']:
+                        record[col] = row[col]
+                
+                records.append(record)
+            
+            return records
+            
+        except Exception as e:
+            print(f"Warning: Error reading {parquet_file}: {e}")
+            return []
+    
+    def _load_parquet_files(self, force_reload: bool = False) -> List[dict]:
+        """
+        Load image paths and metadata from parquet files.
+        
+        Uses lazy loading: only loads files that haven't been loaded yet.
+        
+        Args:
+            force_reload: If True, reload all files even if already loaded
+            
+        Returns:
+            List of dictionaries containing image metadata (path, id, etc.)
+        """
         if not HAS_PARQUET:
             raise ImportError(
                 "pandas and pyarrow are required for parquet file support. "
                 "Install with: pip install pandas pyarrow"
             )
         
-        # Find all parquet files
-        parquet_files = list(self.parquet_dir.glob("*.parquet"))
+        # Get parquet files to load
+        parquet_files = self._get_parquet_files()
+        
         if not parquet_files:
-            raise FileNotFoundError(f"No parquet files found in {self.parquet_dir}")
+            return []
         
-        print(f"Found {len(parquet_files)} parquet files in {self.parquet_dir}")
+        # Determine which files to load
+        if force_reload:
+            files_to_load = parquet_files
+            all_records = []
+        else:
+            # Only load files that haven't been loaded yet
+            files_to_load = [f for f in parquet_files if f not in self._loaded_parquet_files]
+            # Start with already loaded records
+            all_records = list(self._image_metadata) if self._image_metadata else []
         
-        all_records = []
-        for parquet_file in parquet_files:
-            try:
-                # Read parquet file
-                table = pq.read_table(parquet_file)
-                df = table.to_pandas()
-                
-                # Convert to list of records
-                # Handle different possible column names
-                for _, row in df.iterrows():
-                    record = {}
-                    
-                    # Try to extract image path (common column names)
-                    if 'image_path' in df.columns:
-                        record['image_path'] = row['image_path']
-                    elif 'path' in df.columns:
-                        record['image_path'] = row['path']
-                    elif 'file_path' in df.columns:
-                        record['image_path'] = row['file_path']
-                    else:
-                        # If no path column, skip (or try to extract from image_bytes)
-                        if 'image_bytes' not in df.columns:
-                            continue
-                        record['image_bytes'] = row['image_bytes']
-                    
-                    # Try to extract image ID
-                    if 'image_id' in df.columns:
-                        record['image_id'] = row['image_id']
-                    elif 'id' in df.columns:
-                        record['image_id'] = row['id']
-                    elif 'image_path' in record:
-                        # Use path stem as ID
-                        record['image_id'] = Path(record['image_path']).stem
-                    
-                    # Store image bytes if available
-                    if 'image_bytes' in df.columns:
-                        record['image_bytes'] = row['image_bytes']
-                    
-                    # Store all other columns as metadata
-                    for col in df.columns:
-                        if col not in ['image_path', 'path', 'file_path', 'image_id', 'id', 'image_bytes']:
-                            record[col] = row[col]
-                    
-                    all_records.append(record)
-                    
-            except Exception as e:
-                print(f"Warning: Error reading {parquet_file}: {e}")
-                continue
+        # Load new files
+        for parquet_file in files_to_load:
+            records = self._load_single_parquet_file(parquet_file)
+            all_records.extend(records)
+            self._loaded_parquet_files.add(parquet_file)
         
-        print(f"Loaded {len(all_records)} image records from parquet files")
         return all_records
     
     def get_image_paths(self, force_reload: bool = False) -> List[str]:
         """
         Get list of image paths from parquet files.
         
+        Uses lazy loading for memory efficiency.
+        
         Args:
             force_reload: If True, reload from parquet files even if cached
             
         Returns:
-            List of image paths
+            List of image paths (or placeholder strings for base64 images)
         """
+        # If already loaded and not forcing reload, return cached
         if self._image_paths is not None and not force_reload:
             return self._image_paths
         
-        if not self.parquet_dir:
+        # Load parquet files (lazy, only if needed)
+        records = self._load_parquet_files(force_reload=force_reload)
+        
+        if not records:
+            self._image_paths = []
+            self._image_metadata = []
             return []
         
-        records = self._load_parquet_files()
-        
-        # Extract image paths
+        # Extract image paths/identifiers
         image_paths = []
         for record in records:
             if 'image_path' in record:
                 image_paths.append(record['image_path'])
             elif 'image_bytes' in record:
-                # If only bytes are available, we'll handle it in load()
-                # For now, use a placeholder path
+                # For base64/bytes, use a special format to identify it
                 image_id = record.get('image_id', f"image_{len(image_paths)}")
                 image_paths.append(f"<bytes:{image_id}>")
         
-        # Apply sampling if requested
+        # Apply image-level sampling if requested
         if self.sample_size is not None and self.sample_size < len(image_paths):
-            image_paths = random.sample(image_paths, self.sample_size)
-            print(f"Sampled {self.sample_size} images from {len(records)} total records")
+            # Sample records and corresponding paths together
+            sampled_indices = random.sample(range(len(image_paths)), self.sample_size)
+            image_paths = [image_paths[i] for i in sampled_indices]
+            records = [records[i] for i in sampled_indices]
         
         self._image_paths = image_paths
         self._image_metadata = records
+        
+        if len(image_paths) > 0:
+            print(f"Loaded {len(image_paths)} image records from {len(self._loaded_parquet_files)} parquet file(s)")
         
         return self._image_paths
     
@@ -185,7 +278,7 @@ class ImageLoader:
         
         Supports:
         - Direct file path loading
-        - Loading from image bytes (if path starts with "<bytes:")
+        - Loading from image bytes/base64 (if path starts with "<bytes:")
         - Relative paths relative to image_dir
         
         Args:
@@ -216,8 +309,8 @@ class ImageLoader:
                                 decoded_bytes = base64.b64decode(image_bytes)
                                 image = Image.open(io.BytesIO(decoded_bytes)).convert('RGB')
                                 return image
-                            except Exception:
-                                raise ValueError(f"Could not decode image bytes for {image_id}")
+                            except Exception as e:
+                                raise ValueError(f"Could not decode image bytes for {image_id}: {e}")
             
             raise ValueError(f"Image bytes not found for ID: {image_id}")
         
@@ -298,6 +391,7 @@ class ImageLoader:
         Get all image paths (with sampling applied if sample_size is set).
         
         This is a convenience method that calls get_image_paths().
+        Uses lazy loading - only loads parquet files when needed.
         
         Returns:
             List of image paths
@@ -314,3 +408,16 @@ class ImageLoader:
         self.sample_size = sample_size
         self._image_paths = None  # Clear cache to force reload
         self._image_metadata = None
+    
+    def set_parquet_sample_size(self, parquet_sample_size: Optional[int]):
+        """
+        Update parquet file sample size.
+        
+        Args:
+            parquet_sample_size: Number of parquet files to sample (None = use all)
+        """
+        self.parquet_sample_size = parquet_sample_size
+        self._parquet_files = None  # Clear cache
+        self._image_paths = None
+        self._image_metadata = None
+        self._loaded_parquet_files.clear()

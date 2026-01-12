@@ -23,6 +23,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Add parent directories to path
 # When running from My_project/, we need My_project/ in the path
@@ -54,7 +55,8 @@ async def run_pipeline(
     judge_model_name: str = None,
     claim_template_config: str = "configs/claim_template.example_v1_1.json",
     use_local_baseline: bool = False,
-    random_seed: int = 42
+    random_seed: int = 42,
+    parquet_sample_size: Optional[int] = None
 ):
     """
     运行完整的 pipeline。
@@ -75,6 +77,7 @@ async def run_pipeline(
     print(f"\nConfiguration:")
     print(f"  Parquet directory: {parquet_dir}")
     print(f"  Sample size: {sample_size}")
+    print(f"  Parquet sample size: {parquet_sample_size}")
     print(f"  Output directory: {output_dir}")
     print(f"  Baseline model: {baseline_model_path if use_local_baseline else 'API model'}")
     print(f"  Judge model: {judge_model_name}")
@@ -84,10 +87,19 @@ async def run_pipeline(
     
     # 1. 初始化 ImageLoader（从 parquet 文件加载）
     print("Step 1: Initializing ImageLoader...")
+    
+    # Auto-determine parquet_sample_size if not provided
+    if parquet_sample_size is None and sample_size <= 50:
+        # For small sample sizes, only read a few parquet files
+        parquet_sample_size = min(3, max(1, sample_size // 20 + 1))
+        print(f"  Auto-selecting {parquet_sample_size} parquet files for efficient loading")
+    
     image_loader = ImageLoader(
         parquet_dir=parquet_dir,
         sample_size=sample_size,
-        random_seed=random_seed
+        parquet_sample_size=parquet_sample_size,
+        random_seed=random_seed,
+        lazy_load=True  # Use lazy loading for memory efficiency
     )
     
     # 获取图像路径
@@ -249,6 +261,13 @@ def main():
     )
     
     parser.add_argument(
+        "--parquet_sample_size",
+        type=int,
+        default=None,
+        help="Number of parquet files to randomly sample before reading (None = use all files, recommended: 1-5 for small sample_size)"
+    )
+    
+    parser.add_argument(
         "--output_dir",
         type=str,
         default="./output",
@@ -304,7 +323,8 @@ def main():
         judge_model_name=args.judge_model_name,
         claim_template_config=args.claim_template_config,
         use_local_baseline=args.use_local_baseline,
-        random_seed=args.random_seed
+        random_seed=args.random_seed,
+        parquet_sample_size=args.parquet_sample_size
     ))
 
 
