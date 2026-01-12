@@ -3,7 +3,21 @@ import pyarrow.parquet as pq
 import numpy as np
 from collections import Counter
 
-def explore_parquet(file_path, sample_rows=5, show_stats=True):
+# 设置 pandas 显示选项，避免输出过多
+pd.set_option('display.max_columns', 10)  # 最多显示10列
+pd.set_option('display.max_rows', 20)     # 最多显示20行
+pd.set_option('display.max_colwidth', 50) # 每列最多显示50字符
+pd.set_option('display.width', 120)       # 显示宽度
+pd.set_option('display.max_seq_items', 10) # 序列最多显示10项
+
+def truncate_text(text, max_length=100):
+    """截断长文本"""
+    text_str = str(text)
+    if len(text_str) > max_length:
+        return text_str[:max_length] + "..."
+    return text_str
+
+def explore_parquet(file_path, sample_rows=5, show_stats=True, max_sample_length=100):
     """
     探索 Parquet 文件的内容和结构
     
@@ -11,6 +25,7 @@ def explore_parquet(file_path, sample_rows=5, show_stats=True):
         file_path: Parquet 文件路径
         sample_rows: 显示的样本行数
         show_stats: 是否显示详细统计信息
+        max_sample_length: 样本值的最大显示长度
     """
     
     print("=" * 80)
@@ -36,11 +51,15 @@ def explore_parquet(file_path, sample_rows=5, show_stats=True):
     df = pd.read_parquet(file_path)
     
     print("\n【数据预览】")
-    print(f"\n前 {sample_rows} 行:")
-    print(df.head(sample_rows))
+    print(f"\n前 {sample_rows} 行 (最多显示10列):")
+    # 只显示前10列
+    display_cols = df.columns[:10].tolist()
+    print(df[display_cols].head(sample_rows).to_string())
+    if len(df.columns) > 10:
+        print(f"\n(省略 {len(df.columns) - 10} 列，共 {len(df.columns)} 列)")
     
     print(f"\n后 {sample_rows} 行:")
-    print(df.tail(sample_rows))
+    print(df[display_cols].tail(sample_rows).to_string())
     
     # 4. 每列的详细信息
     print("\n【字段详细分析】")
@@ -77,17 +96,22 @@ def explore_parquet(file_path, sample_rows=5, show_stats=True):
                     value_counts = df[col].value_counts()
                     for val, count in value_counts.items():
                         percentage = count / len(df) * 100
-                        print(f"  {val}: {count:,} ({percentage:.2f}%)")
+                        val_str = truncate_text(val, max_sample_length)
+                        print(f"  {val_str}: {count:,} ({percentage:.2f}%)")
                 else:  # 如果唯一值很多,只显示 Top 10
                     print(f"\nTop 10 最常见的值:")
                     value_counts = df[col].value_counts().head(10)
                     for val, count in value_counts.items():
                         percentage = count / len(df) * 100
-                        print(f"  {val}: {count:,} ({percentage:.2f}%)")
+                        val_str = truncate_text(val, max_sample_length)
+                        print(f"  {val_str}: {count:,} ({percentage:.2f}%)")
             
-            # 样本值
+            # 样本值（截断长文本）
             sample_values = df[col].dropna().head(5).tolist()
-            print(f"\n样本值: {sample_values}")
+            sample_values_str = [truncate_text(v, max_sample_length) for v in sample_values]
+            print(f"\n样本值 (前5个，最多{max_sample_length}字符):")
+            for i, val in enumerate(sample_values_str, 1):
+                print(f"  {i}. {val}")
         
         print("-" * 80)
     
@@ -111,11 +135,18 @@ def explore_parquet(file_path, sample_rows=5, show_stats=True):
 
 # 使用示例
 if __name__ == "__main__":
-    # 替换为你的 Parquet 文件路径
-    file_path = "your_file.parquet"
+    import sys
+    
+    # 从命令行参数获取文件路径
+    if len(sys.argv) > 1:
+        file_path = sys.argv[1]
+    else:
+        file_path = "your_file.parquet"
+        print(f"用法: python explore_parquet.py <parquet_file_path>")
+        print(f"使用默认路径: {file_path}\n")
     
     # 探索文件
-    df = explore_parquet(file_path, sample_rows=5, show_stats=True)
+    df = explore_parquet(file_path, sample_rows=5, show_stats=True, max_sample_length=100)
     
     # 如果需要进一步分析,可以继续使用返回的 DataFrame
     # 例如:
