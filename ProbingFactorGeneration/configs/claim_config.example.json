@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "description": "Example claim configuration file for PredefinedClaimGenerator",
+    "version": "1.0",
+    "created": "2024-01-01"
+  },
+  "global_claims": [
+    {
+      "claim_id": "global_claim_1",
+      "claim_text": "Does this image contain any text?",
+      "content_type": "text",
+      "metadata": {
+        "difficulty": "easy",
+        "category": "text_detection"
+      }
+    },
+    {
+      "claim_id": "global_claim_2",
+      "claim_text": "Is the image clear and well-lit?",
+      "content_type": "attribute",
+      "metadata": {
+        "difficulty": "medium",
+        "category": "image_quality"
+      }
+    },
+    "This is a simple string claim that will be auto-converted"
+  ],
+  "claims_by_image": {
+    "image_001": [
+      {
+        "claim_id": "img001_claim_1",
+        "claim_text": "Does this image show a person?",
+        "content_type": "object",
+        "metadata": {
+          "difficulty": "easy",
+          "focus": "person_detection"
+        }
+      },
+      {
+        "claim_text": "How many objects are in the image?",
+        "content_type": "count"
+      }
+    ],
+    "image_002": [
+      {
+        "claim_text": "What is the dominant color in this image?",
+        "content_type": "attribute"
+      },
+      {
+        "claim_text": "Is there any text visible in the image?",
+        "content_type": "text"
+      }
+    ],
+    "image_003": [
+      "Simple string claim for image_003",
+      {
+        "claim_text": "Describe the spatial relationship between objects",
+        "content_type": "spatial"
+      }
+    ]
+  }
+}

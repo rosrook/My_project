@@ -1,0 +1,27 @@
+# Core dependencies for Probing Factor Generation Framework
+# Install with: pip install -r requirements.txt
+
+# Image processing
+Pillow>=10.0.0
+
+# Data handling
+pyyaml>=6.0
+pandas>=1.5.0
+pyarrow>=10.0.0
+
+# Async support
+aiohttp>=3.8.0  # Required for async HTTP client (if not using LBOpenAIAsyncClient)
+# Note: AsyncGeminiClient is now provided via utils.async_client module
+
+# Optional: for async compatibility (useful when calling sync methods from async context)
+# nest-asyncio>=1.5.0
+
+# Optional: LBOpenAIAsyncClient (if using LB client mode)
+# Install redeuler package if using LBOpenAIAsyncClient mode
+# pip install redeuler  # or install from your package source
+
+# Optional: for future model integration
+# torch>=2.0.0
+# transformers>=4.30.0
+# numpy>=1.24.0
+# pandas>=2.0.0

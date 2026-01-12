@@ -1,0 +1,212 @@
+{
+  "domain": "object_localization",
+  "version": "v1.0",
+  "description": "Claim schemas for probing object localization capabilities with conditional instantiation and verifiable relevance judgment.",
+  "claim_schemas": [
+    {
+      "claim_id": "loc_coarse_region",
+      "name": "Coarse Spatial Localization",
+      "capability": "coarse_object_localization",
+      "claim_template": "The [TARGET_OBJECT] is located in the [COARSE_REGION] of the image.",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "A visually salient object inferred from the image by the baseline model."
+        },
+        "COARSE_REGION": {
+          "type": "categorical",
+          "values": ["top", "bottom", "left", "right", "center"]
+        }
+      },
+      "baseline_instructions": [
+        "Decide whether a visually salient and localizable object exists.",
+        "If yes, choose one such object and instantiate the claim.",
+        "If no, return NOT_RELATED with an explanation."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "left-right confusion",
+        "failure to identify salient object",
+        "foreground-background confusion"
+      ]
+    },
+    {
+      "claim_id": "loc_quadrant",
+      "name": "Quadrant-level Localization",
+      "capability": "fine_spatial_partitioning",
+      "claim_template": "The [TARGET_OBJECT] is located in the [QUADRANT] of the image.",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "A visually identifiable object instance selected by the baseline."
+        },
+        "QUADRANT": {
+          "type": "categorical",
+          "values": ["top-left", "top-right", "bottom-left", "bottom-right"]
+        }
+      },
+      "baseline_instructions": [
+        "Assess whether the image can be meaningfully partitioned into quadrants for localization.",
+        "Instantiate the claim if applicable; otherwise return NOT_RELATED."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "incorrect quadrant boundary reasoning",
+        "small object omission",
+        "overuse of NOT_RELATED"
+      ]
+    },
+    {
+      "claim_id": "loc_relative_object",
+      "name": "Relative Object Localization",
+      "capability": "object_to_object_spatial_reasoning",
+      "claim_template": "The [TARGET_OBJECT] is located [RELATIVE_POSITION] the [REFERENCE_OBJECT].",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "Target object whose location is to be described."
+        },
+        "REFERENCE_OBJECT": {
+          "type": "object",
+          "description": "A distinct reference object used for relative positioning."
+        },
+        "RELATIVE_POSITION": {
+          "type": "categorical",
+          "values": ["left of", "right of", "above", "below", "in front of", "behind"]
+        }
+      },
+      "baseline_instructions": [
+        "Determine whether two distinct objects can be identified.",
+        "If so, instantiate a relative spatial relationship.",
+        "If not, return NOT_RELATED with justification."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "reference object misidentification",
+        "directional relation confusion",
+        "inability to ground relative terms"
+      ]
+    },
+    {
+      "claim_id": "loc_edge_region",
+      "name": "Edge or Boundary Localization",
+      "capability": "non_canonical_region_localization",
+      "claim_template": "The [TARGET_OBJECT] appears in the [IMAGE_REGION_DESCRIPTION] of the image.",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "A visually discernible object selected by the baseline."
+        },
+        "IMAGE_REGION_DESCRIPTION": {
+          "type": "categorical",
+          "values": ["near the edge", "near a corner", "partially outside the frame", "close to the background"]
+        }
+      },
+      "baseline_instructions": [
+        "Judge whether the region description meaningfully applies to the image.",
+        "Instantiate the claim if applicable; otherwise return NOT_RELATED."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "failure to model non-rectangular regions",
+        "edge saliency blindness"
+      ]
+    },
+    {
+      "claim_id": "loc_small_object",
+      "name": "Small Object Localization",
+      "capability": "small_object_detection_and_localization",
+      "claim_template": "A small [TARGET_OBJECT] is visible in the image, and it is located in the [REGION].",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "An object that occupies a relatively small portion of the image."
+        },
+        "REGION": {
+          "type": "categorical",
+          "values": ["top", "bottom", "left", "right", "center", "corner"]
+        }
+      },
+      "baseline_instructions": [
+        "Assess whether any small but localizable object is present.",
+        "If uncertain, explicitly state NOT_RELATED with explanation."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "small object miss",
+        "overconfident NOT_RELATED decision"
+      ]
+    },
+    {
+      "claim_id": "loc_occluded_object",
+      "name": "Occluded Object Localization",
+      "capability": "robust_localization_under_occlusion",
+      "claim_template": "The [TARGET_OBJECT], although partially occluded, is located in the [REGION] of the image.",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "An object whose visible parts are partially obstructed."
+        },
+        "REGION": {
+          "type": "categorical",
+          "values": ["top", "bottom", "left", "right", "center"]
+        }
+      },
+      "baseline_instructions": [
+        "Determine whether partial visual evidence suffices for localization.",
+        "Return NOT_RELATED only if localization is genuinely impossible."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "occlusion sensitivity",
+        "over-reliance on full object visibility"
+      ]
+    },
+    {
+      "claim_id": "loc_absence_region",
+      "name": "Regional Object Absence",
+      "capability": "object_absence_reasoning",
+      "claim_template": "There is no [TARGET_OBJECT] present in the [REGION] of the image.",
+      "slots": {
+        "TARGET_OBJECT": {
+          "type": "object",
+          "description": "A plausible object category inferred by the baseline."
+        },
+        "REGION": {
+          "type": "categorical",
+          "values": ["top-left", "top-right", "bottom-left", "bottom-right"]
+        }
+      },
+      "baseline_instructions": [
+        "Assess whether absence can be confidently determined.",
+        "Differentiate between FALSE and NOT_RELATED."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "absence avoidance",
+        "uncertainty misclassification"
+      ]
+    },
+    {
+      "claim_id": "loc_any_object_region",
+      "name": "Existential Localization",
+      "capability": "generic_spatial_grounding",
+      "claim_template": "At least one clearly localizable object in the image is located in the [REGION].",
+      "slots": {
+        "REGION": {
+          "type": "categorical",
+          "values": ["top", "bottom", "left", "right", "center", "corner"]
+        }
+      },
+      "baseline_instructions": [
+        "Do not rely on object naming to avoid the claim.",
+        "Return NOT_RELATED only if no spatial grounding is possible at all."
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "overuse of NOT_RELATED",
+        "weak spatial grounding"
+      ]
+    }
+  ]
+}

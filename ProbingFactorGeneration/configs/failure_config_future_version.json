@@ -1,0 +1,684 @@
+{
+    "failure_reason_schema_version": "v2.0",
+    "description": "Expanded and factor-aligned failure reasons covering concept grounding, spatial reasoning, scale, absence, robustness, and task applicability. Each claim type from claim_template.example.json has corresponding failure reasons. Filter factors are aligned with tmp_filter_factors.json criteria.",
+    "failure_reasons": [
+      {
+        "failure_id": "FR_BASIC_VISUAL_ENTITY_GROUNDING_FAILURE",
+        "failure_category": "visual_grounding",
+        "failure_name": "Failure to Ground Basic Visual Entities",
+        "description": "The model fails to correctly recognize or describe the main visual entities or structures present in the image. This includes missing entities, incorrectly denying their presence, or producing overly generic descriptions that do not meaningfully refer to identifiable objects, symbols, diagrams, formulas, or scene-level elements.",
+        "suggested_filtering_factors": [
+          "image contains at least one visually identifiable entity or structured visual unit",
+          "entity can be coarsely described without requiring external context or interpretation",
+          "entity boundaries or presence are perceptually distinguishable from the background",
+          "visual content is not purely noise, texture, or uninterpretable patterns",
+          "[optional] entity may be partially occluded but remains recognizable at a coarse level",
+          "[optional] entity may appear under non-ideal lighting or viewpoint conditions",
+          "[optional] multiple entities may be visually similar, introducing mild ambiguity",
+          "[optional] entity may be stylized, schematic, or symbolic rather than photorealistic"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_LEVEL_ABSTRACT_CONCEPT_MISSING",
+        "failure_category": "conceptual_abstraction",
+        "failure_name": "Failure to Extract Single Object-Level Abstract Concept",
+        "description": "The model correctly identifies a single depicted object but fails to infer a stable, non-visual abstract concept or category-level property associated with that object (e.g., biological classification, physical or functional attributes).",
+        "suggested_filtering_factors": [
+          "image depicts a single, clearly identifiable object instance",
+          "object identity can be reliably mapped to a well-defined category or taxonomy",
+          "the image supports inference of non-visual, category-level properties associated with the object class",
+          "abstract properties are conventionally linked to the object category via widely accepted common knowledge",
+          "[optional] the inferred concept does not depend on instance-specific states, situational context, or external textual information"
+        ]
+      },
+      {
+        "failure_id": "FR_MULTI_OBJECT_CONCEPT_ABSTRACTION_FAILURE",
+        "failure_category": "conceptual_abstraction",
+        "failure_name": "Multi-Object Concept Abstraction Failure",
+        "description": "The model correctly recognizes individual depicted entities but fails to infer a higher-level abstract, systemic, or process-oriented concept implied by their structured relationships (e.g., diagrams, cycles, mechanisms).",
+        "suggested_filtering_factors": [
+          "concept emerges from relationships among multiple entities rather than any single object",
+          "requires abstraction from depicted elements to a process-level or system-level concept",
+          "[optional] abstract concept is conventionally encoded in visual diagrams without textual labels",
+          "[optional] the concept is not immediately obvious and requires non-trivial semantic inference",
+          "[optional] presence of structured visual relationships (e.g., arrows, cycles, flows)"
+        ]
+      },
+      {
+        "failure_id": "FR_SALIENCY_MISJUDGMENT",
+        "failure_category": "visual_saliency",
+        "failure_name": "Misaligned Visual Saliency Focus",
+        "description": "The model's description focuses on visually present entities but does not align with commonly perceived visual saliency, resulting in emphasis on secondary or less dominant elements while overlooking more prominent ones.",
+        "suggested_filtering_factors": [
+          "at least one visually salient object",
+          "visually salient object category",
+          "foreground-background distinction"
+        ]
+      },
+      {
+        "failure_id": "FR_SPATIAL_REGION_CONFUSION",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Spatial Region or Partition Confusion",
+        "description": "The model incorrectly assigns an object to a spatial region or misinterprets spatial partitions.",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "distinguishable spatial positions",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_ABSOLUTE_POSITION_ERROR",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Absolute Position Recognition Error",
+        "description": "The model incorrectly identifies or describes the absolute position of objects within the image. This refers to coarse positions such as top, bottom, left, right, or combinations (e.g., top-right) that can be unambiguously perceived without any grid or partition markers.",
+        "suggested_filtering_factors": [
+          "At least one visually salient object suitable as a localization target",
+          "At least one such object has visually identifiable boundaries or distinguishable parts",
+          "At least one such object can be treated as a single coherent entity for localization",
+          "[optional] objects not located in visually ambiguous boundary regions",
+          "[optional] Image contains visually similar objects that may act as distractors",
+          "[optional] Potential target object occupies a relatively small region of the image",
+          "[optional] Potential target object is partially visible (e.g., body parts, silhouette, color patch)",
+          "[optional] Potential target object appears in challenging regions (shadows, background, corners, or partial occlusion)"
+        ]
+      },
+      {
+        "failure_id": "FR_RELATIVE_POSITION_ERROR",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Relative Direction Reasoning Error",
+        "description": "The model incorrectly describes the relative spatial relations between objects, such as left/right or above/below. Errors occur when multiple distinguishable objects are present and the model confuses their positions relative to one another in the scene.",
+        "suggested_filtering_factors": [
+          "Image contains at least two distinguishable objects suitable for relative position comparison",
+          "Objects have clearly identifiable parts or boundaries to allow unambiguous relation judgment",
+          "Objects belong to different semantic types to avoid confusion between similar items",
+          "Relative spatial positions are easily described using directional terms (e.g., left/right, above/below)",
+          "[optional] Objects are close to each other or partially overlapping, increasing difficulty",
+          "[optional] Some objects are partially occluded, in shadows, or near image boundaries",
+          "[optional] Scenes include multiple potential distractor objects that may confuse relative positioning"
+        ]
+      },
+      {
+        "failure_id": "FR_SCALE_PROPORTION_ERROR",
+        "failure_category": "scale_reasoning",
+        "failure_name": "Scale or Proportion Estimation Failure",
+        "description": "The model fails to correctly estimate the relative size or proportion of an object within the image, expressed as a numeric proportion of the image area (e.g., 30%, 1/3), allowing approximate judgments.",
+        "suggested_filtering_factors": [
+          "Image contains at least one visually salient object category that can plausibly serve as a potential target, even if not explicitly specified in the query",
+          "Potential target object is complete or sufficiently recognizable to allow approximate size estimation",
+          "Potential target object boundaries are visually discernible for proportion assessment",
+          "Potential target object category is unambiguous and conceptually clear",
+          "[optional] The object occupies a moderate portion of the image (neither overwhelmingly large nor tiny) to allow meaningful proportion estimation",
+          "[optional] The potential target object may be absent from the image, requiring a zero-proportion judgment",
+          "[optional] The image contains multiple instances of the potential target object or complex arrangements that increase proportion estimation difficulty",
+          "[optional] The potential target object occupies a small or partial region, making size estimation more challenging",
+          "[optional] Object may be partially occluded, in shadow, or near image boundaries",
+          "[optional] Background contains visually similar objects that may act as distractors"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_COUNTING_CONFUSION",
+        "failure_category": "relational_reasoning",
+        "failure_name": "Object Counting Confusion",
+        "description": "The model incorrectly counts object instances in the image.",
+        "potential_fenleiyiju": "Errors may occur due to occlusion, overlap, distractor objects, multiple visually similar subtypes, or zero instances of the target object.",
+        "suggested_filtering_factors": [
+          "Image contains at least one visually identifiable object category that can serve as a potential counting target, even if not explicitly specified",
+          "Target objects are countable as discrete instances with visually discernible boundaries",
+          "[optional] Target objects are partially visible, truncated, or overlap with each other",
+          "[optional] Image contains visually similar distractor objects",
+          "[optional] Target objects appear under unusual poses, rotations, or viewpoints",
+          "[optional] Target objects visually blend with background colors or textures",
+          "[optional] Image contains zero instances of the target object",
+          "[optional] Multiple visually similar object subtypes may need to be jointly counted",
+          "[optional] Object appearance varies due to packaging, surface decoration, or deformation",
+          "[optional] Image exhibits challenging visual conditions such as low light, blur, reflections, or mirrored surfaces"
+        ]
+      },
+      {
+        "failure_id": "FR_ABSENCE_REASONING_FAILURE",
+        "failure_category": "negative_reasoning",
+        "failure_name": "Failure in Object Absence Reasoning",
+        "description": "The model fails to correctly identify or reason about the absence of target objects in visually distinguishable regions of the image. Errors may occur when empty regions are overlooked, occupied regions are misidentified as empty, or the model provides overly vague answers for clearly unoccupied areas.",
+        "suggested_filtering_factors": [
+          "Image contains at least one visually salient object category suitable for absence reasoning, even if not explicitly specified",
+          "Potential target objects have visually clear and contiguous boundaries",
+          "Potential target objects occupy sufficiently large and contiguous areas to allow unambiguous detection of empty regions",
+          "At least one region in the image is clearly devoid of the target object",
+          "[optional] Empty regions are partially occluded or near image boundaries, increasing difficulty",
+          "[optional] Objects visually blend with background or distractor elements",
+          "[optional] Object distribution is uneven, clustered, or sparse, making absence reasoning more challenging",
+          "[optional] Small or partially visible objects in a region require approximate absence judgment",
+          "[optional] Multiple object categories are present, requiring the model to reason about the absence of a specific category"
+        ]
+      },
+      {
+        "failure_id": "FR_OCCLUSION_SENSITIVITY",
+        "failure_category": "robustness",
+        "failure_name": "Over-Sensitivity to Occlusion or Partial Visibility",
+        "description": "The model fails to correctly recognize or reason about objects that are partially occluded or only partially visible. Errors may occur when valid objects are ignored, misidentified, or the model refuses to generate a correct response due to incomplete object visibility.",
+        "suggested_filtering_factors": [
+          "Image contains at least one visually salient object category suitable for target reasoning",
+          "Potential target objects are partially visible but retain sufficient visual cues for recognition",
+          "Most other objects in the image are largely complete and not heavily occluded, providing contextual cues",
+          "Potential target object is sufficiently recognizable despite partial occlusion",
+          "[optional] Target object is heavily occluded or only a small portion is visible",
+          "[optional] Multiple partially occluded objects appear simultaneously, increasing ambiguity",
+          "[optional] Object shape, color, or texture is partially hidden, requiring inference from visible parts",
+          "[optional] Background or distractor elements visually interfere with partially visible objects",
+          "[optional] Objects appear in unusual poses, rotations, or at image edges, increasing recognition difficulty"
+        ]
+      },
+      {
+        "failure_id": "FR_VISUAL_DEGRADATION_SENSITIVITY",
+        "failure_category": "robustness",
+        "failure_name": "Sensitivity to Visual Degradation",
+        "description": "The model's reasoning degrades under blur, low light, noise, or reflections.",
+        "suggested_filtering_factors": [
+          "challenging visual conditions (low light, blur, reflections)",
+          "image is not severely abstract, noisy, or visually degraded",
+          "target object is partially occluded or visually blurred"
+        ]
+      },
+      {
+        "failure_id": "FR_COARSE_LEFT_RIGHT_CONFUSION",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Coarse Region Left-Right Confusion",
+        "description": "The model confuses left and right regions in coarse spatial localization tasks (loc_coarse_region).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "at least one such object has visually identifiable boundaries or distinguishable parts",
+          "directional discrimination"
+        ]
+      },
+      {
+        "failure_id": "FR_FOREGROUND_BACKGROUND_CONFUSION",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Foreground-Background Confusion",
+        "description": "The model fails to distinguish between foreground and background objects in spatial localization (loc_coarse_region).",
+        "suggested_filtering_factors": [
+          "foreground-background distinction",
+          "objects are contextually consistent with background environment",
+          "empty or background-only regions do not exceed approximately one-third of image"
+        ]
+      },
+      {
+        "failure_id": "FR_COARSE_REGION_CENTER_BOUNDARY_AMBIGUITY",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Coarse Region Center Boundary Ambiguity",
+        "description": "The model has difficulty determining whether an object is in the center region or near the boundary between regions (loc_coarse_region).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "at least one such object can be treated as single coherent entity for localization",
+          "potential target object boundaries are visually discernible"
+        ]
+      },
+      {
+        "failure_id": "FR_QUADRANT_BOUNDARY_REASONING_ERROR",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Quadrant Boundary Reasoning Error",
+        "description": "The model incorrectly determines quadrant boundaries or misassigns objects near quadrant boundaries (loc_quadrant).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "when partitioned into predefined spatial regions, potential target objects are present in at least two regions",
+          "potential target object boundaries are visually discernible"
+        ]
+      },
+      {
+        "failure_id": "FR_QUADRANT_PARTITION_AMBIGUITY",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Quadrant Partition Ambiguity",
+        "description": "The model fails to meaningfully partition the image into quadrants when objects span multiple quadrants (loc_quadrant).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "when partitioned into predefined spatial regions, potential target objects are present in at least two regions",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_CENTER_QUADRANT_BOUNDARY_CONFUSION",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Center-Quadrant Boundary Confusion",
+        "description": "The model confuses objects at the center of the image with quadrant boundaries (loc_quadrant).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "potential target object boundaries are visually discernible",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_REFERENCE_OBJECT_MISIDENTIFICATION",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Reference Object Misidentification",
+        "description": "The model fails to correctly identify or distinguish the reference object in relative spatial reasoning (loc_relative_object).",
+        "suggested_filtering_factors": [
+          "multiple objects of different semantic types",
+          "at least one visually salient object",
+          "visually similar distractor objects",
+          "potential target object category is unambiguous and conceptually clear"
+        ]
+      },
+      {
+        "failure_id": "FR_RELATIVE_DIRECTION_CONFUSION",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Relative Direction Confusion",
+        "description": "The model confuses relative spatial directions such as left/right, above/below, in front of/behind (loc_relative_object).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "multiple objects of different semantic types",
+          "directional discrimination",
+          "orientation judgment requires fine-grained directional discrimination"
+        ]
+      },
+      {
+        "failure_id": "FR_MULTI_OBJECT_SPATIAL_REASONING_FAILURE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Multi-Object Spatial Reasoning Failure",
+        "description": "The model fails to reason about spatial relationships when multiple objects are present (loc_relative_object).",
+        "suggested_filtering_factors": [
+          "multiple objects of different semantic types",
+          "objects have clearly distinguishable spatial positions and relationships",
+          "interacting or overlapping objects requiring disambiguation"
+        ]
+      },
+      {
+        "failure_id": "FR_EDGE_REGION_DETECTION_FAILURE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Edge Region Detection Failure",
+        "description": "The model fails to detect or localize objects near image edges or boundaries (loc_edge_region).",
+        "suggested_filtering_factors": [
+          "at least one visually salient object",
+          "potential target object appears in challenging regions (shadows, background, corners, or partial occlusion)",
+          "at least one such object has visually identifiable boundaries or distinguishable parts"
+        ]
+      },
+      {
+        "failure_id": "FR_CORNER_BOUNDARY_AMBIGUITY",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Corner Boundary Ambiguity",
+        "description": "The model has difficulty determining whether an object is in a corner region or near a corner (loc_edge_region).",
+        "suggested_filtering_factors": [
+          "potential target object appears in challenging regions (shadows, background, corners, or partial occlusion)",
+          "potential target object boundaries are visually discernible",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_PARTIAL_FRAME_DETECTION_ERROR",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Partial Frame Detection Error",
+        "description": "The model fails to recognize or localize objects that are partially outside the frame (loc_edge_region).",
+        "suggested_filtering_factors": [
+          "target object is partially visible",
+          "potential target object is partially visible",
+          "at least one such object has visually identifiable boundaries or distinguishable parts"
+        ]
+      },
+      {
+        "failure_id": "FR_EDGE_SALIENCY_BLINDNESS",
+        "failure_category": "visual_saliency",
+        "failure_name": "Edge Saliency Blindness",
+        "description": "The model overlooks objects near edges due to reduced saliency or attention bias toward center regions (loc_edge_region).",
+        "suggested_filtering_factors": [
+          "at least one visually salient object",
+          "visually salient object category",
+          "potential target object appears in challenging regions (shadows, background, corners, or partial occlusion)"
+        ]
+      },
+      {
+        "failure_id": "FR_SMALL_OBJECT_DETECTION_MISS",
+        "failure_category": "visual_saliency",
+        "failure_name": "Small Object Detection Miss",
+        "description": "The model fails to detect small objects that occupy a relatively small portion of the image (loc_small_object).",
+        "suggested_filtering_factors": [
+          "potential target object occupies relatively small region of image",
+          "potential target object occupies small or partial region",
+          "at least one visually salient object",
+          "target object occupies small portion of image"
+        ]
+      },
+      {
+        "failure_id": "FR_SMALL_OBJECT_LOCALIZATION_FAILURE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Small Object Localization Failure",
+        "description": "The model detects a small object but fails to accurately localize it to the correct region (loc_small_object).",
+        "suggested_filtering_factors": [
+          "potential target object occupies relatively small region of image",
+          "potential target object boundaries are visually discernible",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_SMALL_OBJECT_UNCERTAINTY_OVERREACTION",
+        "failure_category": "task_applicability",
+        "failure_name": "Small Object Uncertainty Overreaction",
+        "description": "The model returns NOT_RELATED too frequently for small objects due to uncertainty, even when localization is possible (loc_small_object).",
+        "suggested_filtering_factors": [
+          "potential target object occupies relatively small region of image",
+          "potential target object is complete or sufficiently recognizable",
+          "potential target object category is unambiguous and conceptually clear"
+        ]
+      },
+      {
+        "failure_id": "FR_OCCLUSION_LOCALIZATION_FAILURE",
+        "failure_category": "robustness",
+        "failure_name": "Occlusion Localization Failure",
+        "description": "The model fails to localize partially occluded objects even when sufficient visual evidence exists (loc_occluded_object).",
+        "suggested_filtering_factors": [
+          "target object is partially visible",
+          "potential target object is partially visible",
+          "target object is partially occluded or visually blurred",
+          "potential target object is complete or sufficiently recognizable"
+        ]
+      },
+      {
+        "failure_id": "FR_PARTIAL_VISIBILITY_REJECTION",
+        "failure_category": "robustness",
+        "failure_name": "Partial Visibility Rejection",
+        "description": "The model rejects localization attempts for partially visible objects, over-relying on full object visibility (loc_occluded_object).",
+        "suggested_filtering_factors": [
+          "target object is partially visible",
+          "potential target object is partially visible",
+          "most objects are largely complete and not heavily occluded",
+          "potential target object is complete or sufficiently recognizable"
+        ]
+      },
+      {
+        "failure_id": "FR_OCCLUSION_EVIDENCE_ASSESSMENT_ERROR",
+        "failure_category": "robustness",
+        "failure_name": "Occlusion Evidence Assessment Error",
+        "description": "The model incorrectly assesses whether partial visual evidence is sufficient for localization (loc_occluded_object).",
+        "suggested_filtering_factors": [
+          "target object is partially visible",
+          "potential target object is partially visible",
+          "potential target object is complete or sufficiently recognizable",
+          "at least one such object has visually identifiable boundaries or distinguishable parts"
+        ]
+      },
+      {
+        "failure_id": "FR_REGIONAL_ABSENCE_AVOIDANCE",
+        "failure_category": "negative_reasoning",
+        "failure_name": "Regional Absence Avoidance",
+        "description": "The model avoids making absence judgments for specific regions, preferring uncertain responses (loc_absence_region).",
+        "suggested_filtering_factors": [
+          "when partitioned into predefined spatial regions, potential target objects are present in at least two regions",
+          "at most two spatial regions may be completely absent of potential target objects",
+          "at least one visually salient object category"
+        ]
+      },
+      {
+        "failure_id": "FR_ABSENCE_UNCERTAINTY_MISCLASSIFICATION",
+        "failure_category": "negative_reasoning",
+        "failure_name": "Absence Uncertainty Misclassification",
+        "description": "The model incorrectly classifies uncertain cases as FALSE instead of NOT_RELATED, or vice versa (loc_absence_region).",
+        "suggested_filtering_factors": [
+          "when partitioned into predefined spatial regions, potential target objects are present in at least two regions",
+          "at most two spatial regions may be completely absent of potential target objects",
+          "potential target object category is unambiguous and conceptually clear"
+        ]
+      },
+      {
+        "failure_id": "FR_REGION_WISE_ABSENCE_REASONING_FAILURE",
+        "failure_category": "negative_reasoning",
+        "failure_name": "Region-wise Absence Reasoning Failure",
+        "description": "The model fails to reason about object absence within specific quadrants or regions (loc_absence_region).",
+        "suggested_filtering_factors": [
+          "when partitioned into predefined spatial regions, potential target objects are present in at least two regions",
+          "at most two spatial regions may be completely absent of potential target objects",
+          "at least one type of potential target objects has visually clear and contiguous boundaries"
+        ]
+      },
+      {
+        "failure_id": "FR_EXISTENTIAL_NOT_RELATED_OVERUSE",
+        "failure_category": "task_applicability",
+        "failure_name": "Existential NOT_RELATED Overuse",
+        "description": "The model overuses NOT_RELATED responses when objects exist but naming or identification is challenging (loc_any_object_region).",
+        "suggested_filtering_factors": [
+          "at least one visually salient object",
+          "visually salient object category",
+          "potential target object category is unambiguous and conceptually clear"
+        ]
+      },
+      {
+        "failure_id": "FR_WEAK_SPATIAL_GROUNDING",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Weak Spatial Grounding",
+        "description": "The model fails to ground spatial concepts even when localizable objects are present (loc_any_object_region).",
+        "suggested_filtering_factors": [
+          "objects have clearly distinguishable spatial positions and relationships",
+          "at least one such object can be treated as single coherent entity for localization",
+          "at least one visually salient object"
+        ]
+      },
+      {
+        "failure_id": "FR_GENERIC_OBJECT_LOCALIZATION_FAILURE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Generic Object Localization Failure",
+        "description": "The model fails to localize any object in the specified region when objects are clearly present (loc_any_object_region).",
+        "suggested_filtering_factors": [
+          "at least one visually salient object",
+          "at least one such object has visually identifiable boundaries or distinguishable parts",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_QUESTION_CONCEPT_GROUNDING_FAILURE",
+        "failure_category": "conceptual_grounding",
+        "failure_name": "Question Concept Grounding Failure",
+        "description": "The model fails to ground concepts conveyed by the image to matchable terms in question answering tasks.",
+        "suggested_filtering_factors": [
+          "clear and identifiable concept",
+          "concept intrinsic to depicted content",
+          "concept can be inferred from image content without external textual context",
+          "multiple objects present but collectively support same underlying concept",
+          "concept requires non-trivial semantic inference"
+        ]
+      },
+      {
+        "failure_id": "FR_CAPTION_SCENE_DESCRIPTION_FAILURE",
+        "failure_category": "scene_understanding",
+        "failure_name": "Caption Scene Description Failure",
+        "description": "The model fails to generate or select accurate scene descriptions or captions.",
+        "suggested_filtering_factors": [
+          "image depicts real-world photographic scene",
+          "multiple objects of different semantic types",
+          "objects have clearly distinguishable spatial positions and relationships",
+          "objects are contextually consistent with background environment",
+          "most objects are largely complete and not heavily occluded"
+        ]
+      },
+      {
+        "failure_id": "FR_PLACE_RECOGNITION_FAILURE",
+        "failure_category": "geographic_reasoning",
+        "failure_name": "Place Recognition Failure",
+        "description": "The model fails to identify geographic locations from map representations.",
+        "suggested_filtering_factors": [
+          "real-world, non-fictional geographic location represented in map form",
+          "visually salient and deliberately highlighted region",
+          "highlighted region is perceptually distinct from surrounding map context",
+          "sufficient geographic cues (shape of highlighted region and surrounding spatial context)",
+          "identifying location requires external geographic knowledge",
+          "map contains minimal textual labels or place names"
+        ]
+      },
+      {
+        "failure_id": "FR_TEXT_ASSOCIATION_FAILURE",
+        "failure_category": "text_image_alignment",
+        "failure_name": "Text Association Failure",
+        "description": "The model fails to associate image content with appropriate textual descriptions.",
+        "suggested_filtering_factors": [
+          "visually perceivable content that can be reasonably described in natural language",
+          "one or more objects, scenes, or activities are present",
+          "image does not rely on extensive external context",
+          "loosely identifiable main subject or scene",
+          "generally consistent description across different viewers"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_PROPORTION_ESTIMATION_FAILURE",
+        "failure_category": "scale_reasoning",
+        "failure_name": "Object Proportion Estimation Failure",
+        "description": "The model fails to accurately estimate the proportion of image occupied by target objects.",
+        "suggested_filtering_factors": [
+          "at least one visually salient object category",
+          "potential target object is complete or sufficiently recognizable",
+          "image is not overwhelmingly dominated by single potential target object",
+          "potential target object boundaries are visually discernible",
+          "potential target object category is unambiguous and conceptually clear",
+          "multiple instances of potential target object or complex arrangements"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_ORIENTATION_DETECTION_FAILURE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Object Orientation Detection Failure",
+        "description": "The model fails to determine the facing direction of directional objects.",
+        "suggested_filtering_factors": [
+          "at least one visually salient object",
+          "potential target object belongs to category that is inherently directional",
+          "target object occupies small portion of image",
+          "target object is partially occluded or visually blurred",
+          "orientation judgment requires fine-grained directional discrimination"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_COUNTING_DISCRETE_INSTANCE_FAILURE",
+        "failure_category": "relational_reasoning",
+        "failure_name": "Object Counting Discrete Instance Failure",
+        "description": "The model fails to count objects as discrete instances, especially when objects overlap or are partially visible.",
+        "suggested_filtering_factors": [
+          "at least one visually identifiable object category that can be counted",
+          "target objects are countable as discrete instances",
+          "target objects are partially visible or truncated",
+          "target objects overlap or occlude each other",
+          "multiple visually similar object subtypes may need to be jointly counted"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_COUNTING_DISTRACTOR_CONFUSION",
+        "failure_category": "relational_reasoning",
+        "failure_name": "Object Counting Distractor Confusion",
+        "description": "The model confuses target objects with visually similar distractors or background elements.",
+        "suggested_filtering_factors": [
+          "visually similar distractor objects",
+          "target objects visually blend with background colors or textures",
+          "target object category is unambiguous and conceptually clear"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_COUNTING_REFLECTION_ARTIFACT",
+        "failure_category": "relational_reasoning",
+        "failure_name": "Object Counting Reflection Artifact",
+        "description": "The model incorrectly counts reflections or mirror images as separate object instances.",
+        "suggested_filtering_factors": [
+          "mirrors or reflections introduce duplicated or misleading object appearances",
+          "target objects are countable as discrete instances"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_ABSENCE_BOUNDARY_REQUIREMENT_FAILURE",
+        "failure_category": "negative_reasoning",
+        "failure_name": "Object Absence Boundary Requirement Failure",
+        "description": "The model fails to meet requirements for object absence reasoning when target objects lack clear boundaries.",
+        "suggested_filtering_factors": [
+          "at least one type of potential target objects has visually clear and contiguous boundaries",
+          "potential target objects occupy sufficiently large and contiguous area",
+          "at least one visually salient object category"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_ABSENCE_REGION_DISTRIBUTION_FAILURE",
+        "failure_category": "negative_reasoning",
+        "failure_name": "Object Absence Region Distribution Failure",
+        "description": "The model fails to correctly reason about object absence when target objects are not distributed across required regions.",
+        "suggested_filtering_factors": [
+          "when partitioned into predefined spatial regions, potential target objects are present in at least two regions",
+          "at most two spatial regions may be completely absent of potential target objects",
+          "potential target objects occupy sufficiently large and contiguous area"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_POSITION_CHALLENGING_REGION_FAILURE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Object Position Challenging Region Failure",
+        "description": "The model fails to localize objects in challenging regions such as shadows, background, corners, or partial occlusion.",
+        "suggested_filtering_factors": [
+          "potential target object appears in challenging regions (shadows, background, corners, or partial occlusion)",
+          "at least one such object has visually identifiable boundaries or distinguishable parts",
+          "at least one such object can be treated as single coherent entity for localization"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_POSITION_DISTRACTOR_INTERFERENCE",
+        "failure_category": "spatial_reasoning",
+        "failure_name": "Object Position Distractor Interference",
+        "description": "The model fails to localize target objects when visually similar distractors are present.",
+        "suggested_filtering_factors": [
+          "visually similar distractor objects",
+          "potential target object category is unambiguous and conceptually clear",
+          "at least one visually salient object"
+        ]
+      },
+      {
+        "failure_id": "FR_VISUAL_CONDITION_DEGRADATION",
+        "failure_category": "robustness",
+        "failure_name": "Visual Condition Degradation",
+        "description": "The model's performance degrades under challenging visual conditions such as low light, blur, or reflections.",
+        "suggested_filtering_factors": [
+          "challenging visual conditions (low light, blur, reflections)",
+          "image is not severely abstract, noisy, or visually degraded",
+          "target object is partially occluded or visually blurred"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_APPEARANCE_VARIATION_FAILURE",
+        "failure_category": "robustness",
+        "failure_name": "Object Appearance Variation Failure",
+        "description": "The model fails to handle variations in object appearance due to packaging, surface decoration, or deformation.",
+        "suggested_filtering_factors": [
+          "object appearance varies due to packaging, surface decoration, or deformation",
+          "target object category is unambiguous and conceptually clear"
+        ]
+      },
+      {
+        "failure_id": "FR_OBJECT_UNUSUAL_POSE_VIEWPOINT_FAILURE",
+        "failure_category": "robustness",
+        "failure_name": "Object Unusual Pose Viewpoint Failure",
+        "description": "The model fails to handle objects appearing under unusual poses, rotations, or viewpoints.",
+        "suggested_filtering_factors": [
+          "target objects appear under unusual poses, rotations, or viewpoints",
+          "potential target object is complete or sufficiently recognizable"
+        ]
+      },
+      {
+        "failure_id": "FR_ZERO_INSTANCE_COUNTING_FAILURE",
+        "failure_category": "relational_reasoning",
+        "failure_name": "Zero Instance Counting Failure",
+        "description": "The model fails to correctly identify when zero instances of the target object are present.",
+        "suggested_filtering_factors": [
+          "image contains zero instances of target object",
+          "at least one visually identifiable object category that can be counted"
+        ]
+      },
+      {
+        "failure_id": "FR_CONCEPT_ABSTRACT_RELATIONAL_FAILURE",
+        "failure_category": "conceptual_grounding",
+        "failure_name": "Concept Abstract Relational Failure",
+        "description": "The model fails to handle abstract, relational, or attribute-based concepts rather than concrete object labels.",
+        "suggested_filtering_factors": [
+          "abstract, relational, or attribute-based concept rather than concrete object label",
+          "concept requires non-trivial semantic inference",
+          "clear and identifiable concept"
+        ]
+      },
+      {
+        "failure_id": "FR_MAP_GEOMETRIC_DISTORTION_FAILURE",
+        "failure_category": "geographic_reasoning",
+        "failure_name": "Map Geometric Distortion Failure",
+        "description": "The model fails to handle maps with geometric or scale distortion that increases difficulty.",
+        "suggested_filtering_factors": [
+          "map may exhibit mild geometric or scale distortion that increases difficulty without obscuring essential geographic structure",
+          "sufficient geographic cues (shape of highlighted region and surrounding spatial context)"
+        ]
+      }
+    ]
+  }
