@@ -25,6 +25,13 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+try:
+    from tqdm.asyncio import tqdm as atqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+    atqdm = None
+
 # Add parent directories to path
 # When running from My_project/, we need My_project/ in the path
 # so Python can find the ProbingFactorGeneration package
@@ -210,7 +217,7 @@ async def run_pipeline(
     
     try:
         async with baseline_model, judge_model:
-            results = await pipeline.process_batch_with_templates_async(image_paths)
+            results = await pipeline.process_batch_with_templates_async(image_paths, show_progress=True)
             
             # Save first image's jpg and result for debugging
             if results:
@@ -369,66 +376,101 @@ async def run_pipeline_with_failure_sampling(
         async with baseline_model, judge_model:
             start_time = time.time()
             
-            while len(failure_results) < target_failure_count:
-                batch_num += 1
-                
-                # Sample a batch of images without replacement
-                batch_paths = image_loader.sample_images_without_replacement(
-                    batch_size=batch_size,
-                    exclude_paths=processed_paths
+            # Create progress bar for failure collection
+            if HAS_TQDM:
+                from tqdm import tqdm
+                failure_pbar = tqdm(
+                    total=target_failure_count,
+                    desc="Collecting failures",
+                    unit="failure",
+                    bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} failures [{elapsed}<{remaining}, {rate_fmt}]'
                 )
-                
-                if not batch_paths:
-                    print(f"\nNo more images available. Collected {len(failure_results)}/{target_failure_count} failure images.")
-                    break
-                
-                print(f"\nBatch {batch_num}: Processing {len(batch_paths)} images...")
-                print(f"  Already collected: {len(failure_results)}/{target_failure_count} failure images")
-                print(f"  Total processed: {total_processed}")
-                
-                # Process batch
-                batch_results = await pipeline.process_batch_with_templates_async(batch_paths)
-                
-                # Filter results with failures
-                batch_failures = []
-                for idx, result in enumerate(batch_results):
-                    total_processed += 1
-                    image_id = result.get('image_id', '')
-                    image_path = batch_paths[idx] if idx < len(batch_paths) else None
+            else:
+                failure_pbar = None
+            
+            try:
+                while len(failure_results) < target_failure_count:
+                    batch_num += 1
                     
-                    # Check if this image has failures
-                    aggregated_failures = result.get('aggregated_failures', {})
-                    failed_claims = aggregated_failures.get('failed_claims', 0)
+                    # Sample a batch of images without replacement
+                    batch_paths = image_loader.sample_images_without_replacement(
+                        batch_size=batch_size,
+                        exclude_paths=processed_paths
+                    )
                     
-                    if failed_claims > 0:
-                        batch_failures.append(result)
-                        failure_results.append(result)
+                    if not batch_paths:
+                        if failure_pbar:
+                            failure_pbar.close()
+                        print(f"\nNo more images available. Collected {len(failure_results)}/{target_failure_count} failure images.")
+                        break
+                    
+                    # Update progress bar description
+                    if failure_pbar:
+                        failure_pbar.set_description(f"Batch {batch_num}: Processing {len(batch_paths)} images")
+                        failure_pbar.set_postfix({
+                            'collected': len(failure_results),
+                            'processed': total_processed,
+                            'batch': batch_num
+                        })
+                    else:
+                        print(f"\nBatch {batch_num}: Processing {len(batch_paths)} images...")
+                        print(f"  Already collected: {len(failure_results)}/{target_failure_count} failure images")
+                        print(f"  Total processed: {total_processed}")
+                    
+                    # Process batch (with progress bar)
+                    batch_results = await pipeline.process_batch_with_templates_async(batch_paths, show_progress=True)
+                    
+                    # Filter results with failures
+                    batch_failures = []
+                    for idx, result in enumerate(batch_results):
+                        total_processed += 1
+                        image_id = result.get('image_id', '')
+                        image_path = batch_paths[idx] if idx < len(batch_paths) else None
                         
-                        # Save first image's jpg and result for debugging (only for first failure)
-                        if len(failure_results) == 1 and image_path:
-                            try:
-                                first_image = image_loader.load(image_path)
-                                first_image_jpg_path = Path(output_dir) / f"{image_id}.jpg"
-                                first_image.save(first_image_jpg_path, 'JPEG', quality=95)
-                                
-                                import json
-                                first_result_path = Path(output_dir) / f"{image_id}_result.json"
-                                with open(first_result_path, 'w', encoding='utf-8') as f:
-                                    json.dump(result, f, indent=2, ensure_ascii=False)
-                            except Exception as e:
-                                print(f"  Warning: Could not save first failure image: {e}")
+                        # Check if this image has failures
+                        aggregated_failures = result.get('aggregated_failures', {})
+                        failed_claims = aggregated_failures.get('failed_claims', 0)
+                        
+                        if failed_claims > 0:
+                            batch_failures.append(result)
+                            failure_results.append(result)
+                            
+                            # Update progress bar
+                            if failure_pbar:
+                                failure_pbar.update(1)
+                            
+                            # Save first image's jpg and result for debugging (only for first failure)
+                            if len(failure_results) == 1 and image_path:
+                                try:
+                                    first_image = image_loader.load(image_path)
+                                    first_image_jpg_path = Path(output_dir) / f"{image_id}.jpg"
+                                    first_image.save(first_image_jpg_path, 'JPEG', quality=95)
+                                    
+                                    import json
+                                    first_result_path = Path(output_dir) / f"{image_id}_result.json"
+                                    with open(first_result_path, 'w', encoding='utf-8') as f:
+                                        json.dump(result, f, indent=2, ensure_ascii=False)
+                                except Exception as e:
+                                    if not failure_pbar:
+                                        print(f"  Warning: Could not save first failure image: {e}")
+                        
+                        # Mark as processed
+                        if image_path:
+                            processed_paths.add(image_path)
                     
-                    # Mark as processed
-                    if image_path:
-                        processed_paths.add(image_path)
-                
-                print(f"  Found {len(batch_failures)} images with failures in this batch")
-                print(f"  Progress: {len(failure_results)}/{target_failure_count} failure images collected")
-                
-                # Check if we've reached the target
-                if len(failure_results) >= target_failure_count:
-                    print(f"\n✓ Reached target! Collected {len(failure_results)} failure images.")
-                    break
+                    if not failure_pbar:
+                        print(f"  Found {len(batch_failures)} images with failures in this batch")
+                        print(f"  Progress: {len(failure_results)}/{target_failure_count} failure images collected")
+                    
+                    # Check if we've reached the target
+                    if len(failure_results) >= target_failure_count:
+                        if failure_pbar:
+                            failure_pbar.close()
+                        print(f"\n✓ Reached target! Collected {len(failure_results)} failure images.")
+                        break
+            finally:
+                if failure_pbar:
+                    failure_pbar.close()
             
             elapsed_time = time.time() - start_time
             

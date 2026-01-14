@@ -14,6 +14,13 @@ from ProbingFactorGeneration.io import DataSaver
 import asyncio
 
 try:
+    from tqdm.asyncio import tqdm as atqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
+    atqdm = None
+
+try:
     from ProbingFactorGeneration.core.mappers.failure_reason_matcher import FailureReasonMatcher
     HAS_FAILURE_MATCHER = True
 except ImportError:
@@ -311,13 +318,14 @@ class ProbingFactorPipeline:
         
         return asyncio.run(self.process_single_image_with_templates_async(image_path))
     
-    async def process_batch_with_templates_async(self, image_paths: List[str]) -> List[Dict[str, Any]]:
+    async def process_batch_with_templates_async(self, image_paths: List[str], show_progress: bool = True) -> List[Dict[str, Any]]:
         """
         Process a batch of images through the template-based pipeline (async version).
         Uses concurrent processing for better performance.
         
         Args:
             image_paths: List of paths to image files
+            show_progress: Whether to show progress bar (requires tqdm)
             
         Returns:
             List of result dictionaries (one per image)
@@ -327,7 +335,17 @@ class ProbingFactorPipeline:
             self.process_single_image_with_templates_async(image_path)
             for image_path in image_paths
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Use tqdm for progress bar if available
+        if show_progress and HAS_TQDM and atqdm:
+            results = await atqdm.gather(
+                *tasks, 
+                return_exceptions=True,
+                desc="Processing images",
+                unit="img"
+            )
+        else:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
         
         # Handle exceptions in results
         processed_results = []
