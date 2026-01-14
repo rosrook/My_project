@@ -563,6 +563,8 @@ class ImageLoader:
         
         # Load all parquet files to get all available images
         all_records = self._load_parquet_files(force_reload=False)
+        # Ensure metadata cache is available for load() when using <bytes:...>
+        self._image_metadata = all_records
         
         if not all_records:
             return []
