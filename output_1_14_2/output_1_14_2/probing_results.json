@@ -1,0 +1,1321 @@
+{
+  "results": [
+    {
+      "image_id": "part_8_912",
+      "completions": [
+        {
+          "completed_claim": "The image contains a picnic table as a visually identifiable element.",
+          "is_related": true,
+          "explanation": "The most salient and clearly identifiable entity in the image is the picnic table, which has distinguishable boundaries and recognizable features such as its wooden slats and metal frame.",
+          "filled_values": {
+            "ENTITY_TYPE": "picnic table"
+          },
+          "claim_id": "entity_basic_grounding",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The image contains [ENTITY_TYPE] as a visually identifiable element.",
+            "placeholders": [
+              "ENTITY_TYPE"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The image contains a picnic table as a visually identifiable element.\",\n    \"is_related\": true,\n    \"explanation\": \"The most salient and clearly identifiable entity in the image is the picnic table, which has distinguishable boundaries and recognizable features such as its wooden slats and metal frame.\",\n    \"filled_values\": {\n        \"ENTITY_TYPE\": \"picnic table\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 482,
+              "completion_tokens": 100,
+              "total_tokens": 582
+            }
+          }
+        },
+        {
+          "completed_claim": "The picnic table in the image belongs to the category outdoor furniture and has the property functionality.",
+          "is_related": true,
+          "explanation": "The most prominent object in the image is the picnic table, which clearly falls under the category of outdoor furniture due to its design and intended use. Its property of functionality is inferred from common knowledge, as picnic tables are designed for people to sit and eat outdoors.",
+          "filled_values": {
+            "OBJECT_INSTANCE": "picnic table",
+            "ABSTRACT_CATEGORY": "outdoor furniture",
+            "PROPERTY": "functionality"
+          },
+          "claim_id": "concept_single_object",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT_INSTANCE] in the image belongs to the category [ABSTRACT_CATEGORY] and has the property [PROPERTY].",
+            "placeholders": [
+              "OBJECT_INSTANCE",
+              "ABSTRACT_CATEGORY",
+              "PROPERTY"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The picnic table in the image belongs to the category outdoor furniture and has the property functionality.\",\n    \"is_related\": true,\n    \"explanation\": \"The most prominent object in the image is the picnic table, which clearly falls under the category of outdoor furniture due to its design and intended use. Its property of functionality is inferred from common knowledge, as picnic tables are designed for people to sit and eat outdoors.\",\n    \"filled_values\": {\n        \"OBJECT_INSTANCE\": \"picnic table\",\n        \"ABSTRACT_CATEGORY\": \"outdoor furniture\",\n        \"PROPERTY\": \"functionality\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 569,
+              "completion_tokens": 157,
+              "total_tokens": 726
+            }
+          }
+        },
+        {
+          "completed_claim": "The relationships between elements in the image represent the concept of [ecosystem]",
+          "is_related": true,
+          "explanation": "The image shows a picnic table near a river surrounded by trees, which suggests a natural environment where different elements like flora, fauna, water, and human-made structures coexist. This setup implies an ecosystem where various components interact within a defined space.",
+          "filled_values": {
+            "SYSTEM_CONCEPT": "ecosystem"
+          },
+          "claim_id": "concept_multi_object_system",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].",
+            "placeholders": [
+              "SYSTEM_CONCEPT"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The relationships between elements in the image represent the concept of [ecosystem]\",\n    \"is_related\": true,\n    \"explanation\": \"The image shows a picnic table near a river surrounded by trees, which suggests a natural environment where different elements like flora, fauna, water, and human-made structures coexist. This setup implies an ecosystem where various components interact within a defined space.\",\n    \"filled_values\": {\n        \"SYSTEM_CONCEPT\": \"ecosystem\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 500,
+              "completion_tokens": 126,
+              "total_tokens": 626
+            }
+          }
+        },
+        {
+          "completed_claim": "The picnic table is located in the center of the image.",
+          "is_related": true,
+          "explanation": "The picnic table is the most salient object with clear visual boundaries and is positioned in the middle of the image.",
+          "filled_values": {
+            "TARGET_OBJECT": "picnic table",
+            "ABSOLUTE_REGION": "center"
+          },
+          "claim_id": "spatial_absolute_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] is located in the [ABSOLUTE_REGION] of the image.",
+            "placeholders": [
+              "TARGET_OBJECT",
+              "ABSOLUTE_REGION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The picnic table is located in the center of the image.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient object with clear visual boundaries and is positioned in the middle of the image.\",\n    \"filled_values\": {\n        \"TARGET_OBJECT\": \"picnic table\",\n        \"ABSOLUTE_REGION\": \"center\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 536,
+              "completion_tokens": 89,
+              "total_tokens": 625
+            }
+          }
+        },
+        {
+          "completed_claim": "The picnic table is in front of the bench.",
+          "is_related": true,
+          "explanation": "The picnic table is positioned directly in front of the bench, which is visible in the background across the river.",
+          "filled_values": {
+            "OBJECT_A": "picnic table",
+            "RELATIVE_DIRECTION": "in front of",
+            "OBJECT_B": "bench"
+          },
+          "claim_id": "spatial_relative_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B].",
+            "placeholders": [
+              "OBJECT_A",
+              "RELATIVE_DIRECTION",
+              "OBJECT_B"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The picnic table is in front of the bench.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is positioned directly in front of the bench, which is visible in the background across the river.\",\n    \"filled_values\": {\n        \"OBJECT_A\": \"picnic table\",\n        \"RELATIVE_DIRECTION\": \"in front of\",\n        \"OBJECT_B\": \"bench\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 578,
+              "completion_tokens": 93,
+              "total_tokens": 671
+            }
+          }
+        },
+        {
+          "completed_claim": "The picnic table occupies approximately 25-50% of the image area.",
+          "is_related": true,
+          "explanation": "The picnic table is the most salient object with clear boundaries in the image and takes up a significant portion of the space.",
+          "filled_values": {
+            "TARGET_OBJECT": "picnic table",
+            "PROPORTION": "25-50%"
+          },
+          "claim_id": "scale_proportion_estimation",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] occupies approximately [PROPORTION] of the image area.",
+            "placeholders": [
+              "TARGET_OBJECT",
+              "PROPORTION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The picnic table occupies approximately 25-50% of the image area.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient object with clear boundaries in the image and takes up a significant portion of the space.\",\n    \"filled_values\": {\n        \"TARGET_OBJECT\": \"picnic table\",\n        \"PROPORTION\": \"25-50%\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 516,
+              "completion_tokens": 92,
+              "total_tokens": 609
+            }
+          }
+        },
+        {
+          "completed_claim": "There are exactly 1 instance of picnic table visible in the image.",
+          "is_related": true,
+          "explanation": "The image shows a single picnic table which is the most salient countable object category. It is fully visible and distinguishable from other objects in the image.",
+          "filled_values": {
+            "COUNT": 1,
+            "OBJECT_TYPE": "picnic table"
+          },
+          "claim_id": "counting_object_instances",
+          "content_type": "count",
+          "metadata": {
+            "original_template": "There are exactly [COUNT] instances of [OBJECT_TYPE] visible in the image.",
+            "placeholders": [
+              "COUNT",
+              "OBJECT_TYPE"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"There are exactly 1 instance of picnic table visible in the image.\",\n    \"is_related\": true,\n    \"explanation\": \"The image shows a single picnic table which is the most salient countable object category. It is fully visible and distinguishable from other objects in the image.\",\n    \"filled_values\": {\n        \"COUNT\": 1,\n        \"OBJECT_TYPE\": \"picnic table\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 547,
+              "completion_tokens": 98,
+              "total_tokens": 645
+            }
+          }
+        },
+        {
+          "completed_claim": "The left half region contains no picnic tables.",
+          "is_related": true,
+          "explanation": "There is a visible picnic table in the right half of the image, indicating that the left half does not contain any picnic tables.",
+          "filled_values": {
+            "REGION_DESCRIPTION": "left half",
+            "OBJECT_TYPE": "picnic tables"
+          },
+          "claim_id": "absence_negative_reasoning",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+            "placeholders": [
+              "REGION_DESCRIPTION",
+              "OBJECT_TYPE"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The left half region contains no picnic tables.\",\n    \"is_related\": true,\n    \"explanation\": \"There is a visible picnic table in the right half of the image, indicating that the left half does not contain any picnic tables.\",\n    \"filled_values\": {\n        \"REGION_DESCRIPTION\": \"left half\",\n        \"OBJECT_TYPE\": \"picnic tables\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 545,
+              "completion_tokens": 91,
+              "total_tokens": 636
+            }
+          }
+        },
+        {
+          "completed_claim": "The partially visible object in the image is identifiable as a bench.",
+          "is_related": true,
+          "explanation": "The bench is the most salient partially visible object that retains sufficient visual cues for identification. It is located in the foreground of the image, and its structure is clearly visible despite being partially obscured by the ground and surrounding foliage.",
+          "filled_values": {
+            "OBJECT_IDENTITY": "bench"
+          },
+          "claim_id": "occlusion_robustness",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].",
+            "placeholders": [
+              "OBJECT_IDENTITY"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The partially visible object in the image is identifiable as a bench.\",\n    \"is_related\": true,\n    \"explanation\": \"The bench is the most salient partially visible object that retains sufficient visual cues for identification. It is located in the foreground of the image, and its structure is clearly visible despite being partially obscured by the ground and surrounding foliage.\",\n    \"filled_values\": {\n        \"OBJECT_IDENTITY\": \"bench\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 490,
+              "completion_tokens": 118,
+              "total_tokens": 609
+            }
+          }
+        },
+        {
+          "completed_claim": "The picnic table is facing toward viewer.",
+          "is_related": true,
+          "explanation": "The picnic table is the most salient object with an inherent facing direction. It is oriented such that it faces directly toward the viewer.",
+          "filled_values": {
+            "OBJECT": "picnic table",
+            "DIRECTION": "toward viewer"
+          },
+          "claim_id": "orientation_facing_direction",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT] is facing [DIRECTION].",
+            "placeholders": [
+              "OBJECT",
+              "DIRECTION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The picnic table is facing toward viewer.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient object with an inherent facing direction. It is oriented such that it faces directly toward the viewer.\",\n    \"filled_values\": {\n        \"OBJECT\": \"picnic table\",\n        \"DIRECTION\": \"toward viewer\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 521,
+              "completion_tokens": 89,
+              "total_tokens": 611
+            }
+          }
+        },
+        {
+          "completed_claim": "NOT_RELATED",
+          "is_related": false,
+          "explanation": "The image does not depict a geographic map with a highlighted region. It shows a picnic table in a natural setting near a river.",
+          "filled_values": {},
+          "claim_id": "geographic_place_recognition",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The highlighted region in the map represents [GEOGRAPHIC_LOCATION].",
+            "placeholders": [
+              "GEOGRAPHIC_LOCATION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"NOT_RELATED\",\n    \"is_related\": false,\n    \"explanation\": \"The image does not depict a geographic map with a highlighted region. It shows a picnic table in a natural setting near a river.\",\n    \"filled_values\": {}\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 502,
+              "completion_tokens": 60,
+              "total_tokens": 562
+            }
+          }
+        },
+        {
+          "completed_claim": "The image depicts a wooden picnic table in a forested area near a river.",
+          "is_related": true,
+          "explanation": "The image shows a clear view of a wooden picnic table situated in a natural setting with trees and a river visible in the background.",
+          "filled_values": {
+            "SCENE_DESCRIPTION": "a wooden picnic table in a forested area near a river"
+          },
+          "claim_id": "image_text_alignment",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The image depicts [SCENE_DESCRIPTION].",
+            "placeholders": [
+              "SCENE_DESCRIPTION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The image depicts a wooden picnic table in a forested area near a river.\",\n    \"is_related\": true,\n    \"explanation\": \"The image shows a clear view of a wooden picnic table situated in a natural setting with trees and a river visible in the background.\",\n    \"filled_values\": {\n        \"SCENE_DESCRIPTION\": \"a wooden picnic table in a forested area near a river\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 485,
+              "completion_tokens": 99,
+              "total_tokens": 584
+            }
+          }
+        }
+      ],
+      "verifications": [
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The image clearly shows a picnic table in the foreground with distinguishable wooden slats and a metal frame, making it a visually identifiable element. The baseline model correctly identified this and marked the claim as related. The explanation provided is reasonable, as it accurately describes the salient features of the picnic table that make it recognizable. No failure condition applies since the baseline model did not mark it as 'not related' and the claim is factually correct.",
+          "suggested_correction": null,
+          "claim_id": "entity_basic_grounding",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The image contains [ENTITY_TYPE] as a visually identifiable element.",
+            "completed_claim": "The image contains a picnic table as a visually identifiable element.",
+            "baseline_explanation": "The most salient and clearly identifiable entity in the image is the picnic table, which has distinguishable boundaries and recognizable features such as its wooden slats and metal frame.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image clearly shows a picnic table in the foreground with distinguishable wooden slats and a metal frame, making it a visually identifiable element. The baseline model correctly identified this and marked the claim as related. The explanation provided is reasonable, as it accurately describes the salient features of the picnic table that make it recognizable. No failure condition applies since the baseline model did not mark it as 'not related' and the claim is factually correct.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1161,
+              "completion_tokens": 150,
+              "total_tokens": 1311
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim correctly identifies the picnic table as the object instance, categorizes it as outdoor furniture (which is accurate given its design and placement in a natural, outdoor setting), and assigns the property 'functionality' — a reasonable abstract property since picnic tables are functional objects designed for use. The baseline explanation is logical and grounded in common knowledge. Since the baseline marked this as 'related' (is_related=true), no failure due to incorrect rejection applies.",
+          "suggested_correction": null,
+          "claim_id": "concept_single_object",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT_INSTANCE] in the image belongs to the category [ABSTRACT_CATEGORY] and has the property [PROPERTY].",
+            "completed_claim": "The picnic table in the image belongs to the category outdoor furniture and has the property functionality.",
+            "baseline_explanation": "The most prominent object in the image is the picnic table, which clearly falls under the category of outdoor furniture due to its design and intended use. Its property of functionality is inferred from common knowledge, as picnic tables are designed for people to sit and eat outdoors.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim correctly identifies the picnic table as the object instance, categorizes it as outdoor furniture (which is accurate given its design and placement in a natural, outdoor setting), and assigns the property 'functionality' — a reasonable abstract property since picnic tables are functional objects designed for use. The baseline explanation is logical and grounded in common knowledge. Since the baseline marked this as 'related' (is_related=true), no failure due to incorrect rejection applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1202,
+              "completion_tokens": 152,
+              "total_tokens": 1354
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'ecosystem' is valid because the image depicts a natural environment with trees, a river, and a picnic table — elements that interact within a shared space, fitting the definition of an ecosystem. The baseline explanation reasonably connects these components to the concept of an ecosystem, noting coexistence and interaction. Since the baseline marked this as 'related' (is_related=true), there is no failure in judgment. The claim and explanation are both accurate and grounded in the visual content.",
+          "suggested_correction": null,
+          "claim_id": "concept_multi_object_system",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].",
+            "completed_claim": "The relationships between elements in the image represent the concept of [ecosystem]",
+            "baseline_explanation": "The image shows a picnic table near a river surrounded by trees, which suggests a natural environment where different elements like flora, fauna, water, and human-made structures coexist. This setup implies an ecosystem where various components interact within a defined space.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'ecosystem' is valid because the image depicts a natural environment with trees, a river, and a picnic table — elements that interact within a shared space, fitting the definition of an ecosystem. The baseline explanation reasonably connects these components to the concept of an ecosystem, noting coexistence and interaction. Since the baseline marked this as 'related' (is_related=true), there is no failure in judgment. The claim and explanation are both accurate and grounded in the visual content.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1184,
+              "completion_tokens": 159,
+              "total_tokens": 1343
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The picnic table is located in the center of the image' is visually accurate. The picnic table is clearly visible and occupies the central region of the image frame, making it the most salient object with clear boundaries as stated in the explanation. The baseline model correctly marked this as related, and the explanation is reasonable and consistent with the visual evidence.",
+          "suggested_correction": null,
+          "claim_id": "spatial_absolute_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] is located in the [ABSOLUTE_REGION] of the image.",
+            "completed_claim": "The picnic table is located in the center of the image.",
+            "baseline_explanation": "The picnic table is the most salient object with clear visual boundaries and is positioned in the middle of the image.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The picnic table is located in the center of the image' is visually accurate. The picnic table is clearly visible and occupies the central region of the image frame, making it the most salient object with clear boundaries as stated in the explanation. The baseline model correctly marked this as related, and the explanation is reasonable and consistent with the visual evidence.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1159,
+              "completion_tokens": 134,
+              "total_tokens": 1293
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The picnic table is in front of the bench' is visually supported by the image. The picnic table is in the foreground, and a bench is visible in the background across the river, making the spatial relationship accurate. The baseline explanation correctly describes this spatial arrangement. Since the baseline marked the claim as related (is_related=true), there is no failure in rejecting a valid template. All components are consistent with the image content.",
+          "suggested_correction": null,
+          "claim_id": "spatial_relative_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B].",
+            "completed_claim": "The picnic table is in front of the bench.",
+            "baseline_explanation": "The picnic table is positioned directly in front of the bench, which is visible in the background across the river.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The picnic table is in front of the bench' is visually supported by the image. The picnic table is in the foreground, and a bench is visible in the background across the river, making the spatial relationship accurate. The baseline explanation correctly describes this spatial arrangement. Since the baseline marked the claim as related (is_related=true), there is no failure in rejecting a valid template. All components are consistent with the image content.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1157,
+              "completion_tokens": 149,
+              "total_tokens": 1306
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim that 'The picnic table occupies approximately 25-50% of the image area' is visually reasonable. The picnic table is clearly visible, centrally located, and occupies a substantial but not dominant portion of the frame — consistent with the 25-50% estimate. The baseline explanation correctly identifies the picnic table as salient with clear boundaries and occupying significant space, which supports the claim. Since the baseline marked it as 'related' (is_related=true), no failure in rejection judgment applies.",
+          "suggested_correction": null,
+          "claim_id": "scale_proportion_estimation",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] occupies approximately [PROPORTION] of the image area.",
+            "completed_claim": "The picnic table occupies approximately 25-50% of the image area.",
+            "baseline_explanation": "The picnic table is the most salient object with clear boundaries in the image and takes up a significant portion of the space.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim that 'The picnic table occupies approximately 25-50% of the image area' is visually reasonable. The picnic table is clearly visible, centrally located, and occupies a substantial but not dominant portion of the frame — consistent with the 25-50% estimate. The baseline explanation correctly identifies the picnic table as salient with clear boundaries and occupying significant space, which supports the claim. Since the baseline marked it as 'related' (is_related=true), no failure in rejection judgment applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1165,
+              "completion_tokens": 166,
+              "total_tokens": 1331
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim correctly states there is exactly 1 picnic table visible in the image. The picnic table is clearly identifiable, fully visible, and there are no other picnic tables in the scene. The baseline explanation is reasonable, noting that the picnic table is the most salient countable object and distinguishable from others. Since the baseline marked it as related (is_related=true), no failure in rejection judgment applies.",
+          "suggested_correction": null,
+          "claim_id": "counting_object_instances",
+          "content_type": "count",
+          "metadata": {
+            "original_template": "There are exactly [COUNT] instances of [OBJECT_TYPE] visible in the image.",
+            "completed_claim": "There are exactly 1 instance of picnic table visible in the image.",
+            "baseline_explanation": "The image shows a single picnic table which is the most salient countable object category. It is fully visible and distinguishable from other objects in the image.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim correctly states there is exactly 1 picnic table visible in the image. The picnic table is clearly identifiable, fully visible, and there are no other picnic tables in the scene. The baseline explanation is reasonable, noting that the picnic table is the most salient countable object and distinguishable from others. Since the baseline marked it as related (is_related=true), no failure in rejection judgment applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1167,
+              "completion_tokens": 143,
+              "total_tokens": 1310
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The left half region contains no picnic tables' is accurate. The image shows a single picnic table located in the right half of the frame, with no picnic tables visible in the left half. The baseline explanation correctly observes that a picnic table is visible in the right half, which supports the claim that the left half contains none. The claim is visually verifiable and logically consistent with the image content.",
+          "suggested_correction": null,
+          "claim_id": "absence_negative_reasoning",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+            "completed_claim": "The left half region contains no picnic tables.",
+            "baseline_explanation": "There is a visible picnic table in the right half of the image, indicating that the left half does not contain any picnic tables.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The left half region contains no picnic tables' is accurate. The image shows a single picnic table located in the right half of the frame, with no picnic tables visible in the left half. The baseline explanation correctly observes that a picnic table is visible in the right half, which supports the claim that the left half contains none. The claim is visually verifiable and logically consistent with the image content.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1152,
+              "completion_tokens": 144,
+              "total_tokens": 1296
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim correctly identifies the partially visible object as a bench. The bench is clearly visible in the foreground, with its structure (tabletop and attached benches) intact and recognizable despite partial occlusion by ground and foliage. The baseline explanation is reasonable, noting its salience and sufficient visual cues for identification. Since the baseline marked it as 'related' (is_related=true), no failure in rejection judgment applies.",
+          "suggested_correction": null,
+          "claim_id": "occlusion_robustness",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].",
+            "completed_claim": "The partially visible object in the image is identifiable as a bench.",
+            "baseline_explanation": "The bench is the most salient partially visible object that retains sufficient visual cues for identification. It is located in the foreground of the image, and its structure is clearly visible despite being partially obscured by the ground and surrounding foliage.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim correctly identifies the partially visible object as a bench. The bench is clearly visible in the foreground, with its structure (tabletop and attached benches) intact and recognizable despite partial occlusion by ground and foliage. The baseline explanation is reasonable, noting its salience and sufficient visual cues for identification. Since the baseline marked it as 'related' (is_related=true), no failure in rejection judgment applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1177,
+              "completion_tokens": 143,
+              "total_tokens": 1320
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The picnic table is facing toward viewer' is accurate. The picnic table is clearly visible in the foreground, and its orientation — with the long side parallel to the viewer’s line of sight and benches extending outward — suggests it is facing the viewer. The baseline explanation correctly identifies the picnic table as the salient object with an inherent facing direction and accurately describes its orientation. Since the baseline marked this as 'related' (is_related=true), no failure in rejection judgment applies.",
+          "suggested_correction": null,
+          "claim_id": "orientation_facing_direction",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT] is facing [DIRECTION].",
+            "completed_claim": "The picnic table is facing toward viewer.",
+            "baseline_explanation": "The picnic table is the most salient object with an inherent facing direction. It is oriented such that it faces directly toward the viewer.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The picnic table is facing toward viewer' is accurate. The picnic table is clearly visible in the foreground, and its orientation — with the long side parallel to the viewer’s line of sight and benches extending outward — suggests it is facing the viewer. The baseline explanation correctly identifies the picnic table as the salient object with an inherent facing direction and accurately describes its orientation. Since the baseline marked this as 'related' (is_related=true), no failure in rejection judgment applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1149,
+              "completion_tokens": 159,
+              "total_tokens": 1308
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": false,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": true,
+          "failure_reason": null,
+          "judge_explanation": "The image clearly shows a picnic table in a natural outdoor setting with trees and a river, not a geographic map with any highlighted region. Therefore, the template 'The highlighted region in the map represents [GEOGRAPHIC_LOCATION]' cannot be meaningfully completed using this image. The baseline model correctly identified that the image is not related to the template, and its explanation is accurate and reasonable.",
+          "suggested_correction": null,
+          "claim_id": "geographic_place_recognition",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The highlighted region in the map represents [GEOGRAPHIC_LOCATION].",
+            "completed_claim": "NOT_RELATED",
+            "baseline_explanation": "The image does not depict a geographic map with a highlighted region. It shows a picnic table in a natural setting near a river.",
+            "baseline_is_related": false,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": false,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": true,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image clearly shows a picnic table in a natural outdoor setting with trees and a river, not a geographic map with any highlighted region. Therefore, the template 'The highlighted region in the map represents [GEOGRAPHIC_LOCATION]' cannot be meaningfully completed using this image. The baseline model correctly identified that the image is not related to the template, and its explanation is accurate and reasonable.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1148,
+              "completion_tokens": 139,
+              "total_tokens": 1287
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim accurately describes the image: a wooden picnic table is clearly visible in a forested area with trees and a river in the background. The baseline explanation correctly identifies these elements and supports the claim. Since the baseline marked the claim as related (is_related=true), and the claim is factually correct and well-supported by the image, no failure is present.",
+          "suggested_correction": null,
+          "claim_id": "image_text_alignment",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The image depicts [SCENE_DESCRIPTION].",
+            "completed_claim": "The image depicts a wooden picnic table in a forested area near a river.",
+            "baseline_explanation": "The image shows a clear view of a wooden picnic table situated in a natural setting with trees and a river visible in the background.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim accurately describes the image: a wooden picnic table is clearly visible in a forested area with trees and a river in the background. The baseline explanation correctly identifies these elements and supports the claim. Since the baseline marked the claim as related (is_related=true), and the claim is factually correct and well-supported by the image, no failure is present.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1153,
+              "completion_tokens": 134,
+              "total_tokens": 1287
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        }
+      ],
+      "aggregated_failures": {
+        "image_id": "part_8_912",
+        "total_claims": 12,
+        "failed_claims": 0,
+        "success_rate": 1.0,
+        "failure_breakdown": {},
+        "failed_claim_ids": [],
+        "metadata": {}
+      },
+      "suggested_filtering_factors": []
+    },
+    {
+      "image_id": "part_8_204",
+      "completions": [
+        {
+          "completed_claim": "The image contains a child wearing a t-shirt with text.",
+          "is_related": true,
+          "explanation": "The child is the most salient and clearly identifiable entity in the image, and the t-shirt with text is a part of their attire that can be identified.",
+          "filled_values": {
+            "ENTITY_TYPE": "t-shirt"
+          },
+          "claim_id": "entity_basic_grounding",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The image contains [ENTITY_TYPE] as a visually identifiable element.",
+            "placeholders": [
+              "ENTITY_TYPE"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The image contains a child wearing a t-shirt with text.\",\n    \"is_related\": true,\n    \"explanation\": \"The child is the most salient and clearly identifiable entity in the image, and the t-shirt with text is a part of their attire that can be identified.\",\n    \"filled_values\": {\n        \"ENTITY_TYPE\": \"t-shirt\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 482,
+              "completion_tokens": 86,
+              "total_tokens": 568
+            }
+          }
+        },
+        {
+          "completed_claim": "The t-shirt in the image belongs to the category clothing and has the property text.",
+          "is_related": true,
+          "explanation": "The t-shirt is the most prominent single object with clear categorical identity. It can be classified under the abstract category of clothing due to its function as apparel. A stable, non-visual property of this category is that it has text printed on it, which is visible in the image.",
+          "filled_values": {
+            "OBJECT_INSTANCE": "t-shirt",
+            "ABSTRACT_CATEGORY": "clothing",
+            "PROPERTY": "text"
+          },
+          "claim_id": "concept_single_object",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT_INSTANCE] in the image belongs to the category [ABSTRACT_CATEGORY] and has the property [PROPERTY].",
+            "placeholders": [
+              "OBJECT_INSTANCE",
+              "ABSTRACT_CATEGORY",
+              "PROPERTY"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The t-shirt in the image belongs to the category clothing and has the property text.\",\n    \"is_related\": true,\n    \"explanation\": \"The t-shirt is the most prominent single object with clear categorical identity. It can be classified under the abstract category of clothing due to its function as apparel. A stable, non-visual property of this category is that it has text printed on it, which is visible in the image.\",\n    \"filled_values\": {\n        \"OBJECT_INSTANCE\": \"t-shirt\",\n        \"ABSTRACT_CATEGORY\": \"clothing\",\n        \"PROPERTY\": \"text\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 569,
+              "completion_tokens": 145,
+              "total_tokens": 715
+            }
+          }
+        },
+        {
+          "completed_claim": "NOT_RELATED",
+          "is_related": false,
+          "explanation": "The image does not contain any structured relationships that imply a higher-level systemic or process-oriented concept. It is a simple portrait of a child.",
+          "filled_values": {},
+          "claim_id": "concept_multi_object_system",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].",
+            "placeholders": [
+              "SYSTEM_CONCEPT"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].\",\n    \"is_related\": false,\n    \"explanation\": \"The image does not contain any structured relationships that imply a higher-level systemic or process-oriented concept. It is a simple portrait of a child.\",\n    \"filled_values\": {}\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 500,
+              "completion_tokens": 86,
+              "total_tokens": 586
+            }
+          }
+        },
+        {
+          "completed_claim": "The t-shirt is located in the center of the image.",
+          "is_related": true,
+          "explanation": "The t-shirt is the most salient object with clear visual boundaries and is positioned centrally within the image.",
+          "filled_values": {
+            "TARGET_OBJECT": "t-shirt",
+            "ABSOLUTE_REGION": "center"
+          },
+          "claim_id": "spatial_absolute_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] is located in the [ABSOLUTE_REGION] of the image.",
+            "placeholders": [
+              "TARGET_OBJECT",
+              "ABSOLUTE_REGION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The t-shirt is located in the center of the image.\",\n    \"is_related\": true,\n    \"explanation\": \"The t-shirt is the most salient object with clear visual boundaries and is positioned centrally within the image.\",\n    \"filled_values\": {\n        \"TARGET_OBJECT\": \"t-shirt\",\n        \"ABSOLUTE_REGION\": \"center\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 536,
+              "completion_tokens": 85,
+              "total_tokens": 622
+            }
+          }
+        },
+        {
+          "completed_claim": "The blue background is behind the baby.",
+          "is_related": true,
+          "explanation": "The baby is clearly positioned in front of the blue background, which serves as the backdrop for the photo.",
+          "filled_values": {
+            "OBJECT_A": "baby",
+            "RELATIVE_DIRECTION": "behind",
+            "OBJECT_B": "blue background"
+          },
+          "claim_id": "spatial_relative_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B].",
+            "placeholders": [
+              "OBJECT_A",
+              "RELATIVE_DIRECTION",
+              "OBJECT_B"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The blue background is behind the baby.\",\n    \"is_related\": true,\n    \"explanation\": \"The baby is clearly positioned in front of the blue background, which serves as the backdrop for the photo.\",\n    \"filled_values\": {\n        \"OBJECT_A\": \"baby\",\n        \"RELATIVE_DIRECTION\": \"behind\",\n        \"OBJECT_B\": \"blue background\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 578,
+              "completion_tokens": 89,
+              "total_tokens": 667
+            }
+          }
+        },
+        {
+          "completed_claim": "The child's t-shirt occupies approximately 50-75% of the image area.",
+          "is_related": true,
+          "explanation": "The child's t-shirt is the most salient object with clear boundaries and it covers a significant portion of the image, making up roughly half to three-quarters of the visible area.",
+          "filled_values": {
+            "TARGET_OBJECT": "child's t-shirt",
+            "PROPORTION": "50-75%"
+          },
+          "claim_id": "scale_proportion_estimation",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] occupies approximately [PROPORTION] of the image area.",
+            "placeholders": [
+              "TARGET_OBJECT",
+              "PROPORTION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The child's t-shirt occupies approximately 50-75% of the image area.\",\n    \"is_related\": true,\n    \"explanation\": \"The child's t-shirt is the most salient object with clear boundaries and it covers a significant portion of the image, making up roughly half to three-quarters of the visible area.\",\n    \"filled_values\": {\n        \"TARGET_OBJECT\": \"child's t-shirt\",\n        \"PROPORTION\": \"50-75%\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 516,
+              "completion_tokens": 107,
+              "total_tokens": 624
+            }
+          }
+        },
+        {
+          "completed_claim": "NOT_RELATED",
+          "is_related": false,
+          "explanation": "No countable object category exists in the image as there are no discrete, identifiable instances that can be counted.",
+          "filled_values": {},
+          "claim_id": "counting_object_instances",
+          "content_type": "count",
+          "metadata": {
+            "original_template": "There are exactly [COUNT] instances of [OBJECT_TYPE] visible in the image.",
+            "placeholders": [
+              "COUNT",
+              "OBJECT_TYPE"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"There are exactly 0 instances of [OBJECT_TYPE] visible in the image.\",\n    \"is_related\": false,\n    \"explanation\": \"No countable object category exists in the image as there are no discrete, identifiable instances that can be counted.\",\n    \"filled_values\": {}\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 547,
+              "completion_tokens": 72,
+              "total_tokens": 619
+            }
+          }
+        },
+        {
+          "completed_claim": "The upper portion of the image contains no bicycles.",
+          "is_related": true,
+          "explanation": "The upper portion of the image shows only the baby and does not include any bicycles.",
+          "filled_values": {
+            "REGION_DESCRIPTION": "upper portion",
+            "OBJECT_TYPE": "bicycles"
+          },
+          "claim_id": "absence_negative_reasoning",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+            "placeholders": [
+              "REGION_DESCRIPTION",
+              "OBJECT_TYPE"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The upper portion of the image contains no bicycles.\",\n    \"is_related\": true,\n    \"explanation\": \"The upper portion of the image shows only the baby and does not include any bicycles.\",\n    \"filled_values\": {\n        \"REGION_DESCRIPTION\": \"upper portion\",\n        \"OBJECT_TYPE\": \"bicycles\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 545,
+              "completion_tokens": 81,
+              "total_tokens": 626
+            }
+          }
+        },
+        {
+          "completed_claim": "NOT_RELATED",
+          "is_related": false,
+          "explanation": "There are no partially visible objects that can be identified due to the full visibility of all elements in the image.",
+          "filled_values": {},
+          "claim_id": "occlusion_robustness",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].",
+            "placeholders": [
+              "OBJECT_IDENTITY"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].\",\n    \"is_related\": false,\n    \"explanation\": \"There are no partially visible objects that can be identified due to the full visibility of all elements in the image.\",\n    \"filled_values\": {}\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 490,
+              "completion_tokens": 75,
+              "total_tokens": 565
+            }
+          }
+        },
+        {
+          "completed_claim": "The baby is facing toward viewer.",
+          "is_related": true,
+          "explanation": "The baby's face is oriented directly towards the camera, indicating a facing direction towards the viewer.",
+          "filled_values": {
+            "OBJECT": "baby",
+            "DIRECTION": "toward viewer"
+          },
+          "claim_id": "orientation_facing_direction",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT] is facing [DIRECTION].",
+            "placeholders": [
+              "OBJECT",
+              "DIRECTION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The baby is facing toward viewer.\",\n    \"is_related\": true,\n    \"explanation\": \"The baby's face is oriented directly towards the camera, indicating a facing direction towards the viewer.\",\n    \"filled_values\": {\n        \"OBJECT\": \"baby\",\n        \"DIRECTION\": \"toward viewer\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 521,
+              "completion_tokens": 77,
+              "total_tokens": 598
+            }
+          }
+        },
+        {
+          "completed_claim": "NOT_RELATED",
+          "is_related": false,
+          "explanation": "The image does not depict a geographic map with a highlighted region; instead, it shows a child wearing a t-shirt.",
+          "filled_values": {},
+          "claim_id": "geographic_place_recognition",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The highlighted region in the map represents [GEOGRAPHIC_LOCATION].",
+            "placeholders": [
+              "GEOGRAPHIC_LOCATION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The highlighted region in the map represents [GEOGRAPHIC_LOCATION].\",\n    \"is_related\": false,\n    \"explanation\": \"The image does not depict a geographic map with a highlighted region; instead, it shows a child wearing a t-shirt.\",\n    \"filled_values\": {}\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 502,
+              "completion_tokens": 70,
+              "total_tokens": 572
+            }
+          }
+        },
+        {
+          "completed_claim": "The image depicts a baby wearing a t-shirt with the text 'HERE COMES' visible.",
+          "is_related": true,
+          "explanation": "The image shows a baby sitting on a blanket with a blue background. The baby is wearing a dark-colored t-shirt with the phrase 'HERE COMES' printed on it. The baby has light hair and is smiling.",
+          "filled_values": {
+            "SCENE_DESCRIPTION": "a baby wearing a t-shirt with the text 'HERE COMES' visible"
+          },
+          "claim_id": "image_text_alignment",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The image depicts [SCENE_DESCRIPTION].",
+            "placeholders": [
+              "SCENE_DESCRIPTION"
+            ],
+            "response_text": "{\n    \"completed_claim\": \"The image depicts a baby wearing a t-shirt with the text 'HERE COMES' visible.\",\n    \"is_related\": true,\n    \"explanation\": \"The image shows a baby sitting on a blanket with a blue background. The baby is wearing a dark-colored t-shirt with the phrase 'HERE COMES' printed on it. The baby has light hair and is smiling.\",\n    \"filled_values\": {\n        \"SCENE_DESCRIPTION\": \"a baby wearing a t-shirt with the text 'HERE COMES' visible\"\n    }\n}",
+            "source": "template_completion",
+            "usage": {
+              "prompt_tokens": 485,
+              "completion_tokens": 117,
+              "total_tokens": 602
+            }
+          }
+        }
+      ],
+      "verifications": [
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The image contains a child wearing a t-shirt with text' is accurate. The image clearly shows a young child seated, wearing a dark t-shirt with visible light-blue text ('HERE COMES') and a graphic. The baseline explanation correctly identifies the child as the salient entity and notes the t-shirt with text as part of their attire — both are visually identifiable. Since the baseline marked this as 'related' (is_related=true), and the claim is valid and well-supported, no failure is present.",
+          "suggested_correction": null,
+          "claim_id": "entity_basic_grounding",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The image contains [ENTITY_TYPE] as a visually identifiable element.",
+            "completed_claim": "The image contains a child wearing a t-shirt with text.",
+            "baseline_explanation": "The child is the most salient and clearly identifiable entity in the image, and the t-shirt with text is a part of their attire that can be identified.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The image contains a child wearing a t-shirt with text' is accurate. The image clearly shows a young child seated, wearing a dark t-shirt with visible light-blue text ('HERE COMES') and a graphic. The baseline explanation correctly identifies the child as the salient entity and notes the t-shirt with text as part of their attire — both are visually identifiable. Since the baseline marked this as 'related' (is_related=true), and the claim is valid and well-supported, no failure is present.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1159,
+              "completion_tokens": 166,
+              "total_tokens": 1325
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim correctly identifies the t-shirt as the object instance, classifies it under the abstract category 'clothing', and notes the property 'text', which is visibly printed on the shirt ('HERE COMES' and a car graphic with text). The explanation is reasonable: the t-shirt is prominent, clearly apparel, and the text is a visible, stable property. Since the baseline marked it as 'related', and the claim is valid and well-supported, no failure is present.",
+          "suggested_correction": null,
+          "claim_id": "concept_single_object",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT_INSTANCE] in the image belongs to the category [ABSTRACT_CATEGORY] and has the property [PROPERTY].",
+            "completed_claim": "The t-shirt in the image belongs to the category clothing and has the property text.",
+            "baseline_explanation": "The t-shirt is the most prominent single object with clear categorical identity. It can be classified under the abstract category of clothing due to its function as apparel. A stable, non-visual property of this category is that it has text printed on it, which is visible in the image.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim correctly identifies the t-shirt as the object instance, classifies it under the abstract category 'clothing', and notes the property 'text', which is visibly printed on the shirt ('HERE COMES' and a car graphic with text). The explanation is reasonable: the t-shirt is prominent, clearly apparel, and the text is a visible, stable property. Since the baseline marked it as 'related', and the claim is valid and well-supported, no failure is present.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1206,
+              "completion_tokens": 158,
+              "total_tokens": 1364
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": false,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": true,
+          "failure_reason": null,
+          "judge_explanation": "The image is a simple portrait of a child sitting on a cushion with a plain blue background. There are no visible elements, structures, or relationships that represent a systemic concept (e.g., flowcharts, networks, hierarchies, or process diagrams). The baseline model correctly identified that the template cannot be meaningfully completed with a SYSTEM_CONCEPT based on the visual content. The explanation is reasonable because the image lacks any systemic or relational structure.",
+          "suggested_correction": null,
+          "claim_id": "concept_multi_object_system",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].",
+            "completed_claim": "NOT_RELATED",
+            "baseline_explanation": "The image does not contain any structured relationships that imply a higher-level systemic or process-oriented concept. It is a simple portrait of a child.",
+            "baseline_is_related": false,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": false,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": true,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image is a simple portrait of a child sitting on a cushion with a plain blue background. There are no visible elements, structures, or relationships that represent a systemic concept (e.g., flowcharts, networks, hierarchies, or process diagrams). The baseline model correctly identified that the template cannot be meaningfully completed with a SYSTEM_CONCEPT based on the visual content. The explanation is reasonable because the image lacks any systemic or relational structure.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1151,
+              "completion_tokens": 150,
+              "total_tokens": 1301
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The t-shirt is located in the center of the image' is visually accurate. The child wearing the t-shirt is positioned centrally in the frame, and the t-shirt is the most prominent clothing item, occupying the central visual space. The baseline explanation correctly identifies the t-shirt as salient with clear boundaries and central positioning. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure is present.",
+          "suggested_correction": null,
+          "claim_id": "spatial_absolute_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] is located in the [ABSOLUTE_REGION] of the image.",
+            "completed_claim": "The t-shirt is located in the center of the image.",
+            "baseline_explanation": "The t-shirt is the most salient object with clear visual boundaries and is positioned centrally within the image.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The t-shirt is located in the center of the image' is visually accurate. The child wearing the t-shirt is positioned centrally in the frame, and the t-shirt is the most prominent clothing item, occupying the central visual space. The baseline explanation correctly identifies the t-shirt as salient with clear boundaries and central positioning. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure is present.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1157,
+              "completion_tokens": 158,
+              "total_tokens": 1315
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The blue background is behind the baby' is visually accurate. The baby is seated in front of a solid blue backdrop, which is clearly positioned behind the subject. The baseline explanation correctly identifies the spatial relationship: the baby is in front, and the blue background serves as the backdrop. The claim follows the template structure (OBJECT_A = blue background, RELATIVE_DIRECTION = behind, OBJECT_B = baby) and is logically and visually sound. Since the baseline marked it as related (is_related=true), no failure in rejection judgment applies.",
+          "suggested_correction": null,
+          "claim_id": "spatial_relative_position",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B].",
+            "completed_claim": "The blue background is behind the baby.",
+            "baseline_explanation": "The baby is clearly positioned in front of the blue background, which serves as the backdrop for the photo.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The blue background is behind the baby' is visually accurate. The baby is seated in front of a solid blue backdrop, which is clearly positioned behind the subject. The baseline explanation correctly identifies the spatial relationship: the baby is in front, and the blue background serves as the backdrop. The claim follows the template structure (OBJECT_A = blue background, RELATIVE_DIRECTION = behind, OBJECT_B = baby) and is logically and visually sound. Since the baseline marked it as related (is_related=true), no failure in rejection judgment applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1154,
+              "completion_tokens": 171,
+              "total_tokens": 1325
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim that 'The child's t-shirt occupies approximately 50-75% of the image area' is visually supportable. The child is centrally framed, and the t-shirt covers the torso and upper limbs, which together occupy a substantial portion of the image — reasonably estimated at 50-75%. The explanation correctly notes the t-shirt’s salience and clear boundaries, and its coverage is indeed significant. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure is present.",
+          "suggested_correction": null,
+          "claim_id": "scale_proportion_estimation",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The [TARGET_OBJECT] occupies approximately [PROPORTION] of the image area.",
+            "completed_claim": "The child's t-shirt occupies approximately 50-75% of the image area.",
+            "baseline_explanation": "The child's t-shirt is the most salient object with clear boundaries and it covers a significant portion of the image, making up roughly half to three-quarters of the visible area.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim that 'The child's t-shirt occupies approximately 50-75% of the image area' is visually supportable. The child is centrally framed, and the t-shirt covers the torso and upper limbs, which together occupy a substantial portion of the image — reasonably estimated at 50-75%. The explanation correctly notes the t-shirt’s salience and clear boundaries, and its coverage is indeed significant. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure is present.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1178,
+              "completion_tokens": 177,
+              "total_tokens": 1355
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": false,
+          "claim_is_valid": false,
+          "explanation_is_reasonable": false,
+          "not_related_judgment_correct": false,
+          "failure_reason": "visual_error",
+          "judge_explanation": "The baseline model incorrectly marked the template as 'not related' because it claimed no countable object category exists. However, the image clearly contains countable objects: there is exactly 1 baby, 1 t-shirt, 1 pair of jeans, 1 background, 1 blanket, and even 1 car graphic on the shirt. The template can be answered — for example, 'There are exactly 1 instances of baby visible in the image.' The baseline failed to recognize these discrete, identifiable objects that can be counted, which constitutes a visual recognition error.",
+          "suggested_correction": "There are exactly 1 instances of baby visible in the image.",
+          "claim_id": "counting_object_instances",
+          "content_type": "count",
+          "metadata": {
+            "original_template": "There are exactly [COUNT] instances of [OBJECT_TYPE] visible in the image.",
+            "completed_claim": "NOT_RELATED",
+            "baseline_explanation": "No countable object category exists in the image as there are no discrete, identifiable instances that can be counted.",
+            "baseline_is_related": false,
+            "response_text": "{\n    \"is_correct\": false,\n    \"claim_is_valid\": false,\n    \"explanation_is_reasonable\": false,\n    \"not_related_judgment_correct\": false,\n    \"failure_reason\": \"visual_error\",\n    \"judge_explanation\": \"The baseline model incorrectly marked the template as 'not related' because it claimed no countable object category exists. However, the image clearly contains countable objects: there is exactly 1 baby, 1 t-shirt, 1 pair of jeans, 1 background, 1 blanket, and even 1 car graphic on the shirt. The template can be answered — for example, 'There are exactly 1 instances of baby visible in the image.' The baseline failed to recognize these discrete, identifiable objects that can be counted, which constitutes a visual recognition error.\",\n    \"suggested_correction\": \"There are exactly 1 instances of baby visible in the image.\"\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1147,
+              "completion_tokens": 188,
+              "total_tokens": 1335
+            }
+          },
+          "failure_id": "FR_OBJECT_COUNTING_CONFUSION",
+          "failure_category": "relational_reasoning",
+          "suggested_filtering_factors": [
+            "Image contains at least one visually identifiable object category that can serve as a potential counting target, even if not explicitly specified",
+            "Target objects are countable as discrete instances with visually discernible boundaries",
+            "[optional] Target objects are partially visible, truncated, or overlap with each other",
+            "[optional] Image contains visually similar distractor objects",
+            "[optional] Target objects appear under unusual poses, rotations, or viewpoints",
+            "[optional] Target objects visually blend with background colors or textures",
+            "[optional] Image contains zero instances of the target object",
+            "[optional] Multiple visually similar object subtypes may need to be jointly counted",
+            "[optional] Object appearance varies due to packaging, surface decoration, or deformation",
+            "[optional] Image exhibits challenging visual conditions such as low light, blur, reflections, or mirrored surfaces"
+          ]
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The upper portion of the image contains no bicycles' is accurate. The upper portion of the image shows the baby’s head and shoulders against a blue background, with no bicycles visible. The baseline explanation correctly notes that only the baby is present in that region. The claim is valid, the explanation is reasonable, and since the baseline marked it as related (is_related=true), no failure in 'not related' judgment applies.",
+          "suggested_correction": null,
+          "claim_id": "absence_negative_reasoning",
+          "content_type": "spatial",
+          "metadata": {
+            "original_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+            "completed_claim": "The upper portion of the image contains no bicycles.",
+            "baseline_explanation": "The upper portion of the image shows only the baby and does not include any bicycles.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The upper portion of the image contains no bicycles' is accurate. The upper portion of the image shows the baby’s head and shoulders against a blue background, with no bicycles visible. The baseline explanation correctly notes that only the baby is present in that region. The claim is valid, the explanation is reasonable, and since the baseline marked it as related (is_related=true), no failure in 'not related' judgment applies.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1144,
+              "completion_tokens": 149,
+              "total_tokens": 1293
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": false,
+          "claim_is_valid": false,
+          "explanation_is_reasonable": false,
+          "not_related_judgment_correct": false,
+          "failure_reason": "visual_error",
+          "judge_explanation": "The baseline model incorrectly claimed there are no partially visible objects. In fact, the baby’s clothing (jeans and t-shirt) and the white surface (likely a cushion or blanket) are only partially visible — for example, the jeans are cut off at the knees and the t-shirt’s full design is not shown. The template can be answered — e.g., 'The partially visible object in the image is identifiable as a pair of jeans' or 'a t-shirt with a car graphic'. Therefore, marking it as 'NOT_RELATED' is a failure because the template is answerable from the image.",
+          "suggested_correction": "The partially visible object in the image is identifiable as a pair of jeans.",
+          "claim_id": "occlusion_robustness",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].",
+            "completed_claim": "NOT_RELATED",
+            "baseline_explanation": "There are no partially visible objects that can be identified due to the full visibility of all elements in the image.",
+            "baseline_is_related": false,
+            "response_text": "{\n    \"is_correct\": false,\n    \"claim_is_valid\": false,\n    \"explanation_is_reasonable\": false,\n    \"not_related_judgment_correct\": false,\n    \"failure_reason\": \"visual_error\",\n    \"judge_explanation\": \"The baseline model incorrectly claimed there are no partially visible objects. In fact, the baby’s clothing (jeans and t-shirt) and the white surface (likely a cushion or blanket) are only partially visible — for example, the jeans are cut off at the knees and the t-shirt’s full design is not shown. The template can be answered — e.g., 'The partially visible object in the image is identifiable as a pair of jeans' or 'a t-shirt with a car graphic'. Therefore, marking it as 'NOT_RELATED' is a failure because the template is answerable from the image.\",\n    \"suggested_correction\": \"The partially visible object in the image is identifiable as a pair of jeans.\"\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1145,
+              "completion_tokens": 199,
+              "total_tokens": 1344
+            }
+          },
+          "failure_id": "FR_OCCLUSION_SENSITIVITY",
+          "failure_category": "robustness",
+          "suggested_filtering_factors": [
+            "Image contains at least one visually salient object category suitable for target reasoning",
+            "Potential target objects are partially visible but retain sufficient visual cues for recognition",
+            "Most other objects in the image are largely complete and not heavily occluded, providing contextual cues",
+            "Potential target object is sufficiently recognizable despite partial occlusion",
+            "[optional] Target object is heavily occluded or only a small portion is visible",
+            "[optional] Multiple partially occluded objects appear simultaneously, increasing ambiguity",
+            "[optional] Object shape, color, or texture is partially hidden, requiring inference from visible parts",
+            "[optional] Background or distractor elements visually interfere with partially visible objects",
+            "[optional] Objects appear in unusual poses, rotations, or at image edges, increasing recognition difficulty"
+          ]
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim 'The baby is facing toward viewer' is accurate based on the image. The baby’s face is clearly oriented toward the camera, with eyes and mouth directed forward, which supports the claim. The baseline explanation correctly identifies this orientation. Since the baseline marked the claim as related (is_related=true), there is no issue with rejection of a valid template. All components are consistent with the visual evidence.",
+          "suggested_correction": null,
+          "claim_id": "orientation_facing_direction",
+          "content_type": "action",
+          "metadata": {
+            "original_template": "The [OBJECT] is facing [DIRECTION].",
+            "completed_claim": "The baby is facing toward viewer.",
+            "baseline_explanation": "The baby's face is oriented directly towards the camera, indicating a facing direction towards the viewer.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The baby is facing toward viewer' is accurate based on the image. The baby’s face is clearly oriented toward the camera, with eyes and mouth directed forward, which supports the claim. The baseline explanation correctly identifies this orientation. Since the baseline marked the claim as related (is_related=true), there is no issue with rejection of a valid template. All components are consistent with the visual evidence.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1140,
+              "completion_tokens": 143,
+              "total_tokens": 1283
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": false,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": true,
+          "failure_reason": null,
+          "judge_explanation": "The image clearly shows a child wearing a t-shirt with a graphic and text, not a geographic map with any highlighted region. Therefore, the template 'The highlighted region in the map represents [GEOGRAPHIC_LOCATION]' cannot be meaningfully completed using this image. The baseline model correctly identified that the image is not related to the template, and its explanation is reasonable.",
+          "suggested_correction": null,
+          "claim_id": "geographic_place_recognition",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The highlighted region in the map represents [GEOGRAPHIC_LOCATION].",
+            "completed_claim": "NOT_RELATED",
+            "baseline_explanation": "The image does not depict a geographic map with a highlighted region; instead, it shows a child wearing a t-shirt.",
+            "baseline_is_related": false,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": false,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": true,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image clearly shows a child wearing a t-shirt with a graphic and text, not a geographic map with any highlighted region. Therefore, the template 'The highlighted region in the map represents [GEOGRAPHIC_LOCATION]' cannot be meaningfully completed using this image. The baseline model correctly identified that the image is not related to the template, and its explanation is reasonable.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1146,
+              "completion_tokens": 135,
+              "total_tokens": 1281
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        },
+        {
+          "is_correct": true,
+          "claim_is_valid": true,
+          "explanation_is_reasonable": true,
+          "not_related_judgment_correct": null,
+          "failure_reason": null,
+          "judge_explanation": "The completed claim accurately describes the image: a baby is indeed wearing a t-shirt with the visible text 'HERE COMES'. The baseline explanation correctly adds contextual details (blue background, baby sitting on a blanket, smiling, light hair) that are all visually supported. The template 'The image depicts [SCENE_DESCRIPTION]' is appropriately filled, and the baseline correctly marked it as related. No errors or failures are present.",
+          "suggested_correction": null,
+          "claim_id": "image_text_alignment",
+          "content_type": "relation",
+          "metadata": {
+            "original_template": "The image depicts [SCENE_DESCRIPTION].",
+            "completed_claim": "The image depicts a baby wearing a t-shirt with the text 'HERE COMES' visible.",
+            "baseline_explanation": "The image shows a baby sitting on a blanket with a blue background. The baby is wearing a dark-colored t-shirt with the phrase 'HERE COMES' printed on it. The baby has light hair and is smiling.",
+            "baseline_is_related": true,
+            "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim accurately describes the image: a baby is indeed wearing a t-shirt with the visible text 'HERE COMES'. The baseline explanation correctly adds contextual details (blue background, baby sitting on a blanket, smiling, light hair) that are all visually supported. The template 'The image depicts [SCENE_DESCRIPTION]' is appropriately filled, and the baseline correctly marked it as related. No errors or failures are present.\",\n    \"suggested_correction\": null\n}",
+            "source": "template_completion_verification",
+            "usage": {
+              "prompt_tokens": 1174,
+              "completion_tokens": 145,
+              "total_tokens": 1319
+            }
+          },
+          "failure_id": null,
+          "suggested_filtering_factors": []
+        }
+      ],
+      "aggregated_failures": {
+        "image_id": "part_8_204",
+        "total_claims": 12,
+        "failed_claims": 2,
+        "success_rate": 0.8333333333333334,
+        "failure_breakdown": {
+          "FR_OBJECT_COUNTING_CONFUSION": 1,
+          "FR_OCCLUSION_SENSITIVITY": 1
+        },
+        "failed_claim_ids": [
+          "counting_object_instances",
+          "occlusion_robustness"
+        ],
+        "metadata": {}
+      },
+      "suggested_filtering_factors": [
+        "Image contains at least one visually identifiable object category that can serve as a potential counting target, even if not explicitly specified",
+        "Image contains at least one visually salient object category suitable for target reasoning",
+        "Most other objects in the image are largely complete and not heavily occluded, providing contextual cues",
+        "Potential target object is sufficiently recognizable despite partial occlusion",
+        "Potential target objects are partially visible but retain sufficient visual cues for recognition",
+        "Target objects are countable as discrete instances with visually discernible boundaries",
+        "[optional] Background or distractor elements visually interfere with partially visible objects",
+        "[optional] Image contains visually similar distractor objects",
+        "[optional] Image contains zero instances of the target object",
+        "[optional] Image exhibits challenging visual conditions such as low light, blur, reflections, or mirrored surfaces",
+        "[optional] Multiple partially occluded objects appear simultaneously, increasing ambiguity",
+        "[optional] Multiple visually similar object subtypes may need to be jointly counted",
+        "[optional] Object appearance varies due to packaging, surface decoration, or deformation",
+        "[optional] Object shape, color, or texture is partially hidden, requiring inference from visible parts",
+        "[optional] Objects appear in unusual poses, rotations, or at image edges, increasing recognition difficulty",
+        "[optional] Target object is heavily occluded or only a small portion is visible",
+        "[optional] Target objects appear under unusual poses, rotations, or viewpoints",
+        "[optional] Target objects are partially visible, truncated, or overlap with each other",
+        "[optional] Target objects visually blend with background colors or textures"
+      ]
+    }
+  ],
+  "summary": {
+    "total_images": 2,
+    "total_claims": 24,
+    "total_failures": 2,
+    "overall_success_rate": 0.9166666666666666,
+    "error_rates_by_claim_type": {
+      "action": 0.1,
+      "spatial": 0.0,
+      "relation": 0.0,
+      "count": 0.5
+    },
+    "filtering_factor_distribution": {
+      "Image contains at least one visually identifiable object category that can serve as a potential counting target, even if not explicitly specified": 1,
+      "Image contains at least one visually salient object category suitable for target reasoning": 1,
+      "Most other objects in the image are largely complete and not heavily occluded, providing contextual cues": 1,
+      "Potential target object is sufficiently recognizable despite partial occlusion": 1,
+      "Potential target objects are partially visible but retain sufficient visual cues for recognition": 1,
+      "Target objects are countable as discrete instances with visually discernible boundaries": 1,
+      "[optional] Background or distractor elements visually interfere with partially visible objects": 1,
+      "[optional] Image contains visually similar distractor objects": 1,
+      "[optional] Image contains zero instances of the target object": 1,
+      "[optional] Image exhibits challenging visual conditions such as low light, blur, reflections, or mirrored surfaces": 1,
+      "[optional] Multiple partially occluded objects appear simultaneously, increasing ambiguity": 1,
+      "[optional] Multiple visually similar object subtypes may need to be jointly counted": 1,
+      "[optional] Object appearance varies due to packaging, surface decoration, or deformation": 1,
+      "[optional] Object shape, color, or texture is partially hidden, requiring inference from visible parts": 1,
+      "[optional] Objects appear in unusual poses, rotations, or at image edges, increasing recognition difficulty": 1,
+      "[optional] Target object is heavily occluded or only a small portion is visible": 1,
+      "[optional] Target objects appear under unusual poses, rotations, or viewpoints": 1,
+      "[optional] Target objects are partially visible, truncated, or overlap with each other": 1,
+      "[optional] Target objects visually blend with background colors or textures": 1
+    }
+  }
+}

@@ -591,3 +591,61 @@ client_session: <aiohttp.client.ClientSession object at 0x7f4ff8f1d4b0>
 2026-01-14 08:46:18,537 INFO 3643997 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
 2026-01-14 08:46:18,732 ERROR 3643997 base_events.py default_exception_handler[line: 1758] Unclosed client session
 client_session: <aiohttp.client.ClientSession object at 0x7f5d9c73add0>
+2026-01-14 09:03:44,887 INFO 3649293 modeling.py get_balanced_memory[line: 1086] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2026-01-14 09:03:44,918 WARNING 3649293 modeling.py infer_auto_device_map[line: 1241] The model weights are not tied. Please use the `tie_weights` method before using the `infer_auto_device` function.
+2026-01-14 09:04:19,932 INFO 3649293 openai.py start[line: 47] LLM Load Balancer started.
+2026-01-14 09:04:24,720 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:26,038 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:28,044 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:28,190 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:28,719 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:32,078 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:32,775 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:35,451 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:35,754 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:36,763 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:37,094 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:04:37,801 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:21,342 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:22,110 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:24,105 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:26,375 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:28,385 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:35,891 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:36,177 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:39,129 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:40,261 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:41,776 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:41,965 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:42,722 INFO 3649293 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:05:42,939 ERROR 3649293 base_events.py default_exception_handler[line: 1758] Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7feded31eec0>
+2026-01-14 09:14:36,137 INFO 3654259 modeling.py get_balanced_memory[line: 1086] We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
+2026-01-14 09:14:36,166 WARNING 3654259 modeling.py infer_auto_device_map[line: 1241] The model weights are not tied. Please use the `tie_weights` method before using the `infer_auto_device` function.
+2026-01-14 09:15:16,806 INFO 3654259 openai.py start[line: 47] LLM Load Balancer started.
+2026-01-14 09:15:22,788 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:23,335 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:23,925 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:24,002 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:24,923 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:29,415 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:29,763 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:31,007 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:31,007 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:31,935 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:35,765 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:15:36,019 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:17,103 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:17,399 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:17,795 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:17,983 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:18,052 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:26,006 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:26,335 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:27,176 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:30,241 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:31,347 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:37,202 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.105:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:38,787 INFO 3654259 _client.py _send_single_request[line: 1740] HTTP Request: POST http://10.204.92.110:8000/v1/chat/completions "HTTP/1.1 200 OK"
+2026-01-14 09:16:39,017 ERROR 3654259 base_events.py default_exception_handler[line: 1758] Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x7f89d053ded0>

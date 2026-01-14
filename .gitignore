@@ -1,0 +1,50 @@
+############################
+# Python cache / bytecode
+############################
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+############################
+# Virtual environments
+############################
+.env
+.venv
+venv/
+conda_env/
+env/
+
+############################
+# Logs and runtime files
+############################
+*.log
+nohup.out
+
+############################
+# Experiment outputs
+############################
+output/
+outputs/
+results/
+runs/
+checkpoints/
+artifacts/
+tmp/
+
+############################
+# Large data / models
+############################
+data/
+datasets/
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+
+############################
+# OS / editor
+############################
+.DS_Store
+.idea/
+.vscode/

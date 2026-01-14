@@ -155,6 +155,7 @@ class AsyncGeminiClient:
         if self.use_lb_client:
             # Close LBOpenAIAsyncClient
             try:
+                # Try close() method first (if available)
                 if hasattr(self.lb_client, 'close'):
                     close_method = getattr(self.lb_client, 'close')
                     if asyncio.iscoroutinefunction(close_method):
@@ -162,15 +163,16 @@ class AsyncGeminiClient:
                     else:
                         close_method()
                 
-                # Try to close internal aiohttp session if it exists
-                for attr_name in ['_client', 'client', '_session', 'session', '_http_client']:
+                # Try to close internal aiohttp session if it exists (more thorough search)
+                session_found = False
+                for attr_name in ['_client', 'client', '_session', 'session', '_http_client', '_aiohttp_session', 'aiohttp_session']:
                     if hasattr(self.lb_client, attr_name):
                         inner_obj = getattr(self.lb_client, attr_name)
                         if inner_obj is not None:
                             if isinstance(inner_obj, aiohttp.ClientSession):
                                 if not inner_obj.closed:
                                     await inner_obj.close()
-                                    await asyncio.sleep(0.1)
+                                    session_found = True
                                     break
                             elif hasattr(inner_obj, 'close'):
                                 close_method = getattr(inner_obj, 'close')
@@ -179,14 +181,27 @@ class AsyncGeminiClient:
                                 else:
                                     close_method()
                                 break
+                
+                # Also check if lb_client itself is a context manager
+                if hasattr(self.lb_client, '__aexit__'):
+                    try:
+                        await self.lb_client.__aexit__(None, None, None)
+                    except Exception:
+                        pass  # Ignore errors in context manager exit
+                
+                # Wait for connections to fully close
+                if session_found:
+                    await asyncio.sleep(0.2)
             except Exception as e:
                 warnings.warn(f"Warning when closing LBOpenAIAsyncClient: {e}", RuntimeWarning)
         else:
             # Close aiohttp session
-            if self.session and not self.session.closed:
+            if self.session is not None:
                 try:
-                    await self.session.close()
-                    await asyncio.sleep(0.1)  # Wait for connections to fully close
+                    if not self.session.closed:
+                        await self.session.close()
+                    # Wait a bit longer to ensure connections are fully closed
+                    await asyncio.sleep(0.2)
                 except Exception as e:
                     warnings.warn(f"Warning when closing aiohttp session: {e}", RuntimeWarning)
                 finally:
