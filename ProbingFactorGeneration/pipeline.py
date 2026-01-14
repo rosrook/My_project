@@ -14,11 +14,11 @@ from ProbingFactorGeneration.io import DataSaver
 import asyncio
 
 try:
-    from tqdm.asyncio import tqdm as atqdm
+    from tqdm import tqdm
     HAS_TQDM = True
 except ImportError:
     HAS_TQDM = False
-    atqdm = None
+    tqdm = None
 
 try:
     from ProbingFactorGeneration.core.mappers.failure_reason_matcher import FailureReasonMatcher
@@ -337,8 +337,8 @@ class ProbingFactorPipeline:
         ]
         
         # Use tqdm for progress bar if available (with exception handling)
-        if show_progress and HAS_TQDM and atqdm:
-            # tqdm.gather doesn't support return_exceptions, so we use as_completed instead
+        if show_progress and HAS_TQDM and tqdm:
+            # Wrap tasks to include index and handle exceptions
             async def process_with_index(idx, task):
                 try:
                     result = await task
@@ -346,12 +346,18 @@ class ProbingFactorPipeline:
                 except Exception as e:
                     return idx, e
             
-            indexed_tasks = [process_with_index(i, task) for i, task in enumerate(tasks)]
+            indexed_tasks = [asyncio.create_task(process_with_index(i, task)) for i, task in enumerate(tasks)]
             
+            # Use asyncio.as_completed with tqdm progress bar
             results_list = []
-            async for future in atqdm.as_completed(indexed_tasks, total=len(indexed_tasks), desc="Processing images", unit="img"):
-                idx, result = await future
-                results_list.append((idx, result))
+            pbar = tqdm(total=len(indexed_tasks), desc="Processing images", unit="img")
+            try:
+                for coro in asyncio.as_completed(indexed_tasks):
+                    idx, result = await coro
+                    results_list.append((idx, result))
+                    pbar.update(1)
+            finally:
+                pbar.close()
             
             # Sort by index to maintain order
             results_list.sort(key=lambda x: x[0])

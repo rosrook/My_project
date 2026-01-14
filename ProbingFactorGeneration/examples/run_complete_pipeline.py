@@ -260,7 +260,8 @@ async def run_pipeline_with_failure_sampling(
     claim_template_config: str = "configs/claim_template.example_v1_1.json",
     use_local_baseline: bool = False,
     random_seed: int = 42,
-    include_source_metadata: bool = False
+    include_source_metadata: bool = False,
+    max_empty_batches: int = None
 ):
     """
     运行 pipeline，持续采样直到收集到指定数量的有failure的图片。
@@ -276,6 +277,7 @@ async def run_pipeline_with_failure_sampling(
         use_local_baseline: 是否使用本地 baseline 模型
         random_seed: 随机种子
         include_source_metadata: 是否包含源元数据
+        max_empty_batches: 最大连续空batch数量，如果经过n个batch仍没有找到错误案例，则终止程序
     """
     # Initialize ImageLoader (load all parquet files for sampling)
     image_loader = ImageLoader(
@@ -364,12 +366,18 @@ async def run_pipeline_with_failure_sampling(
     failure_results = []
     total_processed = 0
     batch_num = 0
+    consecutive_empty_batches = 0  # Track consecutive batches without failures
+    first_result = None  # Store first processed result (regardless of failure status)
+    first_result_path = None  # Store path of first image
+    crash_protection_triggered = False  # Flag to indicate if crash protection was triggered
     
     print(f"\n{'='*80}")
     print(f"Failure-based Sampling Pipeline")
     print(f"{'='*80}")
     print(f"Target failure count: {target_failure_count}")
     print(f"Batch size: {batch_size}")
+    if max_empty_batches is not None:
+        print(f"Max empty batches: {max_empty_batches}")
     print(f"{'='*80}\n")
     
     try:
@@ -427,6 +435,11 @@ async def run_pipeline_with_failure_sampling(
                         image_id = result.get('image_id', '')
                         image_path = batch_paths[idx] if idx < len(batch_paths) else None
                         
+                        # Save first result (regardless of failure status) for crash protection
+                        if first_result is None and image_path:
+                            first_result = result
+                            first_result_path = image_path
+                        
                         # Check if this image has failures
                         aggregated_failures = result.get('aggregated_failures', {})
                         failed_claims = aggregated_failures.get('failed_claims', 0)
@@ -447,8 +460,8 @@ async def run_pipeline_with_failure_sampling(
                                     first_image.save(first_image_jpg_path, 'JPEG', quality=95)
                                     
                                     import json
-                                    first_result_path = Path(output_dir) / f"{image_id}_result.json"
-                                    with open(first_result_path, 'w', encoding='utf-8') as f:
+                                    first_result_json_path = Path(output_dir) / f"{image_id}_result.json"
+                                    with open(first_result_json_path, 'w', encoding='utf-8') as f:
                                         json.dump(result, f, indent=2, ensure_ascii=False)
                                 except Exception as e:
                                     if not failure_pbar:
@@ -458,9 +471,43 @@ async def run_pipeline_with_failure_sampling(
                         if image_path:
                             processed_paths.add(image_path)
                     
+                    # Update consecutive empty batches counter
+                    if len(batch_failures) == 0:
+                        consecutive_empty_batches += 1
+                    else:
+                        consecutive_empty_batches = 0  # Reset counter when failures found
+                    
                     if not failure_pbar:
                         print(f"  Found {len(batch_failures)} images with failures in this batch")
                         print(f"  Progress: {len(failure_results)}/{target_failure_count} failure images collected")
+                        if max_empty_batches is not None:
+                            print(f"  Consecutive empty batches: {consecutive_empty_batches}/{max_empty_batches}")
+                    
+                    # Check crash protection: max_empty_batches reached
+                    if max_empty_batches is not None and consecutive_empty_batches >= max_empty_batches:
+                        crash_protection_triggered = True
+                        if failure_pbar:
+                            failure_pbar.close()
+                        print(f"\n⚠️  Crash protection triggered: {consecutive_empty_batches} consecutive batches without failures.")
+                        print(f"   Terminating program. Collected {len(failure_results)}/{target_failure_count} failure images.")
+                        
+                        # Save first result (regardless of failure status)
+                        if first_result is not None and first_result_path:
+                            try:
+                                first_image = image_loader.load(first_result_path)
+                                first_image_id = first_result.get('image_id', 'first_image')
+                                first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
+                                first_image.save(first_image_jpg_path, 'JPEG', quality=95)
+                                
+                                import json
+                                first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
+                                with open(first_result_json_path, 'w', encoding='utf-8') as f:
+                                    json.dump(first_result, f, indent=2, ensure_ascii=False)
+                                print(f"   Saved first processed case: {first_image_id}.jpg and {first_image_id}_result.json")
+                            except Exception as e:
+                                print(f"   Warning: Could not save first processed case: {e}")
+                        
+                        break
                     
                     # Check if we've reached the target
                     if len(failure_results) >= target_failure_count:
@@ -474,8 +521,17 @@ async def run_pipeline_with_failure_sampling(
             
             elapsed_time = time.time() - start_time
             
-            # Save all failure results
-            if failure_results:
+            # Save all failure results (only if crash protection was not triggered)
+            if crash_protection_triggered:
+                print(f"\n{'='*80}")
+                print(f"Sampling Terminated (Crash Protection)")
+                print(f"{'='*80}")
+                print(f"Total images processed: {total_processed}")
+                print(f"Consecutive empty batches: {consecutive_empty_batches}")
+                print(f"Only first processed case was saved.")
+                print(f"Time elapsed: {elapsed_time/60:.1f} minutes ({elapsed_time:.0f}s)")
+                print(f"{'='*80}\n")
+            elif failure_results:
                 output_path = pipeline.data_saver.save_results(
                     failure_results,
                     "probing_results_failures",
@@ -590,6 +646,13 @@ def main():
         help="Batch size for failure-based sampling (used with --target_failure_count)"
     )
     
+    parser.add_argument(
+        "--max_empty_batches",
+        type=int,
+        default=None,
+        help="Maximum number of consecutive batches without failures before termination. If set, program will terminate after N batches without finding any failures, and only save the first processed case."
+    )
+    
     args = parser.parse_args()
     
     # 验证参数
@@ -609,7 +672,8 @@ def main():
             claim_template_config=args.claim_template_config,
             use_local_baseline=args.use_local_baseline,
             random_seed=args.random_seed,
-            include_source_metadata=args.include_source_metadata
+            include_source_metadata=args.include_source_metadata,
+            max_empty_batches=args.max_empty_batches
         ))
     else:
         # 运行原有的固定采样模式
