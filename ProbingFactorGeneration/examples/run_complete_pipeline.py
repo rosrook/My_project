@@ -369,6 +369,7 @@ async def run_pipeline_with_failure_sampling(
     consecutive_empty_batches = 0  # Track consecutive batches without failures
     first_result = None  # Store first processed result (regardless of failure status)
     first_result_path = None  # Store path of first image
+    first_result_saved = False  # Flag to track if first result has been saved
     crash_protection_triggered = False  # Flag to indicate if crash protection was triggered
     
     print(f"\n{'='*80}")
@@ -435,10 +436,31 @@ async def run_pipeline_with_failure_sampling(
                         image_id = result.get('image_id', '')
                         image_path = batch_paths[idx] if idx < len(batch_paths) else None
                         
-                        # Save first result (regardless of failure status) for crash protection
+                        # Save first result (regardless of failure status) immediately after processing
                         if first_result is None and image_path:
                             first_result = result
                             first_result_path = image_path
+                            
+                            # Save first image's jpg and result immediately (regardless of failure status)
+                            if not first_result_saved:
+                                try:
+                                    import json
+                                    first_image = image_loader.load(image_path)
+                                    first_image_id = result.get('image_id', 'first_image')
+                                    first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
+                                    first_image.save(first_image_jpg_path, 'JPEG', quality=95)
+                                    
+                                    first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
+                                    with open(first_result_json_path, 'w', encoding='utf-8') as f:
+                                        json.dump(result, f, indent=2, ensure_ascii=False)
+                                    first_result_saved = True
+                                    if failure_pbar:
+                                        failure_pbar.write(f"  Saved first processed image: {first_image_id}.jpg and {first_image_id}_result.json")
+                                except Exception as e:
+                                    if failure_pbar:
+                                        failure_pbar.write(f"  Warning: Could not save first processed image: {e}")
+                                    else:
+                                        print(f"  Warning: Could not save first processed image: {e}")
                         
                         # Check if this image has failures
                         aggregated_failures = result.get('aggregated_failures', {})
@@ -451,21 +473,6 @@ async def run_pipeline_with_failure_sampling(
                             # Update progress bar
                             if failure_pbar:
                                 failure_pbar.update(1)
-                            
-                            # Save first image's jpg and result for debugging (only for first failure)
-                            if len(failure_results) == 1 and image_path:
-                                try:
-                                    first_image = image_loader.load(image_path)
-                                    first_image_jpg_path = Path(output_dir) / f"{image_id}.jpg"
-                                    first_image.save(first_image_jpg_path, 'JPEG', quality=95)
-                                    
-                                    import json
-                                    first_result_json_path = Path(output_dir) / f"{image_id}_result.json"
-                                    with open(first_result_json_path, 'w', encoding='utf-8') as f:
-                                        json.dump(result, f, indent=2, ensure_ascii=False)
-                                except Exception as e:
-                                    if not failure_pbar:
-                                        print(f"  Warning: Could not save first failure image: {e}")
                         
                         # Mark as processed
                         if image_path:
@@ -491,15 +498,18 @@ async def run_pipeline_with_failure_sampling(
                         print(f"\n⚠️  Crash protection triggered: {consecutive_empty_batches} consecutive batches without failures.")
                         print(f"   Terminating program. Collected {len(failure_results)}/{target_failure_count} failure images.")
                         
-                        # Save first result (regardless of failure status)
-                        if first_result is not None and first_result_path:
+                        # First result should already be saved (if it was processed)
+                        if first_result_saved:
+                            print(f"   First processed case was already saved.")
+                        elif first_result is not None and first_result_path:
+                            # Save first result if not already saved (shouldn't happen, but just in case)
                             try:
+                                import json
                                 first_image = image_loader.load(first_result_path)
                                 first_image_id = first_result.get('image_id', 'first_image')
                                 first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
                                 first_image.save(first_image_jpg_path, 'JPEG', quality=95)
                                 
-                                import json
                                 first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
                                 with open(first_result_json_path, 'w', encoding='utf-8') as f:
                                     json.dump(first_result, f, indent=2, ensure_ascii=False)
