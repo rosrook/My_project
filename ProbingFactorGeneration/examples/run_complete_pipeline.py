@@ -411,6 +411,8 @@ async def run_pipeline_with_failure_sampling(
                         if failure_pbar:
                             failure_pbar.close()
                         print(f"\nNo more images available. Collected {len(failure_results)}/{target_failure_count} failure images.")
+                        print(f"Total processed: {total_processed} images")
+                        print(f"Processed paths count: {len(processed_paths)}")
                         break
                     
                     # Update progress bar description
@@ -436,7 +438,7 @@ async def run_pipeline_with_failure_sampling(
                         image_id = result.get('image_id', '')
                         image_path = batch_paths[idx] if idx < len(batch_paths) else None
                         
-                        # Save first result (regardless of failure status) immediately after processing
+                        # Save first result immediately after processing (if not already saved)
                         if first_result is None and image_path:
                             first_result = result
                             first_result_path = image_path
@@ -453,14 +455,19 @@ async def run_pipeline_with_failure_sampling(
                                     first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
                                     with open(first_result_json_path, 'w', encoding='utf-8') as f:
                                         json.dump(result, f, indent=2, ensure_ascii=False)
+                                    
                                     first_result_saved = True
+                                    print(f"\n✓ First processed image saved immediately:")
+                                    print(f"  Image: {first_image_jpg_path}")
+                                    print(f"  Result: {first_result_json_path}")
                                     if failure_pbar:
-                                        failure_pbar.write(f"  Saved first processed image: {first_image_id}.jpg and {first_image_id}_result.json")
+                                        failure_pbar.write(f"\n✓ First processed image saved: {first_image_id}.jpg and {first_image_id}_result.json")
                                 except Exception as e:
+                                    print(f"\n⚠ Warning: Could not save first processed image: {e}")
+                                    import traceback
+                                    traceback.print_exc()
                                     if failure_pbar:
                                         failure_pbar.write(f"  Warning: Could not save first processed image: {e}")
-                                    else:
-                                        print(f"  Warning: Could not save first processed image: {e}")
                         
                         # Check if this image has failures
                         aggregated_failures = result.get('aggregated_failures', {})
