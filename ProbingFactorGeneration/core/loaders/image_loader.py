@@ -162,6 +162,14 @@ class ImageLoader:
                                 record['image_bytes'] = bytes(value)
                             # Note: image_bytes will be set above, continue to next column
                             continue
+
+                        # Handle base64-encoded image columns
+                        if col_name in ('image_base64', 'image_b64', 'base64'):
+                            if hasattr(value, 'as_py'):
+                                record['image_bytes'] = value.as_py()
+                            else:
+                                record['image_bytes'] = value
+                            continue
                         
                         # Handle list/struct types (conversations column) - convert to Python native
                         # Check if column type is list or struct using PyArrow type checking
@@ -368,21 +376,31 @@ class ImageLoader:
             # Find the record with this image_id
             if self._image_metadata:
                 for record in self._image_metadata:
-                    if record.get('image_id') == image_id and 'image_bytes' in record:
-                        image_bytes = record['image_bytes']
-                        # Handle both bytes and base64 encoded strings
-                        if isinstance(image_bytes, bytes):
-                            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-                            return image
-                        elif isinstance(image_bytes, str):
-                            # Try base64 decoding
-                            try:
-                                import base64
-                                decoded_bytes = base64.b64decode(image_bytes)
-                                image = Image.open(io.BytesIO(decoded_bytes)).convert('RGB')
+                    if record.get('image_id') == image_id:
+                        image_bytes = None
+                        if 'image_bytes' in record:
+                            image_bytes = record['image_bytes']
+                        elif 'image_base64' in record:
+                            image_bytes = record['image_base64']
+                        elif 'image_b64' in record:
+                            image_bytes = record['image_b64']
+                        elif 'base64' in record:
+                            image_bytes = record['base64']
+
+                        if image_bytes is not None:
+                            # Handle both bytes and base64 encoded strings
+                            if isinstance(image_bytes, bytes):
+                                image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
                                 return image
-                            except Exception as e:
-                                raise ValueError(f"Could not decode image bytes for {image_id}: {e}")
+                            elif isinstance(image_bytes, str):
+                                # Try base64 decoding
+                                try:
+                                    import base64
+                                    decoded_bytes = base64.b64decode(image_bytes)
+                                    image = Image.open(io.BytesIO(decoded_bytes)).convert('RGB')
+                                    return image
+                                except Exception as e:
+                                    raise ValueError(f"Could not decode image bytes for {image_id}: {e}")
             
             raise ValueError(f"Image bytes not found for ID: {image_id}")
         
