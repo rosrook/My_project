@@ -248,10 +248,19 @@ class AsyncLLaVAClient:
         # 使用 qwen_vl_utils 的方式（按照 eval_vqa_hardness）
         temp_image_path = None
         try:
-            # 步骤1: 保存图片为临时文件（qwen_vl_utils 需要文件路径或 URL）
+            # 步骤1: 确保图像格式正确（RGB 模式，PIL Image）
+            if not isinstance(image, Image.Image):
+                raise ValueError(f"Expected PIL Image, got {type(image)}")
+            
+            # 确保图像是 RGB 模式
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # 步骤2: 保存图片为临时文件（qwen_vl_utils 需要文件路径或 URL）
             temp_file = NamedTemporaryFile(delete=False, suffix='.jpg')
             temp_image_path = temp_file.name
-            image.save(temp_image_path, 'JPEG')
+            # 确保保存为 JPEG 格式，质量设置为 95 以避免压缩问题
+            image.save(temp_image_path, 'JPEG', quality=95)
             temp_file.close()
             
             # 确保路径格式正确（添加 file:// 前缀，按照 vlmevalkit 的 ensure_image_url）
@@ -289,11 +298,21 @@ class AsyncLLaVAClient:
             # 步骤4: 使用 qwen_vl_utils.process_vision_info 处理视觉信息（完全按照 vlmevalkit）
             image_inputs, video_inputs = self.process_vision_info(messages)
             
+            # 确保 image_inputs 是列表格式（process_vision_info 可能返回单个图像或列表）
+            if image_inputs is not None and not isinstance(image_inputs, list):
+                image_inputs = [image_inputs]
+            if video_inputs is not None and not isinstance(video_inputs, list):
+                video_inputs = [video_inputs]
+            
             # 步骤5: 调用 processor（完全按照 vlmevalkit）
+            # 如果 image_inputs 为空，传递 None 而不是空列表
+            processor_images = image_inputs if image_inputs else None
+            processor_videos = video_inputs if video_inputs else None
+            
             inputs = self.processor(
                 text=[text_prompt],
-                images=image_inputs,
-                videos=video_inputs,
+                images=processor_images,
+                videos=processor_videos,
                 padding=True,
                 return_tensors="pt",
             ).to(self.device)
