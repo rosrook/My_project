@@ -486,264 +486,112 @@ Important guidelines:
                 "metadata": dict  # Additional metadata
             }
         """
-        import traceback
-        
         try:
-            # Step 1: Validate and extract template data
-            try:
-                template_text = claim_template.get("claim_template") or claim_template.get("claim_text", "")
-                placeholders = claim_template.get("placeholders", [])
-                slots_info = claim_template.get("slots", {})
-                metadata = claim_template.get("metadata", {})
-                baseline_instructions = metadata.get("baseline_instructions", [])
-                expected_outputs = metadata.get("expected_outputs", [])
-                not_related_conditions = metadata.get("not_related_conditions", [])
-                
-                if not template_text:
-                    raise ValueError("claim_template must contain 'claim_template' or 'claim_text' field")
-            except Exception as e:
-                error_info = {
-                    "step": "1_validate_template",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "image_type": type(image).__name__,
-                    "image_mode": getattr(image, 'mode', 'N/A') if hasattr(image, 'mode') else 'N/A',
-                    "claim_template_keys": list(claim_template.keys()) if isinstance(claim_template, dict) else 'N/A',
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 1] Template validation failed: {error_info}")
-                raise ValueError(f"Step 1 failed: {e}") from e
+            # Extract template data
+            template_text = claim_template.get("claim_template") or claim_template.get("claim_text", "")
+            placeholders = claim_template.get("placeholders", [])
+            slots_info = claim_template.get("slots", {})
+            metadata = claim_template.get("metadata", {})
+            baseline_instructions = metadata.get("baseline_instructions", [])
+            expected_outputs = metadata.get("expected_outputs", [])
+            not_related_conditions = metadata.get("not_related_conditions", [])
             
-            # Step 2: Validate image
-            try:
-                if not isinstance(image, Image.Image):
-                    raise TypeError(f"Expected PIL.Image.Image, got {type(image)}")
-                if image.mode not in ('RGB', 'RGBA', 'L'):
-                    print(f"[WARNING] Image mode is {image.mode}, will convert to RGB")
-                    image = image.convert('RGB')
-                image_info = {
-                    "type": type(image).__name__,
-                    "mode": image.mode,
-                    "size": image.size,
-                    "format": getattr(image, 'format', 'N/A')
-                }
-            except Exception as e:
-                error_info = {
-                    "step": "2_validate_image",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "image_type": type(image).__name__,
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 2] Image validation failed: {error_info}")
-                raise ValueError(f"Step 2 failed: {e}") from e
+            if not template_text:
+                raise ValueError("claim_template must contain 'claim_template' or 'claim_text' field")
             
-            # Step 3: Build completion prompt
-            try:
-                prompt = self._build_template_completion_prompt(
-                    template_text, 
-                    placeholders,
-                    slots_info=slots_info if slots_info else None,
-                    baseline_instructions=baseline_instructions if baseline_instructions else None,
-                    expected_outputs=expected_outputs if expected_outputs else None,
-                    not_related_conditions=not_related_conditions if not_related_conditions else None
-                )
-                prompt_info = {
-                    "prompt_length": len(prompt),
-                    "prompt_preview": prompt[:200] + "..." if len(prompt) > 200 else prompt
-                }
-            except Exception as e:
-                error_info = {
-                    "step": "3_build_prompt",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "template_text_length": len(template_text) if template_text else 0,
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 3] Prompt building failed: {error_info}")
-                raise ValueError(f"Step 3 failed: {e}") from e
+            # Validate and convert image
+            if not isinstance(image, Image.Image):
+                raise TypeError(f"Expected PIL.Image.Image, got {type(image)}")
+            if image.mode not in ('RGB', 'RGBA', 'L'):
+                image = image.convert('RGB')
             
-            # Step 4: Convert image to base64
-            try:
-                image_base64 = self._image_to_base64(image)
-                base64_info = {
-                    "base64_length": len(image_base64),
-                    "base64_preview": image_base64[:50] + "..." if len(image_base64) > 50 else image_base64
-                }
-            except Exception as e:
-                error_info = {
-                    "step": "4_image_to_base64",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "image_type": type(image).__name__,
-                    "image_mode": getattr(image, 'mode', 'N/A') if hasattr(image, 'mode') else 'N/A',
-                    "image_size": getattr(image, 'size', 'N/A') if hasattr(image, 'size') else 'N/A',
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 4] Image to base64 conversion failed: {error_info}")
-                raise ValueError(f"Step 4 failed: {e}") from e
+            # Build completion prompt
+            prompt = self._build_template_completion_prompt(
+                template_text, 
+                placeholders,
+                slots_info=slots_info if slots_info else None,
+                baseline_instructions=baseline_instructions if baseline_instructions else None,
+                expected_outputs=expected_outputs if expected_outputs else None,
+                not_related_conditions=not_related_conditions if not_related_conditions else None
+            )
             
-            # Step 5: Build messages for API call
-            try:
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
-                                }
+            # Convert image to base64
+            image_base64 = self._image_to_base64(image)
+            
+            # Build messages for API call
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
                             }
-                        ]
-                    }
-                ]
-                messages_info = {
-                    "messages_count": len(messages),
-                    "content_types": [type(item).__name__ for item in messages[0]["content"]] if messages else []
+                        }
+                    ]
                 }
-            except Exception as e:
-                error_info = {
-                    "step": "5_build_messages",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "prompt_length": len(prompt) if prompt else 0,
-                    "base64_length": len(image_base64) if image_base64 else 0,
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 5] Message building failed: {error_info}")
-                raise ValueError(f"Step 5 failed: {e}") from e
+            ]
             
-            # Step 6: Call model API
-            try:
-                response = await self._call_model_async(
-                    messages, 
-                    response_format={"type": "json_object"}
-                )
-                response_info = {
-                    "response_type": type(response).__name__,
-                    "has_choices": hasattr(response, 'choices'),
-                    "choices_count": len(response.choices) if hasattr(response, 'choices') else 0
-                }
-            except Exception as e:
-                error_info = {
-                    "step": "6_call_model",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "use_local_model": getattr(self, 'use_local_model', 'N/A'),
-                    "model_path": getattr(self, 'model_path', 'N/A'),
-                    "async_client_type": type(self._async_client).__name__ if hasattr(self, '_async_client') and self._async_client else 'N/A',
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 6] Model API call failed: {error_info}")
-                raise ValueError(f"Step 6 failed: {e}") from e
+            # Call model API
+            response = await self._call_model_async(
+                messages, 
+                response_format={"type": "json_object"}
+            )
             
-            # Step 7: Extract response text
-            try:
-                response_text = response.choices[0].message.content
-                response_text_info = {
-                    "response_text_length": len(response_text) if response_text else 0,
-                    "response_text_preview": response_text[:200] + "..." if response_text and len(response_text) > 200 else response_text
-                }
-            except Exception as e:
-                error_info = {
-                    "step": "7_extract_response",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "response_type": type(response).__name__,
-                    "has_choices": hasattr(response, 'choices'),
-                    "traceback": traceback.format_exc()
-                }
-                print(f"[ERROR Step 7] Response extraction failed: {error_info}")
-                raise ValueError(f"Step 7 failed: {e}") from e
+            # Extract response text
+            response_text = response.choices[0].message.content
             
-            # Step 8: Parse JSON response
+            # Parse JSON response
             try:
                 parsed = json.loads(response_text)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 # Try to extract JSON from text if it's wrapped
-                try:
-                    import re
-                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                    if json_match:
-                        parsed = json.loads(json_match.group())
-                    else:
-                        raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
-                except Exception as e2:
-                    error_info = {
-                        "step": "8_parse_json",
-                        "error_type": type(e2).__name__,
-                        "error_msg": str(e2),
-                        "original_json_error": str(e),
-                        "response_text_preview": response_text[:500] if response_text else "N/A",
-                        "traceback": traceback.format_exc()
-                    }
-                    print(f"[ERROR Step 8] JSON parsing failed: {error_info}")
-                    raise ValueError(f"Step 8 failed: {e2}") from e2
+                import re
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group())
+                else:
+                    raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
             
-            # Step 9: Build completion result
-            try:
-                completion = {
-                    "completed_claim": parsed.get("completed_claim", ""),
-                    "is_related": parsed.get("is_related", True),
-                    "explanation": parsed.get("explanation", ""),
-                    "filled_values": parsed.get("filled_values", {}),
-                    "claim_id": claim_template.get("claim_id", ""),
-                    "content_type": claim_template.get("content_type", "relation"),
-                    "metadata": {
-                        "original_template": template_text,
-                        "placeholders": placeholders,
-                        "response_text": response_text,
-                        "source": "template_completion"
-                    }
+            # Build completion result
+            completion = {
+                "completed_claim": parsed.get("completed_claim", ""),
+                "is_related": parsed.get("is_related", True),
+                "explanation": parsed.get("explanation", ""),
+                "filled_values": parsed.get("filled_values", {}),
+                "claim_id": claim_template.get("claim_id", ""),
+                "content_type": claim_template.get("content_type", "relation"),
+                "metadata": {
+                    "original_template": template_text,
+                    "placeholders": placeholders,
+                    "response_text": response_text,
+                    "source": "template_completion"
                 }
-                
-                # If marked as not related, ensure completed_claim is consistent with expected format
-                if not completion["is_related"]:
-                    # Check if expected_outputs uses "NOT_RELATED" (uppercase) or "not related" (lowercase)
-                    metadata = claim_template.get("metadata", {})
-                    expected_outputs = metadata.get("expected_outputs", [])
-                    if "NOT_RELATED" in expected_outputs:
-                        completion["completed_claim"] = "NOT_RELATED"
-                    else:
-                        completion["completed_claim"] = "not related"
-                
-                # Add usage metadata if available
-                if hasattr(response, "usage"):
-                    completion["metadata"]["usage"] = {
-                        "prompt_tokens": getattr(response.usage, "prompt_tokens", None),
-                        "completion_tokens": getattr(response.usage, "completion_tokens", None),
-                        "total_tokens": getattr(response.usage, "total_tokens", None),
-                    }
-            except Exception as e:
-                error_info = {
-                    "step": "9_build_completion",
-                    "error_type": type(e).__name__,
-                    "error_msg": str(e),
-                    "parsed_type": type(parsed).__name__ if 'parsed' in locals() else 'N/A',
-                    "parsed_keys": list(parsed.keys()) if isinstance(parsed, dict) else 'N/A',
-                    "traceback": traceback.format_exc()
+            }
+            
+            # If marked as not related, ensure completed_claim is consistent with expected format
+            if not completion["is_related"]:
+                metadata = claim_template.get("metadata", {})
+                expected_outputs = metadata.get("expected_outputs", [])
+                if "NOT_RELATED" in expected_outputs:
+                    completion["completed_claim"] = "NOT_RELATED"
+                else:
+                    completion["completed_claim"] = "not related"
+            
+            # Add usage metadata if available
+            if hasattr(response, "usage"):
+                completion["metadata"]["usage"] = {
+                    "prompt_tokens": getattr(response.usage, "prompt_tokens", None),
+                    "completion_tokens": getattr(response.usage, "completion_tokens", None),
+                    "total_tokens": getattr(response.usage, "total_tokens", None),
                 }
-                print(f"[ERROR Step 9] Completion building failed: {error_info}")
-                raise ValueError(f"Step 9 failed: {e}") from e
             
             return completion
             
         except Exception as e:
-            # Return error in metadata with full traceback
-            error_traceback = traceback.format_exc()
-            error_info = {
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "traceback": error_traceback,
-                "original_template": claim_template.get("claim_template", ""),
-                "claim_id": claim_template.get("claim_id", ""),
-                "image_type": type(image).__name__ if 'image' in locals() else 'N/A',
-                "image_mode": getattr(image, 'mode', 'N/A') if 'image' in locals() and hasattr(image, 'mode') else 'N/A'
-            }
-            print(f"[ERROR complete_template_async] Full error info: {error_info}")
-            
+            # Return error result
             return {
                 "completed_claim": None,
                 "is_related": False,
@@ -751,7 +599,7 @@ Important guidelines:
                 "filled_values": {},
                 "claim_id": claim_template.get("claim_id", ""),
                 "content_type": claim_template.get("content_type", "relation"),
-                "metadata": error_info
+                "metadata": {"error": str(e), "error_type": type(e).__name__}
             }
     
     def complete_template(

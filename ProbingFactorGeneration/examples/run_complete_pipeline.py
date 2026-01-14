@@ -75,111 +75,68 @@ async def run_pipeline(
         use_local_baseline: 是否使用本地 baseline 模型
         random_seed: 随机种子
     """
-    print("=" * 80)
-    print("Probing Factor Generation Pipeline")
-    print("=" * 80)
-    print(f"\nConfiguration:")
-    print(f"  Parquet directory: {parquet_dir}")
-    print(f"  Sample size: {sample_size}")
-    print(f"  Parquet sample size: {parquet_sample_size}")
-    print(f"  Output directory: {output_dir}")
-    print(f"  Baseline model: {baseline_model_path if use_local_baseline else 'API model'}")
-    print(f"  Judge model: {judge_model_name}")
-    print(f"  Claim template: {claim_template_config}")
-    print(f"  Random seed: {random_seed}")
-    print(f"  Include source metadata: {include_source_metadata}")
-    print()
-    
-    # 1. 初始化 ImageLoader（从 parquet 文件加载）
-    print("Step 1: Initializing ImageLoader...")
-    
     # Auto-determine parquet_sample_size if not provided
     if parquet_sample_size is None and sample_size <= 50:
-        # For small sample sizes, only read a few parquet files
         parquet_sample_size = min(3, max(1, sample_size // 20 + 1))
-        print(f"  Auto-selecting {parquet_sample_size} parquet files for efficient loading")
     
     image_loader = ImageLoader(
         parquet_dir=parquet_dir,
         sample_size=sample_size,
         parquet_sample_size=parquet_sample_size,
         random_seed=random_seed,
-        lazy_load=True  # Use lazy loading for memory efficiency
+        lazy_load=True
     )
     
-    # 获取图像路径
     image_paths = image_loader.get_all_image_paths()
-    print(f"  ✓ Loaded {len(image_paths)} image paths")
-    
     if len(image_paths) == 0:
-        print("  ✗ No images found! Please check your parquet directory.")
+        print("No images found!")
         return
     
-    # 2. 初始化 Claim Generator
-    print("\nStep 2: Initializing TemplateClaimGenerator...")
-    
-    # Resolve config path (relative to ProbingFactorGeneration root)
+    # Resolve config path
     claim_template_path = Path(claim_template_config)
     if not claim_template_path.is_absolute():
-        # If relative path, resolve relative to ProbingFactorGeneration root
         claim_template_path = PROBING_ROOT / claim_template_config
-    else:
-        claim_template_path = Path(claim_template_config)
     
     if not claim_template_path.exists():
-        print(f"  ✗ Claim template config not found: {claim_template_path}")
-        print(f"    Searched at: {claim_template_path.absolute()}")
-        print(f"    ProbingFactorGeneration root: {PROBING_ROOT}")
-        print(f"    Please ensure the file exists or update the path.")
+        print(f"Claim template config not found: {claim_template_path}")
         return
     
     template_generator = TemplateClaimGenerator(config_path=str(claim_template_path))
-    print(f"  ✓ Claim template loaded from {claim_template_path}")
     
-    # 3. 初始化 Baseline Model
-    print("\nStep 3: Initializing BaselineModel...")
+    # Initialize models with optimized settings
     if use_local_baseline and baseline_model_path:
         baseline_model = BaselineModel(
             model_path=baseline_model_path,
             use_local_model=True,
             gpu_id=0,
-            max_concurrent=1
+            max_concurrent=1,
+            request_delay=0.0
         )
-        print(f"  ✓ Using local LLaVA model: {baseline_model_path}")
     else:
-        # 使用 API 模型（需要配置环境变量）
         baseline_model = BaselineModel(
             model_name="gemini-pro-vision",
-            max_concurrent=5
+            max_concurrent=10,
+            request_delay=0.0
         )
-        print(f"  ✓ Using API model (gemini-pro-vision)")
     
-    # 4. 初始化 Judge Model
-    print("\nStep 4: Initializing JudgeModel...")
     if judge_model_name:
         judge_model = JudgeModel(
             model_name=judge_model_name,
-            max_concurrent=5,
-            use_lb_client=True  # 使用 LBOpenAIAsyncClient
+            max_concurrent=10,
+            use_lb_client=True,
+            request_delay=0.0
         )
-        print(f"  ✓ Using Qwen judge model: {judge_model_name}")
     else:
-        # 使用默认 API 模型
         judge_model = JudgeModel(
             model_name="gemini-pro-vision",
-            max_concurrent=5
+            max_concurrent=10,
+            request_delay=0.0
         )
-        print(f"  ✓ Using API model (gemini-pro-vision)")
     
-    # 5. 初始化其他组件
-    print("\nStep 5: Initializing other components...")
     failure_aggregator = FailureAggregator()
     filtering_factor_mapper = FilteringFactorMapper()
     data_saver = DataSaver(output_dir=output_dir)
-    print("  ✓ All components initialized")
     
-    # 6. 创建 Pipeline
-    print("\nStep 6: Creating Pipeline...")
     pipeline = ProbingFactorPipeline(
         image_loader=image_loader,
         claim_generator=template_generator,
@@ -190,64 +147,34 @@ async def run_pipeline(
         data_saver=data_saver,
         include_source_metadata=include_source_metadata
     )
-    print("  ✓ Pipeline created")
-    if include_source_metadata:
-        print("  ✓ Source metadata (e.g., conversations) will be included in results")
-    
-    # 7. 运行 Pipeline
-    print("\n" + "=" * 80)
-    print("Processing Images...")
-    print("=" * 80)
     
     try:
         async with baseline_model, judge_model:
-            # 处理所有图像
             results = await pipeline.process_batch_with_templates_async(image_paths)
             
-            print(f"\n✓ Processed {len(results)} images")
+            # Save first image's jpg and result for debugging
+            if results:
+                first_image_path = image_paths[0]
+                first_image = image_loader.load(first_image_path)
+                first_image_id = results[0]['image_id']
+                
+                # Save first image as jpg
+                first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
+                first_image.save(first_image_jpg_path, 'JPEG', quality=95)
+                
+                # Save first result
+                import json
+                first_result_path = Path(output_dir) / f"{first_image_id}_result.json"
+                with open(first_result_path, 'w', encoding='utf-8') as f:
+                    json.dump(results[0], f, indent=2, ensure_ascii=False)
             
-            # 8. 保存结果
-            print("\nStep 8: Saving results...")
+            # Save all results
             output_path = pipeline.data_saver.save_results(
                 results,
                 "probing_results",
                 "json"
             )
-            print(f"  ✓ Results saved to: {output_path}")
-            
-            # 打印统计信息
-            pipeline._print_statistics_with_templates(results)
-            
-            # 打印示例结果
-            if results:
-                print("\n" + "=" * 80)
-                print("Example Result (First Image)")
-                print("=" * 80)
-                first_result = results[0]
-                print(f"\nImage ID: {first_result['image_id']}")
-                # print(f"Total Claims: {len(first_result['claim_templates'])}")
-                print(f"Failed Claims: {first_result['aggregated_failures'].get('failed_claims', 0)}")
-                print(f"Success Rate: {first_result['aggregated_failures'].get('success_rate', 0):.2%}")
-                
-                # 显示筛选要素
-                filtering_factors = first_result.get('suggested_filtering_factors', [])
-                if filtering_factors:
-                    print(f"\nSuggested Filtering Factors ({len(filtering_factors)}):")
-                    for i, factor in enumerate(filtering_factors[:10], 1):  # 显示前10个
-                        print(f"  {i}. {factor}")
-                    if len(filtering_factors) > 10:
-                        print(f"  ... and {len(filtering_factors) - 10} more")
-                
-                # 显示失败统计
-                failure_breakdown = first_result['aggregated_failures'].get('failure_breakdown', {})
-                if failure_breakdown:
-                    print(f"\nFailure Breakdown:")
-                    for failure_id, count in failure_breakdown.items():
-                        print(f"  {failure_id}: {count}")
-            
-            print("\n" + "=" * 80)
-            print("Pipeline completed successfully!")
-            print("=" * 80)
+            print(f"Results saved to: {output_path}")
             
     except Exception as e:
         print(f"\n✗ Error during processing: {e}")

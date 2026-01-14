@@ -314,6 +314,7 @@ class ProbingFactorPipeline:
     async def process_batch_with_templates_async(self, image_paths: List[str]) -> List[Dict[str, Any]]:
         """
         Process a batch of images through the template-based pipeline (async version).
+        Uses concurrent processing for better performance.
         
         Args:
             image_paths: List of paths to image files
@@ -321,11 +322,37 @@ class ProbingFactorPipeline:
         Returns:
             List of result dictionaries (one per image)
         """
-        results = []
-        for image_path in image_paths:
-            result = await self.process_single_image_with_templates_async(image_path)
-            results.append(result)
-        return results
+        # Process all images concurrently
+        tasks = [
+            self.process_single_image_with_templates_async(image_path)
+            for image_path in image_paths
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Handle exceptions in results
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                # Create error result
+                image_id = self.image_loader.get_image_id(image_paths[i]) if i < len(image_paths) else f"image_{i}"
+                processed_results.append({
+                    "image_id": image_id,
+                    "completions": [],
+                    "verifications": [],
+                    "aggregated_failures": {
+                        "image_id": image_id,
+                        "total_claims": 0,
+                        "failed_claims": 0,
+                        "success_rate": 0.0,
+                        "failure_breakdown": {}
+                    },
+                    "suggested_filtering_factors": [],
+                    "error": str(result)
+                })
+            else:
+                processed_results.append(result)
+        
+        return processed_results
     
     def process_batch_with_templates(self, image_paths: List[str]) -> List[Dict[str, Any]]:
         """

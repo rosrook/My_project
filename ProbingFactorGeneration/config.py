@@ -87,7 +87,7 @@ MODEL_CONFIG = {
     "API_KEY": os.getenv("API_KEY", None),  # API key (if needed)
     "BASE_URL": os.getenv("BASE_URL", None),  # API base URL (required if not using LBOpenAIAsyncClient)
     "MAX_CONCURRENT": int(os.getenv("MAX_CONCURRENT", "10")),  # Maximum concurrent requests
-    "REQUEST_DELAY": float(os.getenv("REQUEST_DELAY", "0.1")),  # Delay between requests (seconds)
+    "REQUEST_DELAY": float(os.getenv("REQUEST_DELAY", "0.0")),  # Delay between requests (seconds)
     "MAX_TOKENS": int(os.getenv("MAX_TOKENS", "1000")),  # Maximum tokens in response
     "TEMPERATURE": float(os.getenv("TEMPERATURE", "0.3")),  # Temperature for generation
     "USE_LB_CLIENT": os.getenv("USE_LB_CLIENT", "true").lower() == "true",  # Whether to use LBOpenAIAsyncClient
