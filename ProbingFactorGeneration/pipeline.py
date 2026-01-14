@@ -336,14 +336,26 @@ class ProbingFactorPipeline:
             for image_path in image_paths
         ]
         
-        # Use tqdm for progress bar if available
+        # Use tqdm for progress bar if available (with exception handling)
         if show_progress and HAS_TQDM and atqdm:
-            results = await atqdm.gather(
-                *tasks, 
-                return_exceptions=True,
-                desc="Processing images",
-                unit="img"
-            )
+            # tqdm.gather doesn't support return_exceptions, so we use as_completed instead
+            async def process_with_index(idx, task):
+                try:
+                    result = await task
+                    return idx, result
+                except Exception as e:
+                    return idx, e
+            
+            indexed_tasks = [process_with_index(i, task) for i, task in enumerate(tasks)]
+            
+            results_list = []
+            async for future in atqdm.as_completed(indexed_tasks, total=len(indexed_tasks), desc="Processing images", unit="img"):
+                idx, result = await future
+                results_list.append((idx, result))
+            
+            # Sort by index to maintain order
+            results_list.sort(key=lambda x: x[0])
+            results = [result for _, result in results_list]
         else:
             results = await asyncio.gather(*tasks, return_exceptions=True)
         
