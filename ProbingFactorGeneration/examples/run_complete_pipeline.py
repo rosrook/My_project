@@ -225,7 +225,7 @@ async def run_pipeline(
                 print("=" * 80)
                 first_result = results[0]
                 print(f"\nImage ID: {first_result['image_id']}")
-                print(f"Total Claims: {len(first_result['claim_templates'])}")
+                # print(f"Total Claims: {len(first_result['claim_templates'])}")
                 print(f"Failed Claims: {first_result['aggregated_failures'].get('failed_claims', 0)}")
                 print(f"Success Rate: {first_result['aggregated_failures'].get('success_rate', 0):.2%}")
                 

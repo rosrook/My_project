@@ -1,0 +1,45 @@
+nohup: ignoring input
+[1;36m2026-01-14 03:53:44,313 - PID 3585839 - accelerate.utils.modeling - INFO - We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk). (modeling.py:1086)[0m
+[1;33m2026-01-14 03:53:44,521 - PID 3585839 - accelerate.utils.modeling - WARNING - The model weights are not tied. Please use the `tie_weights` method before using the `infer_auto_device` function. (modeling.py:1241)[0m
+================================================================================
+Probing Factor Generation Pipeline
+================================================================================
+
+Configuration:
+  Parquet directory: /mnt/tidal-alsh01/dataset/perceptionVLMData/processed_v1.0/datasets--OpenImages/data/train/
+  Sample size: 10
+  Parquet sample size: None
+  Output directory: ./output
+  Baseline model: /mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model
+  Judge model: /workspace/Qwen3-VL-235B-A22B-Instruct
+  Claim template: configs/claim_template.example_v1_1.json
+  Random seed: 42
+  Include source metadata: False
+
+Step 1: Initializing ImageLoader...
+  Auto-selecting 1 parquet files for efficient loading
+Sampled 1 parquet files from 349 total files
+Loaded 10 image records from 1 parquet file(s)
+  ✓ Loaded 10 image paths
+
+Step 2: Initializing TemplateClaimGenerator...
+  ✓ Claim template loaded from /home/zhuxuzhou/My_project/ProbingFactorGeneration/configs/claim_template.example_v1_1.json
+
+Step 3: Initializing BaselineModel...
+  ✓ Using local LLaVA model: /mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model
+
+Step 4: Initializing JudgeModel...
+  ✓ Using Qwen judge model: /workspace/Qwen3-VL-235B-A22B-Instruct
+
+Step 5: Initializing other components...
+  ✓ All components initialized
+
+Step 6: Creating Pipeline...
+  ✓ Pipeline created
+
+================================================================================
+Processing Images...
+================================================================================
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:01<00:01,  1.11s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:02<00:00,  1.21s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:02<00:00,  1.19s/it]
+The image processor of type `Qwen2VLImageProcessor` is now loaded as a fast processor by default, even if the model checkpoint was saved with a slow processor. This is a breaking change and may produce slightly different outputs. To continue using the slow processor, instantiate this class with `use_fast=False`. Note that this behavior will be extended to all models in a future release.
+You have video processor config saved in `preprocessor.json` file which is deprecated. Video processor configs should be saved in their own `video_preprocessor.json` file. You can rename the file or load and save the processor back which renames it automatically. Loading from `preprocessor.json` will be removed in v5.0.

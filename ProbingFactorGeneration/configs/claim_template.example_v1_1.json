@@ -229,7 +229,7 @@
         "slots": {
           "OBJECT_TYPE": {
             "type": "object_category",
-            "selection_criteria": "Select the most salient countable object category with multiple instances or potential for counting (including zero)"
+            "selection_criteria": "Select the single most salient object category that is clearly countable, allowing the number of instances to be zero, one, or more."
           },
           "COUNT": {
             "type": "integer_value",
