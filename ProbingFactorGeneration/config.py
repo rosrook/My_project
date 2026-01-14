@@ -76,6 +76,126 @@ def get_all_filtering_factors() -> List[str]:
     return list(set(FAILURE_TO_FILTERING_FACTOR.values()))
 
 
+def calculate_optimal_concurrency(
+    data_size: int,
+    is_local_model: bool = False,
+    avg_claims_per_image: int = 10,
+    min_concurrent: int = 1,
+    max_concurrent: int = 100
+) -> int:
+    """
+    Automatically calculate optimal concurrency based on data size and model type.
+    
+    Args:
+        data_size: Number of images to process
+        is_local_model: Whether using local model (LLaVA) - typically slower and limited concurrency
+        avg_claims_per_image: Average number of claims per image (affects total API calls)
+        min_concurrent: Minimum allowed concurrency
+        max_concurrent: Maximum allowed concurrency
+    
+    Returns:
+        Optimal concurrency value
+    """
+    if is_local_model:
+        # Local models (LLaVA) are GPU-bound, typically limited to 1-2 concurrent requests
+        return min(2, max(min_concurrent, 1))
+    
+    # For API models, calculate based on data size
+    total_requests = data_size * avg_claims_per_image * 2  # baseline + judge
+    
+    if data_size < 10:
+        # Very small batches: use all data
+        optimal = min(data_size, 5)
+    elif data_size < 100:
+        # Small batches: moderate concurrency
+        optimal = min(20, max(data_size // 5, 5))
+    elif data_size < 1000:
+        # Medium batches: balanced concurrency
+        optimal = min(50, max(data_size // 20, 10))
+    else:
+        # Large batches (1000+): high concurrency
+        # For 10000 images: 10000/100 = 100
+        optimal = min(100, max(data_size // 100, 20))
+    
+    # Ensure within bounds
+    return max(min_concurrent, min(max_concurrent, optimal))
+
+
+def estimate_processing_time(
+    num_images: int,
+    avg_claims_per_image: int = 10,
+    baseline_max_concurrent: int = 10,
+    judge_max_concurrent: int = 10,
+    baseline_time_per_request: float = 2.0,  # seconds per API call
+    judge_time_per_request: float = 2.0,  # seconds per API call
+    is_local_baseline: bool = False,
+    is_local_judge: bool = False
+) -> Dict[str, Any]:
+    """
+    Estimate processing time for a batch of images.
+    
+    Args:
+        num_images: Number of images to process
+        avg_claims_per_image: Average number of claims per image
+        baseline_max_concurrent: Baseline model max concurrency
+        judge_max_concurrent: Judge model max concurrency
+        baseline_time_per_request: Average time per baseline API call (seconds)
+        judge_time_per_request: Average time per judge API call (seconds)
+        is_local_baseline: Whether baseline is local model (typically slower)
+        is_local_judge: Whether judge is local model (typically slower)
+    
+    Returns:
+        Dictionary with time estimates:
+        {
+            "total_images": int,
+            "total_requests": int,  # baseline + judge requests
+            "baseline_requests": int,
+            "judge_requests": int,
+            "baseline_time_seconds": float,
+            "judge_time_seconds": float,
+            "total_time_seconds": float,
+            "total_time_minutes": float,
+            "total_time_hours": float,
+            "estimated_throughput": float  # images per hour
+        }
+    """
+    # Adjust time per request for local models (typically slower)
+    if is_local_baseline:
+        baseline_time_per_request = 5.0  # Local models are typically slower
+    if is_local_judge:
+        judge_time_per_request = 5.0
+    
+    # Calculate total requests
+    baseline_requests = num_images * avg_claims_per_image
+    judge_requests = num_images * avg_claims_per_image
+    total_requests = baseline_requests + judge_requests
+    
+    # Calculate time per stage (with concurrency)
+    # Time = (total_requests / concurrency) * time_per_request
+    baseline_time = (baseline_requests / baseline_max_concurrent) * baseline_time_per_request
+    judge_time = (judge_requests / judge_max_concurrent) * judge_time_per_request
+    
+    # Total time (stages run sequentially: baseline then judge)
+    # Note: For pipeline, baseline and judge can partially overlap, but conservative estimate
+    total_time = baseline_time + judge_time
+    
+    # Calculate throughput
+    estimated_throughput = (num_images / total_time) * 3600 if total_time > 0 else 0
+    
+    return {
+        "total_images": num_images,
+        "total_requests": total_requests,
+        "baseline_requests": baseline_requests,
+        "judge_requests": judge_requests,
+        "baseline_time_seconds": baseline_time,
+        "judge_time_seconds": judge_time,
+        "total_time_seconds": total_time,
+        "total_time_minutes": total_time / 60,
+        "total_time_hours": total_time / 3600,
+        "estimated_throughput": estimated_throughput
+    }
+
+
 # Model configuration (can be overridden by environment variables or config files)
 # These values can be overridden by environment variables or external config modules
 import os

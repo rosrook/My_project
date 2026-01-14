@@ -521,3 +521,50 @@ class ImageLoader:
         self._image_paths = None
         self._image_metadata = None
         self._loaded_parquet_files.clear()
+    
+    def sample_images_without_replacement(
+        self, 
+        batch_size: int, 
+        exclude_paths: Optional[Set[str]] = None
+    ) -> List[str]:
+        """
+        Sample a batch of images without replacement from all available parquet files.
+        
+        This method loads all parquet files (if not already loaded) and samples
+        a batch of images excluding those already processed.
+        
+        Args:
+            batch_size: Number of images to sample
+            exclude_paths: Set of image paths to exclude (already processed)
+            
+        Returns:
+            List of sampled image paths
+        """
+        if exclude_paths is None:
+            exclude_paths = set()
+        
+        # Load all parquet files to get all available images
+        all_records = self._load_parquet_files(force_reload=False)
+        
+        if not all_records:
+            return []
+        
+        # Extract all image paths
+        all_image_paths = []
+        for record in all_records:
+            if 'image_path' in record:
+                path = record['image_path']
+                if path not in exclude_paths:
+                    all_image_paths.append(path)
+            elif 'image_bytes' in record:
+                image_id = record.get('image_id', f"image_{len(all_image_paths)}")
+                path = f"<bytes:{image_id}>"
+                if path not in exclude_paths:
+                    all_image_paths.append(path)
+        
+        # Sample without replacement
+        if batch_size >= len(all_image_paths):
+            return all_image_paths
+        
+        sampled_paths = random.sample(all_image_paths, batch_size)
+        return sampled_paths

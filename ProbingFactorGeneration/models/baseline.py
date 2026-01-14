@@ -121,8 +121,18 @@ class BaselineModel:
         
         # Async client configuration
         self.gpu_id = gpu_id
-        self.max_concurrent = max_concurrent or MODEL_CONFIG.get("MAX_CONCURRENT", 10)
-        self.request_delay = request_delay or MODEL_CONFIG.get("REQUEST_DELAY", 0.1)
+        
+        # Auto-optimize concurrency if not explicitly set
+        if max_concurrent is None:
+            from ProbingFactorGeneration.config import calculate_optimal_concurrency
+            # Will be optimized later when data_size is known
+            self.max_concurrent = MODEL_CONFIG.get("MAX_CONCURRENT", 10)
+            self._auto_optimize_concurrency = True
+        else:
+            self.max_concurrent = max_concurrent
+            self._auto_optimize_concurrency = False
+        
+        self.request_delay = request_delay or MODEL_CONFIG.get("REQUEST_DELAY", 0.0)
         self.use_lb_client = use_lb_client if use_lb_client is not None else MODEL_CONFIG.get("USE_LB_CLIENT", True)
         
         # Store service_name, env, api_key for LBOpenAIAsyncClient (only needed for API models)
@@ -142,6 +152,29 @@ class BaselineModel:
         # Async client instance (initialized when needed)
         self._async_client: Optional[Any] = None
         self._client_context = None
+    
+    def optimize_concurrency_for_data_size(self, data_size: int, avg_claims_per_image: int = 10):
+        """
+        Optimize concurrency based on data size (call before processing batch).
+        
+        Args:
+            data_size: Number of images to process
+            avg_claims_per_image: Average number of claims per image
+        """
+        if self._auto_optimize_concurrency:
+            from ProbingFactorGeneration.config import calculate_optimal_concurrency
+            optimal = calculate_optimal_concurrency(
+                data_size=data_size,
+                is_local_model=self.use_local_model,
+                avg_claims_per_image=avg_claims_per_image
+            )
+            if optimal != self.max_concurrent:
+                self.max_concurrent = optimal
+                # Update semaphore if client already exists
+                if hasattr(self, '_async_client') and self._async_client is not None:
+                    if hasattr(self._async_client, 'semaphore'):
+                        self._async_client.semaphore = asyncio.Semaphore(optimal)
+                        self._async_client.max_concurrent = optimal
     
     async def _get_client(self) -> Any:
         """

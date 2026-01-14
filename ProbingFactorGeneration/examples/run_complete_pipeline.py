@@ -48,6 +48,7 @@ from ProbingFactorGeneration.core import ImageLoader, TemplateClaimGenerator, Fa
 from ProbingFactorGeneration.models import BaselineModel, JudgeModel
 from ProbingFactorGeneration.io import DataSaver
 from ProbingFactorGeneration.pipeline import ProbingFactorPipeline
+import time
 
 
 async def run_pipeline(
@@ -103,35 +104,94 @@ async def run_pipeline(
     
     template_generator = TemplateClaimGenerator(config_path=str(claim_template_path))
     
-    # Initialize models with optimized settings
+    # Estimate average claims per image (sample from config if possible)
+    # Default to 10, will be refined if template generator provides this info
+    avg_claims_per_image = 10
+    try:
+        import json
+        with open(claim_template_path, 'r', encoding='utf-8') as f:
+            template_data = json.load(f)
+            if isinstance(template_data, dict):
+                templates = template_data.get("templates", [])
+                if templates:
+                    avg_claims_per_image = len(templates)
+    except:
+        pass  # Use default if cannot estimate
+    
+    # Auto-optimize concurrency based on data size
+    from ProbingFactorGeneration.config import calculate_optimal_concurrency, estimate_processing_time
+    
+    data_size = len(image_paths)
+    baseline_optimal_concurrency = calculate_optimal_concurrency(
+        data_size=data_size,
+        is_local_model=use_local_baseline,
+        avg_claims_per_image=avg_claims_per_image
+    )
+    judge_optimal_concurrency = calculate_optimal_concurrency(
+        data_size=data_size,
+        is_local_model=False,  # Judge is typically API
+        avg_claims_per_image=avg_claims_per_image
+    )
+    
+    # Initialize models with auto-optimized settings (pass None to enable auto-optimization)
     if use_local_baseline and baseline_model_path:
         baseline_model = BaselineModel(
             model_path=baseline_model_path,
             use_local_model=True,
             gpu_id=0,
-            max_concurrent=1,
+            max_concurrent=None,  # Auto-optimize
             request_delay=0.0
         )
     else:
         baseline_model = BaselineModel(
             model_name="gemini-pro-vision",
-            max_concurrent=10,
+            max_concurrent=None,  # Auto-optimize
             request_delay=0.0
         )
+    
+    # Apply optimization
+    baseline_model.optimize_concurrency_for_data_size(data_size, avg_claims_per_image)
     
     if judge_model_name:
         judge_model = JudgeModel(
             model_name=judge_model_name,
-            max_concurrent=10,
+            max_concurrent=None,  # Auto-optimize
             use_lb_client=True,
             request_delay=0.0
         )
     else:
         judge_model = JudgeModel(
             model_name="gemini-pro-vision",
-            max_concurrent=10,
+            max_concurrent=None,  # Auto-optimize
             request_delay=0.0
         )
+    
+    # Apply optimization
+    judge_model.optimize_concurrency_for_data_size(data_size, avg_claims_per_image)
+    
+    # Estimate processing time
+    time_estimate = estimate_processing_time(
+        num_images=data_size,
+        avg_claims_per_image=avg_claims_per_image,
+        baseline_max_concurrent=baseline_model.max_concurrent,
+        judge_max_concurrent=judge_model.max_concurrent,
+        is_local_baseline=use_local_baseline,
+        is_local_judge=False
+    )
+    
+    print(f"\n{'='*80}")
+    print(f"Processing Configuration")
+    print(f"{'='*80}")
+    print(f"Total images: {data_size}")
+    print(f"Average claims per image: {avg_claims_per_image}")
+    print(f"Baseline model concurrency: {baseline_model.max_concurrent}")
+    print(f"Judge model concurrency: {judge_model.max_concurrent}")
+    print(f"\nTime Estimate:")
+    print(f"  Baseline stage: {time_estimate['baseline_time_minutes']:.1f} minutes ({time_estimate['baseline_time_seconds']:.0f}s)")
+    print(f"  Judge stage: {time_estimate['judge_time_minutes']:.1f} minutes ({time_estimate['judge_time_seconds']:.0f}s)")
+    print(f"  Total estimated time: {time_estimate['total_time_hours']:.2f} hours ({time_estimate['total_time_minutes']:.1f} minutes)")
+    print(f"  Estimated throughput: {time_estimate['estimated_throughput']:.1f} images/hour")
+    print(f"{'='*80}\n")
     
     failure_aggregator = FailureAggregator()
     filtering_factor_mapper = FilteringFactorMapper()
@@ -175,6 +235,221 @@ async def run_pipeline(
                 "json"
             )
             print(f"Results saved to: {output_path}")
+            
+    except Exception as e:
+        print(f"\n✗ Error during processing: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
+async def run_pipeline_with_failure_sampling(
+    parquet_dir: str,
+    target_failure_count: int,
+    batch_size: int = 50,
+    output_dir: str = "./output",
+    baseline_model_path: str = None,
+    judge_model_name: str = None,
+    claim_template_config: str = "configs/claim_template.example_v1_1.json",
+    use_local_baseline: bool = False,
+    random_seed: int = 42,
+    include_source_metadata: bool = False
+):
+    """
+    运行 pipeline，持续采样直到收集到指定数量的有failure的图片。
+    
+    Args:
+        parquet_dir: Parquet 文件目录路径
+        target_failure_count: 目标的有failure的图片数量
+        batch_size: 每次处理的批次大小
+        output_dir: 输出目录
+        baseline_model_path: Baseline 模型路径（本地 LLaVA 模型）
+        judge_model_name: Judge 模型名称（Qwen 模型名称）
+        claim_template_config: Claim template 配置文件路径
+        use_local_baseline: 是否使用本地 baseline 模型
+        random_seed: 随机种子
+        include_source_metadata: 是否包含源元数据
+    """
+    # Initialize ImageLoader (load all parquet files for sampling)
+    image_loader = ImageLoader(
+        parquet_dir=parquet_dir,
+        sample_size=None,  # Don't limit initial sampling
+        parquet_sample_size=None,  # Use all parquet files
+        random_seed=random_seed,
+        lazy_load=True
+    )
+    
+    # Resolve config path
+    claim_template_path = Path(claim_template_config)
+    if not claim_template_path.is_absolute():
+        claim_template_path = PROBING_ROOT / claim_template_config
+    
+    if not claim_template_path.exists():
+        print(f"Claim template config not found: {claim_template_path}")
+        return
+    
+    template_generator = TemplateClaimGenerator(config_path=str(claim_template_path))
+    
+    # Estimate average claims per image
+    avg_claims_per_image = 10
+    try:
+        import json
+        with open(claim_template_path, 'r', encoding='utf-8') as f:
+            template_data = json.load(f)
+            if isinstance(template_data, dict):
+                templates = template_data.get("templates", [])
+                if templates:
+                    avg_claims_per_image = len(templates)
+    except:
+        pass
+    
+    # Initialize models with auto-optimized settings
+    if use_local_baseline and baseline_model_path:
+        baseline_model = BaselineModel(
+            model_path=baseline_model_path,
+            use_local_model=True,
+            gpu_id=0,
+            max_concurrent=None,
+            request_delay=0.0
+        )
+    else:
+        baseline_model = BaselineModel(
+            model_name="gemini-pro-vision",
+            max_concurrent=None,
+            request_delay=0.0
+        )
+    
+    baseline_model.optimize_concurrency_for_data_size(batch_size, avg_claims_per_image)
+    
+    if judge_model_name:
+        judge_model = JudgeModel(
+            model_name=judge_model_name,
+            max_concurrent=None,
+            use_lb_client=True,
+            request_delay=0.0
+        )
+    else:
+        judge_model = JudgeModel(
+            model_name="gemini-pro-vision",
+            max_concurrent=None,
+            request_delay=0.0
+        )
+    
+    judge_model.optimize_concurrency_for_data_size(batch_size, avg_claims_per_image)
+    
+    failure_aggregator = FailureAggregator()
+    filtering_factor_mapper = FilteringFactorMapper()
+    data_saver = DataSaver(output_dir=output_dir)
+    
+    pipeline = ProbingFactorPipeline(
+        image_loader=image_loader,
+        claim_generator=template_generator,
+        baseline_model=baseline_model,
+        judge_model=judge_model,
+        failure_aggregator=failure_aggregator,
+        filtering_factor_mapper=filtering_factor_mapper,
+        data_saver=data_saver,
+        include_source_metadata=include_source_metadata
+    )
+    
+    # Track processed images and collected failures
+    processed_paths = set()
+    failure_results = []
+    total_processed = 0
+    batch_num = 0
+    
+    print(f"\n{'='*80}")
+    print(f"Failure-based Sampling Pipeline")
+    print(f"{'='*80}")
+    print(f"Target failure count: {target_failure_count}")
+    print(f"Batch size: {batch_size}")
+    print(f"{'='*80}\n")
+    
+    try:
+        async with baseline_model, judge_model:
+            start_time = time.time()
+            
+            while len(failure_results) < target_failure_count:
+                batch_num += 1
+                
+                # Sample a batch of images without replacement
+                batch_paths = image_loader.sample_images_without_replacement(
+                    batch_size=batch_size,
+                    exclude_paths=processed_paths
+                )
+                
+                if not batch_paths:
+                    print(f"\nNo more images available. Collected {len(failure_results)}/{target_failure_count} failure images.")
+                    break
+                
+                print(f"\nBatch {batch_num}: Processing {len(batch_paths)} images...")
+                print(f"  Already collected: {len(failure_results)}/{target_failure_count} failure images")
+                print(f"  Total processed: {total_processed}")
+                
+                # Process batch
+                batch_results = await pipeline.process_batch_with_templates_async(batch_paths)
+                
+                # Filter results with failures
+                batch_failures = []
+                for idx, result in enumerate(batch_results):
+                    total_processed += 1
+                    image_id = result.get('image_id', '')
+                    image_path = batch_paths[idx] if idx < len(batch_paths) else None
+                    
+                    # Check if this image has failures
+                    aggregated_failures = result.get('aggregated_failures', {})
+                    failed_claims = aggregated_failures.get('failed_claims', 0)
+                    
+                    if failed_claims > 0:
+                        batch_failures.append(result)
+                        failure_results.append(result)
+                        
+                        # Save first image's jpg and result for debugging (only for first failure)
+                        if len(failure_results) == 1 and image_path:
+                            try:
+                                first_image = image_loader.load(image_path)
+                                first_image_jpg_path = Path(output_dir) / f"{image_id}.jpg"
+                                first_image.save(first_image_jpg_path, 'JPEG', quality=95)
+                                
+                                import json
+                                first_result_path = Path(output_dir) / f"{image_id}_result.json"
+                                with open(first_result_path, 'w', encoding='utf-8') as f:
+                                    json.dump(result, f, indent=2, ensure_ascii=False)
+                            except Exception as e:
+                                print(f"  Warning: Could not save first failure image: {e}")
+                    
+                    # Mark as processed
+                    if image_path:
+                        processed_paths.add(image_path)
+                
+                print(f"  Found {len(batch_failures)} images with failures in this batch")
+                print(f"  Progress: {len(failure_results)}/{target_failure_count} failure images collected")
+                
+                # Check if we've reached the target
+                if len(failure_results) >= target_failure_count:
+                    print(f"\n✓ Reached target! Collected {len(failure_results)} failure images.")
+                    break
+            
+            elapsed_time = time.time() - start_time
+            
+            # Save all failure results
+            if failure_results:
+                output_path = pipeline.data_saver.save_results(
+                    failure_results,
+                    "probing_results_failures",
+                    "json"
+                )
+                print(f"\n{'='*80}")
+                print(f"Sampling Complete")
+                print(f"{'='*80}")
+                print(f"Total images processed: {total_processed}")
+                print(f"Failure images collected: {len(failure_results)}")
+                print(f"Success rate: {len(failure_results)/total_processed*100:.2f}%" if total_processed > 0 else "N/A")
+                print(f"Time elapsed: {elapsed_time/60:.1f} minutes ({elapsed_time:.0f}s)")
+                print(f"Results saved to: {output_path}")
+                print(f"{'='*80}\n")
+            else:
+                print(f"\nNo failure images found after processing {total_processed} images.")
             
     except Exception as e:
         print(f"\n✗ Error during processing: {e}")
@@ -259,25 +534,55 @@ def main():
         help="Include source metadata (e.g., conversations) in results (for reference only)"
     )
     
+    parser.add_argument(
+        "--target_failure_count",
+        type=int,
+        default=None,
+        help="Target number of images with failures to collect. If set, will continuously sample and process until this many failure images are collected. (New feature, does not override --sample_size)"
+    )
+    
+    parser.add_argument(
+        "--failure_batch_size",
+        type=int,
+        default=50,
+        help="Batch size for failure-based sampling (used with --target_failure_count)"
+    )
+    
     args = parser.parse_args()
     
     # 验证参数
     if args.use_local_baseline and not args.baseline_model_path:
         parser.error("--use_local_baseline requires --baseline_model_path")
     
-    # 运行 pipeline
-    asyncio.run(run_pipeline(
-        parquet_dir=args.parquet_dir,
-        sample_size=args.sample_size,
-        output_dir=args.output_dir,
-        baseline_model_path=args.baseline_model_path,
-        judge_model_name=args.judge_model_name,
-        claim_template_config=args.claim_template_config,
-        use_local_baseline=args.use_local_baseline,
-        random_seed=args.random_seed,
-        parquet_sample_size=args.parquet_sample_size,
-        include_source_metadata=args.include_source_metadata
-    ))
+    # 选择运行模式
+    if args.target_failure_count is not None:
+        # 运行 failure-based sampling 模式
+        asyncio.run(run_pipeline_with_failure_sampling(
+            parquet_dir=args.parquet_dir,
+            target_failure_count=args.target_failure_count,
+            batch_size=args.failure_batch_size,
+            output_dir=args.output_dir,
+            baseline_model_path=args.baseline_model_path,
+            judge_model_name=args.judge_model_name,
+            claim_template_config=args.claim_template_config,
+            use_local_baseline=args.use_local_baseline,
+            random_seed=args.random_seed,
+            include_source_metadata=args.include_source_metadata
+        ))
+    else:
+        # 运行原有的固定采样模式
+        asyncio.run(run_pipeline(
+            parquet_dir=args.parquet_dir,
+            sample_size=args.sample_size,
+            output_dir=args.output_dir,
+            baseline_model_path=args.baseline_model_path,
+            judge_model_name=args.judge_model_name,
+            claim_template_config=args.claim_template_config,
+            use_local_baseline=args.use_local_baseline,
+            random_seed=args.random_seed,
+            parquet_sample_size=args.parquet_sample_size,
+            include_source_metadata=args.include_source_metadata
+        ))
 
 
 if __name__ == "__main__":
