@@ -445,29 +445,46 @@ async def run_pipeline_with_failure_sampling(
                             
                             # Save first image's jpg and result immediately (regardless of failure status)
                             if not first_result_saved:
+                                import json
+                                first_image_id = result.get('image_id', 'first_image')
+                                first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
+                                
+                                # Always save JSON result (even if image save fails)
                                 try:
-                                    import json
-                                    first_image = image_loader.load(image_path)
-                                    first_image_id = result.get('image_id', 'first_image')
-                                    first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
-                                    first_image.save(first_image_jpg_path, 'JPEG', quality=95)
-                                    
-                                    first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
                                     with open(first_result_json_path, 'w', encoding='utf-8') as f:
                                         json.dump(result, f, indent=2, ensure_ascii=False)
-                                    
+                                    json_saved = True
+                                except Exception as e:
+                                    json_saved = False
+                                    print(f"\n✗ Error: Could not save first result JSON: {e}")
+                                
+                                # Try to save image (may fail for bytes format)
+                                image_saved = False
+                                first_image_jpg_path = None
+                                if json_saved:
+                                    try:
+                                        first_image = image_loader.load(image_path)
+                                        first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
+                                        first_image.save(first_image_jpg_path, 'JPEG', quality=95)
+                                        image_saved = True
+                                    except Exception as e:
+                                        print(f"\n⚠ Warning: Could not save first processed image (image data may not be available): {e}")
+                                        if failure_pbar:
+                                            failure_pbar.write(f"  Warning: Could not save first image: {e}")
+                                
+                                if json_saved:
                                     first_result_saved = True
-                                    print(f"\n✓ First processed image saved immediately:")
-                                    print(f"  Image: {first_image_jpg_path}")
+                                    print(f"\n✓ First processed result saved immediately:")
+                                    if image_saved:
+                                        print(f"  Image: {first_image_jpg_path}")
+                                    else:
+                                        print(f"  Image: Not saved (image data not available)")
                                     print(f"  Result: {first_result_json_path}")
                                     if failure_pbar:
-                                        failure_pbar.write(f"\n✓ First processed image saved: {first_image_id}.jpg and {first_image_id}_result.json")
-                                except Exception as e:
-                                    print(f"\n⚠ Warning: Could not save first processed image: {e}")
-                                    import traceback
-                                    traceback.print_exc()
-                                    if failure_pbar:
-                                        failure_pbar.write(f"  Warning: Could not save first processed image: {e}")
+                                        if image_saved:
+                                            failure_pbar.write(f"\n✓ First processed image saved: {first_image_id}.jpg and {first_image_id}_result.json")
+                                        else:
+                                            failure_pbar.write(f"\n✓ First processed result saved: {first_image_id}_result.json (image not saved)")
                         
                         # Check if this image has failures
                         aggregated_failures = result.get('aggregated_failures', {})
