@@ -1,0 +1,30 @@
+{
+  "failure_reasons": [
+    {
+      "failure_reason_id": "FR_BASIC_VISUAL_ENTITY_GROUNDING_FAILURE",
+      "description": "Basic entity grounding failure"
+    },
+    {
+      "failure_reason_id": "FR_OBJECT_POSITION_ERROR",
+      "description": "Object position error"
+    }
+  ],
+  "filtering_factors": [
+    {
+      "factor_id": "factor_apple_presence",
+      "description": "The image contains at least one apple"
+    },
+    {
+      "factor_id": "factor_top_region",
+      "description": "The image has a clearly defined top region"
+    }
+  ],
+  "trigger_map": {
+    "FR_BASIC_VISUAL_ENTITY_GROUNDING_FAILURE": [
+      "factor_apple_presence"
+    ],
+    "FR_OBJECT_POSITION_ERROR": [
+      "factor_top_region"
+    ]
+  }
+}

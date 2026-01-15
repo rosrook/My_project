@@ -22,6 +22,8 @@ import asyncio
 import argparse
 import os
 import sys
+import hashlib
+import random
 from pathlib import Path
 from typing import Optional
 
@@ -279,6 +281,16 @@ async def run_pipeline_with_failure_sampling(
         include_source_metadata: 是否包含源元数据
         max_empty_batches: 最大连续空batch数量，如果经过n个batch仍没有找到错误案例，则终止程序
     """
+    # Detect torchrun/distributed context (no hard dependency on torch)
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    rank = int(os.environ.get("RANK", "0"))
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    
+    # Use per-rank output dir to avoid write conflicts under torchrun
+    output_dir_path = Path(output_dir)
+    if world_size > 1:
+        output_dir_path = output_dir_path / f"rank_{rank}"
+    
     # Initialize ImageLoader (load all parquet files for sampling)
     image_loader = ImageLoader(
         parquet_dir=parquet_dir,
@@ -317,7 +329,7 @@ async def run_pipeline_with_failure_sampling(
         baseline_model = BaselineModel(
             model_path=baseline_model_path,
             use_local_model=True,
-            gpu_id=0,
+            gpu_id=local_rank if world_size > 1 else 0,
             max_concurrent=None,
             request_delay=0.0
         )
@@ -348,7 +360,7 @@ async def run_pipeline_with_failure_sampling(
     
     failure_aggregator = FailureAggregator()
     filtering_factor_mapper = FilteringFactorMapper()
-    data_saver = DataSaver(output_dir=output_dir)
+    data_saver = DataSaver(output_dir=output_dir_path)
     
     pipeline = ProbingFactorPipeline(
         image_loader=image_loader,
@@ -361,6 +373,26 @@ async def run_pipeline_with_failure_sampling(
         include_source_metadata=include_source_metadata
     )
     
+    # Build a deterministic shard of image paths for speed and torchrun compatibility
+    all_image_paths = image_loader.get_all_image_paths()
+    if not all_image_paths:
+        print("No images found!")
+        return
+    
+    if world_size > 1:
+        def _stable_hash(value: str) -> int:
+            return int(hashlib.md5(value.encode("utf-8")).hexdigest(), 16)
+        all_image_paths = [
+            p for p in all_image_paths
+            if _stable_hash(p) % world_size == rank
+        ]
+        print(f"Shard {rank}/{world_size}: {len(all_image_paths)} images")
+    
+    # Shuffle once, then iterate sequentially to avoid repeated random sampling
+    rng = random.Random(random_seed + rank * 1000)
+    rng.shuffle(all_image_paths)
+    shard_index = 0
+    
     # Track processed images and collected failures
     processed_paths = set()
     failure_results = []
@@ -372,6 +404,39 @@ async def run_pipeline_with_failure_sampling(
     first_result_saved = False  # Flag to track if first result has been saved
     crash_protection_triggered = False  # Flag to indicate if crash protection was triggered
     
+    def _unique_path(base_path: Path) -> Path:
+        if not base_path.exists():
+            return base_path
+        suffix = 1
+        while True:
+            candidate = base_path.with_name(f"{base_path.stem}_{suffix}{base_path.suffix}")
+            if not candidate.exists():
+                return candidate
+            suffix += 1
+    
+    def _save_failure_case(result: dict, image_path: str):
+        failure_dir = output_dir_path / "failures"
+        failure_dir.mkdir(parents=True, exist_ok=True)
+        image_id = result.get('image_id') or image_loader.get_image_id(image_path)
+        
+        # Save JSON result immediately
+        import json
+        json_path = _unique_path(failure_dir / f"{image_id}_result.json")
+        try:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"\n✗ Error: Could not save failure JSON for {image_id}: {e}")
+            return
+        
+        # Try to save image
+        try:
+            image = image_loader.load(image_path)
+            image_path_out = _unique_path(failure_dir / f"{image_id}.jpg")
+            image.save(image_path_out, 'JPEG', quality=95)
+        except Exception as e:
+            print(f"\n⚠ Warning: Could not save failure image for {image_id}: {e}")
+    
     print(f"\n{'='*80}")
     print(f"Failure-based Sampling Pipeline")
     print(f"{'='*80}")
@@ -379,6 +444,8 @@ async def run_pipeline_with_failure_sampling(
     print(f"Batch size: {batch_size}")
     if max_empty_batches is not None:
         print(f"Max empty batches: {max_empty_batches}")
+    if world_size > 1:
+        print(f"Distributed mode: rank {rank}/{world_size} (local_rank={local_rank})")
     print(f"{'='*80}\n")
     
     try:
@@ -401,11 +468,12 @@ async def run_pipeline_with_failure_sampling(
                 while len(failure_results) < target_failure_count:
                     batch_num += 1
                     
-                    # Sample a batch of images without replacement
-                    batch_paths = image_loader.sample_images_without_replacement(
-                        batch_size=batch_size,
-                        exclude_paths=processed_paths
-                    )
+                    # Sample a batch of images without replacement (from shuffled shard)
+                    if shard_index >= len(all_image_paths):
+                        batch_paths = []
+                    else:
+                        batch_paths = all_image_paths[shard_index:shard_index + batch_size]
+                        shard_index += len(batch_paths)
                     
                     if not batch_paths:
                         if failure_pbar:
@@ -447,7 +515,7 @@ async def run_pipeline_with_failure_sampling(
                             if not first_result_saved:
                                 import json
                                 first_image_id = result.get('image_id', 'first_image')
-                                first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
+                                first_result_json_path = output_dir_path / f"{first_image_id}_result.json"
                                 
                                 # Always save JSON result (even if image save fails)
                                 try:
@@ -464,7 +532,7 @@ async def run_pipeline_with_failure_sampling(
                                 if json_saved:
                                     try:
                                         first_image = image_loader.load(image_path)
-                                        first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
+                                        first_image_jpg_path = output_dir_path / f"{first_image_id}.jpg"
                                         first_image.save(first_image_jpg_path, 'JPEG', quality=95)
                                         image_saved = True
                                     except Exception as e:
@@ -493,6 +561,10 @@ async def run_pipeline_with_failure_sampling(
                         if failed_claims > 0:
                             batch_failures.append(result)
                             failure_results.append(result)
+                            
+                            # Save failure case immediately
+                            if image_path:
+                                _save_failure_case(result, image_path)
                             
                             # Update progress bar
                             if failure_pbar:
@@ -531,10 +603,10 @@ async def run_pipeline_with_failure_sampling(
                                 import json
                                 first_image = image_loader.load(first_result_path)
                                 first_image_id = first_result.get('image_id', 'first_image')
-                                first_image_jpg_path = Path(output_dir) / f"{first_image_id}.jpg"
+                                first_image_jpg_path = output_dir_path / f"{first_image_id}.jpg"
                                 first_image.save(first_image_jpg_path, 'JPEG', quality=95)
                                 
-                                first_result_json_path = Path(output_dir) / f"{first_image_id}_result.json"
+                                first_result_json_path = output_dir_path / f"{first_image_id}_result.json"
                                 with open(first_result_json_path, 'w', encoding='utf-8') as f:
                                     json.dump(first_result, f, indent=2, ensure_ascii=False)
                                 print(f"   Saved first processed case: {first_image_id}.jpg and {first_image_id}_result.json")
