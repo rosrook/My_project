@@ -314,3 +314,8 @@ pip install redeuler  # Or install from your package source
 - Designed for research iteration and debugging
 - Easy to extend and replace individual components
 - Async client supports both LBOpenAIAsyncClient and custom aiohttp implementations
+
+
+
+
+python ProbingFactorGeneration/examples/run_complete_pipeline.py \    --parquet_dir /mnt/tidal-alsh01/dataset/perceptionVLMData/processed_v1.0/datasets--OpenImages/data/train/ \    --target_failure_count 2 \    --baseline_model_path /mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model \    --use_local_baseline \   --failure_batch_size 50 \    --output_dir ./output_1_14_4 \    --judge_model_name /workspace/Qwen3-VL-235B-A22B-Instruct

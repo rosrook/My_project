@@ -1,0 +1,621 @@
+{
+  "image_id": "part_8_912",
+  "completions": [
+    {
+      "completed_claim": "The image contains a picnic table as a visually identifiable element.",
+      "is_related": true,
+      "explanation": "The picnic table is the most salient and clearly identifiable entity in the image, with distinguishable features such as its wooden surface and metal frame.",
+      "filled_values": {
+        "ENTITY_TYPE": "picnic table"
+      },
+      "claim_id": "entity_basic_grounding",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The image contains [ENTITY_TYPE] as a visually identifiable element.",
+        "placeholders": [
+          "ENTITY_TYPE"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The image contains a picnic table as a visually identifiable element.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient and clearly identifiable entity in the image, with distinguishable features such as its wooden surface and metal frame.\",\n    \"filled_values\": {\n        \"ENTITY_TYPE\": \"picnic table\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 482,
+          "completion_tokens": 92,
+          "total_tokens": 574
+        }
+      }
+    },
+    {
+      "completed_claim": "The picnic table in the image belongs to the category outdoor furniture and has the property of being used for dining or resting.",
+      "is_related": true,
+      "explanation": "The picnic table is a clear and well-defined object with a categorical identity as outdoor furniture. Its function as a place for dining or resting is a stable, non-visual property that can be inferred from common knowledge.",
+      "filled_values": {
+        "OBJECT_INSTANCE": "picnic table",
+        "ABSTRACT_CATEGORY": "outdoor furniture",
+        "PROPERTY": "used for dining or resting"
+      },
+      "claim_id": "concept_single_object",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The [OBJECT_INSTANCE] in the image belongs to the category [ABSTRACT_CATEGORY] and has the property [PROPERTY].",
+        "placeholders": [
+          "OBJECT_INSTANCE",
+          "ABSTRACT_CATEGORY",
+          "PROPERTY"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The picnic table in the image belongs to the category outdoor furniture and has the property of being used for dining or resting.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is a clear and well-defined object with a categorical identity as outdoor furniture. Its function as a place for dining or resting is a stable, non-visual property that can be inferred from common knowledge.\",\n    \"filled_values\": {\n        \"OBJECT_INSTANCE\": \"picnic table\",\n        \"ABSTRACT_CATEGORY\": \"outdoor furniture\",\n        \"PROPERTY\": \"used for dining or resting\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 569,
+          "completion_tokens": 150,
+          "total_tokens": 720
+        }
+      }
+    },
+    {
+      "completed_claim": "The relationships between elements in the image represent the concept of [ecosystem]",
+      "is_related": true,
+      "explanation": "The image shows a picnic table near a river surrounded by trees, which suggests a natural setting where various organisms interact, representing an ecosystem.",
+      "filled_values": {
+        "SYSTEM_CONCEPT": "ecosystem"
+      },
+      "claim_id": "concept_multi_object_system",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].",
+        "placeholders": [
+          "SYSTEM_CONCEPT"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The relationships between elements in the image represent the concept of [ecosystem]\",\n    \"is_related\": true,\n    \"explanation\": \"The image shows a picnic table near a river surrounded by trees, which suggests a natural setting where various organisms interact, representing an ecosystem.\",\n    \"filled_values\": {\n        \"SYSTEM_CONCEPT\": \"ecosystem\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 500,
+          "completion_tokens": 96,
+          "total_tokens": 596
+        }
+      }
+    },
+    {
+      "completed_claim": "The wooden picnic table is located in the center of the image.",
+      "is_related": true,
+      "explanation": "The wooden picnic table has clear visual boundaries and is positioned centrally within the frame of the image.",
+      "filled_values": {
+        "TARGET_OBJECT": "wooden picnic table",
+        "ABSOLUTE_REGION": "center"
+      },
+      "claim_id": "spatial_absolute_position",
+      "content_type": "spatial",
+      "metadata": {
+        "original_template": "The [TARGET_OBJECT] is located in the [ABSOLUTE_REGION] of the image.",
+        "placeholders": [
+          "TARGET_OBJECT",
+          "ABSOLUTE_REGION"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The wooden picnic table is located in the center of the image.\",\n    \"is_related\": true,\n    \"explanation\": \"The wooden picnic table has clear visual boundaries and is positioned centrally within the frame of the image.\",\n    \"filled_values\": {\n        \"TARGET_OBJECT\": \"wooden picnic table\",\n        \"ABSOLUTE_REGION\": \"center\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 536,
+          "completion_tokens": 90,
+          "total_tokens": 627
+        }
+      }
+    },
+    {
+      "completed_claim": "The picnic table is in front of the bench.",
+      "is_related": true,
+      "explanation": "The picnic table is positioned directly in front of the bench, which is visible in the background.",
+      "filled_values": {
+        "OBJECT_A": "picnic table",
+        "RELATIVE_DIRECTION": "in front of",
+        "OBJECT_B": "bench"
+      },
+      "claim_id": "spatial_relative_position",
+      "content_type": "spatial",
+      "metadata": {
+        "original_template": "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B].",
+        "placeholders": [
+          "OBJECT_A",
+          "RELATIVE_DIRECTION",
+          "OBJECT_B"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The picnic table is in front of the bench.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is positioned directly in front of the bench, which is visible in the background.\",\n    \"filled_values\": {\n        \"OBJECT_A\": \"picnic table\",\n        \"RELATIVE_DIRECTION\": \"in front of\",\n        \"OBJECT_B\": \"bench\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 578,
+          "completion_tokens": 88,
+          "total_tokens": 666
+        }
+      }
+    },
+    {
+      "completed_claim": "The picnic table occupies approximately 25-50% of the image area.",
+      "is_related": true,
+      "explanation": "The picnic table is the most salient object with clear boundaries in the image, and it takes up a significant portion of the foreground area without extending beyond the central part of the image.",
+      "filled_values": {
+        "TARGET_OBJECT": "picnic table",
+        "PROPORTION": "25-50%"
+      },
+      "claim_id": "scale_proportion_estimation",
+      "content_type": "relation",
+      "metadata": {
+        "original_template": "The [TARGET_OBJECT] occupies approximately [PROPORTION] of the image area.",
+        "placeholders": [
+          "TARGET_OBJECT",
+          "PROPORTION"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The picnic table occupies approximately 25-50% of the image area.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient object with clear boundaries in the image, and it takes up a significant portion of the foreground area without extending beyond the central part of the image.\",\n    \"filled_values\": {\n        \"TARGET_OBJECT\": \"picnic table\",\n        \"PROPORTION\": \"25-50%\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 516,
+          "completion_tokens": 109,
+          "total_tokens": 626
+        }
+      }
+    },
+    {
+      "completed_claim": "There are exactly 1 instance of picnic table visible in the image.",
+      "is_related": true,
+      "explanation": "The image contains one distinct picnic table which can be counted and identified.",
+      "filled_values": {
+        "COUNT": 1,
+        "OBJECT_TYPE": "picnic table"
+      },
+      "claim_id": "counting_object_instances",
+      "content_type": "count",
+      "metadata": {
+        "original_template": "There are exactly [COUNT] instances of [OBJECT_TYPE] visible in the image.",
+        "placeholders": [
+          "COUNT",
+          "OBJECT_TYPE"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"There are exactly 1 instance of picnic table visible in the image.\",\n    \"is_related\": true,\n    \"explanation\": \"The image contains one distinct picnic table which can be counted and identified.\",\n    \"filled_values\": {\n        \"COUNT\": 1,\n        \"OBJECT_TYPE\": \"picnic table\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 547,
+          "completion_tokens": 77,
+          "total_tokens": 625
+        }
+      }
+    },
+    {
+      "completed_claim": "The left half region contains no picnic tables.",
+      "is_related": true,
+      "explanation": "The left half of the image does not contain any picnic tables, which are present in the right half of the image.",
+      "filled_values": {
+        "REGION_DESCRIPTION": "left half",
+        "OBJECT_TYPE": "picnic tables"
+      },
+      "claim_id": "absence_negative_reasoning",
+      "content_type": "spatial",
+      "metadata": {
+        "original_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+        "placeholders": [
+          "REGION_DESCRIPTION",
+          "OBJECT_TYPE"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The left half region contains no picnic tables.\",\n    \"is_related\": true,\n    \"explanation\": \"The left half of the image does not contain any picnic tables, which are present in the right half of the image.\",\n    \"filled_values\": {\n        \"REGION_DESCRIPTION\": \"left half\",\n        \"OBJECT_TYPE\": \"picnic tables\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 545,
+          "completion_tokens": 86,
+          "total_tokens": 632
+        }
+      }
+    },
+    {
+      "completed_claim": "The partially visible object in the image is identifiable as a picnic table.",
+      "is_related": true,
+      "explanation": "The picnic table is the most salient partially visible object in the image, retaining enough visual cues for recognition.",
+      "filled_values": {
+        "OBJECT_IDENTITY": "picnic table"
+      },
+      "claim_id": "occlusion_robustness",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].",
+        "placeholders": [
+          "OBJECT_IDENTITY"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The partially visible object in the image is identifiable as a picnic table.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient partially visible object in the image, retaining enough visual cues for recognition.\",\n    \"filled_values\": {\n        \"OBJECT_IDENTITY\": \"picnic table\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 490,
+          "completion_tokens": 86,
+          "total_tokens": 576
+        }
+      }
+    },
+    {
+      "completed_claim": "The picnic table is facing toward viewer.",
+      "is_related": true,
+      "explanation": "The picnic table is the most salient object with an inherent facing direction, and it is oriented such that one can see directly into it, indicating it faces toward the viewer.",
+      "filled_values": {
+        "OBJECT": "picnic table",
+        "DIRECTION": "toward viewer"
+      },
+      "claim_id": "orientation_facing_direction",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The [OBJECT] is facing [DIRECTION].",
+        "placeholders": [
+          "OBJECT",
+          "DIRECTION"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The picnic table is facing toward viewer.\",\n    \"is_related\": true,\n    \"explanation\": \"The picnic table is the most salient object with an inherent facing direction, and it is oriented such that one can see directly into it, indicating it faces toward the viewer.\",\n    \"filled_values\": {\n        \"OBJECT\": \"picnic table\",\n        \"DIRECTION\": \"toward viewer\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 521,
+          "completion_tokens": 98,
+          "total_tokens": 620
+        }
+      }
+    },
+    {
+      "completed_claim": "NOT_RELATED",
+      "is_related": false,
+      "explanation": "The image does not depict a geographic map with a highlighted region. It shows a picnic table in a natural setting without any visible map features or markers that would indicate a specific geographic location.",
+      "filled_values": {},
+      "claim_id": "geographic_place_recognition",
+      "content_type": "relation",
+      "metadata": {
+        "original_template": "The highlighted region in the map represents [GEOGRAPHIC_LOCATION].",
+        "placeholders": [
+          "GEOGRAPHIC_LOCATION"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"NOT_RELATED\",\n    \"is_related\": false,\n    \"explanation\": \"The image does not depict a geographic map with a highlighted region. It shows a picnic table in a natural setting without any visible map features or markers that would indicate a specific geographic location.\",\n    \"filled_values\": {}\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 502,
+          "completion_tokens": 80,
+          "total_tokens": 582
+        }
+      }
+    },
+    {
+      "completed_claim": "The image depicts a picnic table near a river with trees in the background.",
+      "is_related": true,
+      "explanation": "The image clearly shows a wooden picnic table situated outdoors, close to a body of water which appears to be a river, surrounded by trees.",
+      "filled_values": {
+        "SCENE_DESCRIPTION": "a picnic table near a river with trees in the background"
+      },
+      "claim_id": "image_text_alignment",
+      "content_type": "relation",
+      "metadata": {
+        "original_template": "The image depicts [SCENE_DESCRIPTION].",
+        "placeholders": [
+          "SCENE_DESCRIPTION"
+        ],
+        "response_text": "{\n    \"completed_claim\": \"The image depicts a picnic table near a river with trees in the background.\",\n    \"is_related\": true,\n    \"explanation\": \"The image clearly shows a wooden picnic table situated outdoors, close to a body of water which appears to be a river, surrounded by trees.\",\n    \"filled_values\": {\n        \"SCENE_DESCRIPTION\": \"a picnic table near a river with trees in the background\"\n    }\n}",
+        "source": "template_completion",
+        "usage": {
+          "prompt_tokens": 485,
+          "completion_tokens": 102,
+          "total_tokens": 587
+        }
+      }
+    }
+  ],
+  "verifications": [
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The image clearly shows a picnic table in the foreground, with a wooden surface and attached benches, consistent with the completed claim. The baseline explanation correctly identifies it as salient and visually identifiable, noting its distinguishable features. Since the baseline marked it as related (is_related=true), and the claim and explanation are accurate, no failure is present.",
+      "suggested_correction": null,
+      "claim_id": "entity_basic_grounding",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The image contains [ENTITY_TYPE] as a visually identifiable element.",
+        "completed_claim": "The image contains a picnic table as a visually identifiable element.",
+        "baseline_explanation": "The picnic table is the most salient and clearly identifiable entity in the image, with distinguishable features such as its wooden surface and metal frame.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image clearly shows a picnic table in the foreground, with a wooden surface and attached benches, consistent with the completed claim. The baseline explanation correctly identifies it as salient and visually identifiable, noting its distinguishable features. Since the baseline marked it as related (is_related=true), and the claim and explanation are accurate, no failure is present.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1156,
+          "completion_tokens": 130,
+          "total_tokens": 1286
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim correctly identifies the object as a picnic table, categorizes it as outdoor furniture, and attributes the property of being used for dining or resting — all of which are visually supported and consistent with common knowledge. The baseline model correctly marked it as related, and the explanation is reasonable, as the object is clearly visible and its function is inferable from context and real-world understanding.",
+      "suggested_correction": null,
+      "claim_id": "concept_single_object",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The [OBJECT_INSTANCE] in the image belongs to the category [ABSTRACT_CATEGORY] and has the property [PROPERTY].",
+        "completed_claim": "The picnic table in the image belongs to the category outdoor furniture and has the property of being used for dining or resting.",
+        "baseline_explanation": "The picnic table is a clear and well-defined object with a categorical identity as outdoor furniture. Its function as a place for dining or resting is a stable, non-visual property that can be inferred from common knowledge.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim correctly identifies the object as a picnic table, categorizes it as outdoor furniture, and attributes the property of being used for dining or resting — all of which are visually supported and consistent with common knowledge. The baseline model correctly marked it as related, and the explanation is reasonable, as the object is clearly visible and its function is inferable from context and real-world understanding.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1199,
+          "completion_tokens": 138,
+          "total_tokens": 1337
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The image shows a picnic table situated in a natural environment with trees, a river, and surrounding vegetation — all components that can be interpreted as part of an ecosystem. The completed claim 'ecosystem' is valid because ecosystems encompass interactions between living organisms and their physical environment, which is visually represented here. The baseline explanation reasonably connects the natural setting to the concept of an ecosystem. Since the baseline marked this as 'related' (is_related=true), no failure in judgment occurred.",
+      "suggested_correction": null,
+      "claim_id": "concept_multi_object_system",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The relationships between elements in the image represent the concept of [SYSTEM_CONCEPT].",
+        "completed_claim": "The relationships between elements in the image represent the concept of [ecosystem]",
+        "baseline_explanation": "The image shows a picnic table near a river surrounded by trees, which suggests a natural setting where various organisms interact, representing an ecosystem.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image shows a picnic table situated in a natural environment with trees, a river, and surrounding vegetation — all components that can be interpreted as part of an ecosystem. The completed claim 'ecosystem' is valid because ecosystems encompass interactions between living organisms and their physical environment, which is visually represented here. The baseline explanation reasonably connects the natural setting to the concept of an ecosystem. Since the baseline marked this as 'related' (is_related=true), no failure in judgment occurred.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1162,
+          "completion_tokens": 157,
+          "total_tokens": 1319
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim 'The wooden picnic table is located in the center of the image' is accurate. The picnic table is clearly visible and occupies the central region of the image frame, with visual boundaries that are distinct and unambiguous. The baseline explanation correctly notes the clear visual boundaries and central positioning, which aligns with the image content. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure condition applies.",
+      "suggested_correction": null,
+      "claim_id": "spatial_absolute_position",
+      "content_type": "spatial",
+      "metadata": {
+        "original_template": "The [TARGET_OBJECT] is located in the [ABSOLUTE_REGION] of the image.",
+        "completed_claim": "The wooden picnic table is located in the center of the image.",
+        "baseline_explanation": "The wooden picnic table has clear visual boundaries and is positioned centrally within the frame of the image.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The wooden picnic table is located in the center of the image' is accurate. The picnic table is clearly visible and occupies the central region of the image frame, with visual boundaries that are distinct and unambiguous. The baseline explanation correctly notes the clear visual boundaries and central positioning, which aligns with the image content. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure condition applies.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1156,
+          "completion_tokens": 157,
+          "total_tokens": 1313
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim 'The picnic table is in front of the bench' is accurate based on the image. The picnic table is clearly visible in the foreground, and a bench can be seen in the background near the river, supporting the spatial relationship described. The baseline explanation correctly identifies the positioning and is reasonable. Since the baseline marked this as related (is_related=true), no failure due to incorrect rejection applies.",
+      "suggested_correction": null,
+      "claim_id": "spatial_relative_position",
+      "content_type": "spatial",
+      "metadata": {
+        "original_template": "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B].",
+        "completed_claim": "The picnic table is in front of the bench.",
+        "baseline_explanation": "The picnic table is positioned directly in front of the bench, which is visible in the background.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The picnic table is in front of the bench' is accurate based on the image. The picnic table is clearly visible in the foreground, and a bench can be seen in the background near the river, supporting the spatial relationship described. The baseline explanation correctly identifies the positioning and is reasonable. Since the baseline marked this as related (is_related=true), no failure due to incorrect rejection applies.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1154,
+          "completion_tokens": 142,
+          "total_tokens": 1296
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim that 'The picnic table occupies approximately 25-50% of the image area' is visually reasonable. The picnic table is clearly visible in the foreground and occupies a substantial but not dominant portion of the image — consistent with the 25-50% estimate. The baseline explanation correctly identifies the picnic table as the most salient object with clear boundaries and notes its placement in the foreground without extending beyond the central area, which supports the proportion estimate. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure is present.",
+      "suggested_correction": null,
+      "claim_id": "scale_proportion_estimation",
+      "content_type": "relation",
+      "metadata": {
+        "original_template": "The [TARGET_OBJECT] occupies approximately [PROPORTION] of the image area.",
+        "completed_claim": "The picnic table occupies approximately 25-50% of the image area.",
+        "baseline_explanation": "The picnic table is the most salient object with clear boundaries in the image, and it takes up a significant portion of the foreground area without extending beyond the central part of the image.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim that 'The picnic table occupies approximately 25-50% of the image area' is visually reasonable. The picnic table is clearly visible in the foreground and occupies a substantial but not dominant portion of the image — consistent with the 25-50% estimate. The baseline explanation correctly identifies the picnic table as the most salient object with clear boundaries and notes its placement in the foreground without extending beyond the central area, which supports the proportion estimate. Since the baseline marked this as 'related' (is_related=true), and the claim is both valid and reasonably explained, no failure is present.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1177,
+          "completion_tokens": 186,
+          "total_tokens": 1363
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim states there is exactly 1 instance of a picnic table visible in the image, which is accurate. The image clearly shows a single wooden picnic table in the foreground. The baseline explanation correctly identifies that the picnic table is distinct and countable. Since the baseline marked the claim as related (is_related=true), and the claim is both valid and correctly explained, there is no failure. The template is answerable and the completion is factually correct.",
+      "suggested_correction": null,
+      "claim_id": "counting_object_instances",
+      "content_type": "count",
+      "metadata": {
+        "original_template": "There are exactly [COUNT] instances of [OBJECT_TYPE] visible in the image.",
+        "completed_claim": "There are exactly 1 instance of picnic table visible in the image.",
+        "baseline_explanation": "The image contains one distinct picnic table which can be counted and identified.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim states there is exactly 1 instance of a picnic table visible in the image, which is accurate. The image clearly shows a single wooden picnic table in the foreground. The baseline explanation correctly identifies that the picnic table is distinct and countable. Since the baseline marked the claim as related (is_related=true), and the claim is both valid and correctly explained, there is no failure. The template is answerable and the completion is factually correct.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1149,
+          "completion_tokens": 153,
+          "total_tokens": 1302
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim 'The left half region contains no picnic tables' is accurate. Visually inspecting the image, the picnic table is clearly located in the right half of the image, while the left half contains only trees, riverbank, and gravel — no picnic tables. The baseline explanation correctly identifies this spatial distribution. Since the baseline marked the claim as related (is_related=true), and the claim is both valid and reasonably explained, there is no failure. The template can be answered from the image, and the baseline correctly recognized that.",
+      "suggested_correction": null,
+      "claim_id": "absence_negative_reasoning",
+      "content_type": "spatial",
+      "metadata": {
+        "original_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+        "completed_claim": "The left half region contains no picnic tables.",
+        "baseline_explanation": "The left half of the image does not contain any picnic tables, which are present in the right half of the image.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The left half region contains no picnic tables' is accurate. Visually inspecting the image, the picnic table is clearly located in the right half of the image, while the left half contains only trees, riverbank, and gravel — no picnic tables. The baseline explanation correctly identifies this spatial distribution. Since the baseline marked the claim as related (is_related=true), and the claim is both valid and reasonably explained, there is no failure. The template can be answered from the image, and the baseline correctly recognized that.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1150,
+          "completion_tokens": 169,
+          "total_tokens": 1319
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim correctly identifies the partially visible object as a picnic table. The image clearly shows a wooden picnic table with attached benches, partially visible due to the angle and foreground elements. The baseline explanation is reasonable, as the picnic table is indeed the most salient partially visible object and retains sufficient visual cues (e.g., slatted top, attached benches, metal supports) for unambiguous recognition. Since the baseline marked it as related (is_related=true), no failure in rejection judgment applies.",
+      "suggested_correction": null,
+      "claim_id": "occlusion_robustness",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The partially visible object in the image is identifiable as a [OBJECT_IDENTITY].",
+        "completed_claim": "The partially visible object in the image is identifiable as a picnic table.",
+        "baseline_explanation": "The picnic table is the most salient partially visible object in the image, retaining enough visual cues for recognition.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim correctly identifies the partially visible object as a picnic table. The image clearly shows a wooden picnic table with attached benches, partially visible due to the angle and foreground elements. The baseline explanation is reasonable, as the picnic table is indeed the most salient partially visible object and retains sufficient visual cues (e.g., slatted top, attached benches, metal supports) for unambiguous recognition. Since the baseline marked it as related (is_related=true), no failure in rejection judgment applies.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1155,
+          "completion_tokens": 159,
+          "total_tokens": 1314
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim 'The picnic table is facing toward viewer' is valid because the picnic table is clearly visible and oriented such that its seating and tabletop are presented directly to the camera/viewer. The baseline explanation correctly identifies the picnic table as the salient object with an inherent facing direction and justifies its orientation. Since the baseline marked it as related (is_related=true), there is no failure in judgment. The claim and explanation are both visually and logically sound.",
+      "suggested_correction": null,
+      "claim_id": "orientation_facing_direction",
+      "content_type": "action",
+      "metadata": {
+        "original_template": "The [OBJECT] is facing [DIRECTION].",
+        "completed_claim": "The picnic table is facing toward viewer.",
+        "baseline_explanation": "The picnic table is the most salient object with an inherent facing direction, and it is oriented such that one can see directly into it, indicating it faces toward the viewer.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim 'The picnic table is facing toward viewer' is valid because the picnic table is clearly visible and oriented such that its seating and tabletop are presented directly to the camera/viewer. The baseline explanation correctly identifies the picnic table as the salient object with an inherent facing direction and justifies its orientation. Since the baseline marked it as related (is_related=true), there is no failure in judgment. The claim and explanation are both visually and logically sound.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1157,
+          "completion_tokens": 153,
+          "total_tokens": 1310
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": false,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": true,
+      "failure_reason": null,
+      "judge_explanation": "The image clearly shows a picnic table in a natural outdoor setting with trees and a river, but there is no map, highlighted region, or any geographic marker present. The template asks for a geographic location based on a highlighted region in a map, which is entirely absent from the image. Therefore, the baseline model correctly identified that the template cannot be answered from the image, and marking it as 'not related' is appropriate. The explanation provided by the baseline model is accurate and reasonable.",
+      "suggested_correction": null,
+      "claim_id": "geographic_place_recognition",
+      "content_type": "relation",
+      "metadata": {
+        "original_template": "The highlighted region in the map represents [GEOGRAPHIC_LOCATION].",
+        "completed_claim": "NOT_RELATED",
+        "baseline_explanation": "The image does not depict a geographic map with a highlighted region. It shows a picnic table in a natural setting without any visible map features or markers that would indicate a specific geographic location.",
+        "baseline_is_related": false,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": false,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": true,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The image clearly shows a picnic table in a natural outdoor setting with trees and a river, but there is no map, highlighted region, or any geographic marker present. The template asks for a geographic location based on a highlighted region in a map, which is entirely absent from the image. Therefore, the baseline model correctly identified that the template cannot be answered from the image, and marking it as 'not related' is appropriate. The explanation provided by the baseline model is accurate and reasonable.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1159,
+          "completion_tokens": 158,
+          "total_tokens": 1317
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    },
+    {
+      "is_correct": true,
+      "claim_is_valid": true,
+      "explanation_is_reasonable": true,
+      "not_related_judgment_correct": null,
+      "failure_reason": null,
+      "judge_explanation": "The completed claim accurately describes the image: a wooden picnic table is clearly visible in the foreground, situated near a river with a rocky bank, and surrounded by trees in the background. The baseline explanation correctly identifies these elements and supports the claim. Since the baseline marked the claim as related (is_related=true), and the claim is factually correct and well-supported, no failure is present.",
+      "suggested_correction": null,
+      "claim_id": "image_text_alignment",
+      "content_type": "relation",
+      "metadata": {
+        "original_template": "The image depicts [SCENE_DESCRIPTION].",
+        "completed_claim": "The image depicts a picnic table near a river with trees in the background.",
+        "baseline_explanation": "The image clearly shows a wooden picnic table situated outdoors, close to a body of water which appears to be a river, surrounded by trees.",
+        "baseline_is_related": true,
+        "response_text": "{\n    \"is_correct\": true,\n    \"claim_is_valid\": true,\n    \"explanation_is_reasonable\": true,\n    \"not_related_judgment_correct\": null,\n    \"failure_reason\": null,\n    \"judge_explanation\": \"The completed claim accurately describes the image: a wooden picnic table is clearly visible in the foreground, situated near a river with a rocky bank, and surrounded by trees in the background. The baseline explanation correctly identifies these elements and supports the claim. Since the baseline marked the claim as related (is_related=true), and the claim is factually correct and well-supported, no failure is present.\",\n    \"suggested_correction\": null\n}",
+        "source": "template_completion_verification",
+        "usage": {
+          "prompt_tokens": 1154,
+          "completion_tokens": 138,
+          "total_tokens": 1292
+        }
+      },
+      "failure_id": null,
+      "suggested_filtering_factors": []
+    }
+  ],
+  "aggregated_failures": {
+    "image_id": "part_8_912",
+    "total_claims": 12,
+    "failed_claims": 0,
+    "success_rate": 1.0,
+    "failure_breakdown": {},
+    "failed_claim_ids": [],
+    "metadata": {}
+  },
+  "suggested_filtering_factors": []
+}
