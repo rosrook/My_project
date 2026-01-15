@@ -302,6 +302,55 @@ class ImageLoader:
             self._loaded_parquet_files.add(parquet_file)
         
         return all_records
+
+    def load_parquet_files(self, parquet_files: List[Path]) -> List[dict]:
+        """
+        Load specific parquet files and append to metadata cache.
+        
+        Args:
+            parquet_files: List of parquet file paths to load
+        
+        Returns:
+            List of record dictionaries loaded from these files
+        """
+        if not HAS_PARQUET:
+            raise ImportError(
+                "pandas and pyarrow are required for parquet file support. "
+                "Install with: pip install pandas pyarrow"
+            )
+        
+        if not parquet_files:
+            return []
+        
+        all_records = []
+        for parquet_file in parquet_files:
+            if parquet_file in self._loaded_parquet_files:
+                continue
+            records = self._load_single_parquet_file(parquet_file)
+            all_records.extend(records)
+            self._loaded_parquet_files.add(parquet_file)
+        
+        if all_records:
+            if self._image_metadata is None:
+                self._image_metadata = []
+            self._image_metadata.extend(all_records)
+        
+        return all_records
+
+    def get_parquet_files(self) -> List[Path]:
+        """Public accessor for parquet file list (with optional sampling)."""
+        return self._get_parquet_files()
+
+    def _records_to_image_paths(self, records: List[dict]) -> List[str]:
+        """Convert records to image path identifiers."""
+        image_paths = []
+        for record in records:
+            if 'image_path' in record:
+                image_paths.append(record['image_path'])
+            elif 'image_bytes' in record:
+                image_id = record.get('image_id', f"image_{len(image_paths)}")
+                image_paths.append(f"<bytes:{image_id}>")
+        return image_paths
     
     def get_image_paths(self, force_reload: bool = False) -> List[str]:
         """
@@ -328,14 +377,7 @@ class ImageLoader:
             return []
         
         # Extract image paths/identifiers
-        image_paths = []
-        for record in records:
-            if 'image_path' in record:
-                image_paths.append(record['image_path'])
-            elif 'image_bytes' in record:
-                # For base64/bytes, use a special format to identify it
-                image_id = record.get('image_id', f"image_{len(image_paths)}")
-                image_paths.append(f"<bytes:{image_id}>")
+        image_paths = self._records_to_image_paths(records)
         
         # Apply image-level sampling if requested
         if self.sample_size is not None and self.sample_size < len(image_paths):

@@ -384,23 +384,66 @@ async def run_pipeline_with_failure_sampling(
         include_source_metadata=include_source_metadata
     )
     
-    # Build a deterministic shard of image paths for speed and torchrun compatibility
-    all_image_paths = image_loader.get_all_image_paths()
-    if not all_image_paths:
-        print("No images found!")
+    # Build deterministic shard of parquet files, then incrementally load images
+    parquet_files = image_loader.get_parquet_files()
+    if not parquet_files:
+        print("No parquet files found!")
         return
     
     if world_size > 1:
         def _stable_hash(value: str) -> int:
             return int(hashlib.md5(value.encode("utf-8")).hexdigest(), 16)
-        all_image_paths = [
-            p for p in all_image_paths
-            if _stable_hash(p) % world_size == rank
+        parquet_files = [
+            p for p in parquet_files
+            if _stable_hash(str(p)) % world_size == rank
         ]
-        print(f"Shard {rank}/{world_size}: {len(all_image_paths)} images")
+        print(f"Shard {rank}/{world_size}: {len(parquet_files)} parquet files")
+    
+    rng = random.Random(random_seed + rank * 1000)
+    rng.shuffle(parquet_files)
+    parquet_index = 0
+    
+    all_image_paths = []
+    queued_paths = set()
+    
+    def _enqueue_records(records):
+        for record in records:
+            if 'image_path' in record:
+                path = record['image_path']
+            elif 'image_bytes' in record:
+                image_id = record.get('image_id', f"image_{len(queued_paths)}")
+                path = f"<bytes:{image_id}>"
+            else:
+                continue
+            if path not in processed_paths and path not in queued_paths:
+                queued_paths.add(path)
+                all_image_paths.append(path)
+    
+    def _load_next_parquet_batch() -> int:
+        nonlocal parquet_index
+        if parquet_index >= len(parquet_files):
+            return 0
+        if parquet_sample_size is None:
+            batch_files = parquet_files[parquet_index:]
+        else:
+            batch_files = parquet_files[parquet_index:parquet_index + parquet_sample_size]
+        parquet_index += len(batch_files)
+        records = image_loader.load_parquet_files(batch_files)
+        before = len(all_image_paths)
+        _enqueue_records(records)
+        return len(all_image_paths) - before
+    
+    # Initial load (may be incremental if parquet_sample_size is set)
+    while not all_image_paths:
+        added = _load_next_parquet_batch()
+        if added <= 0:
+            break
+    
+    if not all_image_paths:
+        print("No images found!")
+        return
     
     # Shuffle once, then iterate sequentially to avoid repeated random sampling
-    rng = random.Random(random_seed + rank * 1000)
     rng.shuffle(all_image_paths)
     shard_index = 0
     
@@ -481,7 +524,21 @@ async def run_pipeline_with_failure_sampling(
                     
                     # Sample a batch of images without replacement (from shuffled shard)
                     if shard_index >= len(all_image_paths):
-                        batch_paths = []
+                        # Try loading more parquet files (incremental sampling)
+                        while parquet_index < len(parquet_files):
+                            added = _load_next_parquet_batch()
+                            if added > 0:
+                                # Shuffle only the newly added slice
+                                start = len(all_image_paths) - added
+                                new_slice = all_image_paths[start:]
+                                rng.shuffle(new_slice)
+                                all_image_paths[start:] = new_slice
+                                break
+                        if shard_index >= len(all_image_paths):
+                            batch_paths = []
+                        else:
+                            batch_paths = all_image_paths[shard_index:shard_index + batch_size]
+                            shard_index += len(batch_paths)
                     else:
                         batch_paths = all_image_paths[shard_index:shard_index + batch_size]
                         shard_index += len(batch_paths)

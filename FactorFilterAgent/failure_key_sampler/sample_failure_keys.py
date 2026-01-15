@@ -11,7 +11,11 @@ import json
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
+
+from PIL import Image
+
+from FactorFilterAgent.factor_scoring.vlm_factor_scorer import VLMFactorScorer
 
 
 @dataclass
@@ -105,6 +109,42 @@ def sample_failure_keys(
             )
 
     return results
+
+
+async def score_sampled_failures_async(
+    samples: List[SampledFailure],
+    image_provider: Callable[[str], Image.Image],
+    scorer: VLMFactorScorer,
+) -> List[Dict[str, object]]:
+    """
+    Score each sampled failure using a VLM.
+
+    image_provider: function that returns PIL.Image given image_id.
+    """
+    outputs: List[Dict[str, object]] = []
+    for sample in samples:
+        if not sample.sampled_failure:
+            outputs.append(
+                {
+                    "image_id": sample.image_id,
+                    "sampled_failure": None,
+                    "score": 0.0,
+                    "explanation": "No failure key",
+                }
+            )
+            continue
+        image = image_provider(sample.image_id)
+        score_result = await scorer.score_async(image, sample.suggested_filtering_factors)
+        outputs.append(
+            {
+                "image_id": sample.image_id,
+                "sampled_failure": sample.sampled_failure,
+                "score": score_result.get("score", 0.0),
+                "explanation": score_result.get("explanation", ""),
+                "details": score_result,
+            }
+        )
+    return outputs
 
 
 def main() -> None:

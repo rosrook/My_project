@@ -7,7 +7,7 @@ image -> candidate failure reasons + filtering factors.
 
 from __future__ import annotations
 
-from typing import Dict, List, Sequence
+from typing import Any, Dict, List, Sequence
 
 try:
     import torch
@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - optional dependency
 
 from .data_loader import FailureReasonMeta, FilteringFactorMeta
 from .decision_model import DecisionModel
+from FactorFilterAgent.factor_scoring.vlm_factor_scorer import VLMFactorScorer
 
 
 def load_model(model_path: str, model: "DecisionModel") -> "DecisionModel":
@@ -93,3 +94,14 @@ def run_inference(
             }
         )
     return outputs
+
+
+async def score_suggested_factors_async(
+    image: "Any",
+    suggested_factors: List[str],
+    scorer: VLMFactorScorer,
+) -> Dict[str, Any]:
+    """
+    Score suggested filtering factors for a single image.
+    """
+    return await scorer.score_async(image, suggested_factors)

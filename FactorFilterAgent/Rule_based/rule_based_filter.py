@@ -14,12 +14,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence, Tuple
 
+from PIL import Image
+
 try:
     import pyarrow.parquet as pq
     HAS_PARQUET = True
 except ImportError:  # pragma: no cover - optional dependency
     HAS_PARQUET = False
     pq = None
+
+from FactorFilterAgent.factor_scoring.vlm_factor_scorer import VLMFactorScorer
 
 
 # -----------------------------
@@ -259,6 +263,21 @@ class DefaultVLMVerifier:
     def verify(self, image: ImageRecord, factor: FilteringFactor) -> bool:
         # Replace with actual VLM inference.
         return True
+
+
+async def score_suggested_factors_async(
+    image: Image.Image,
+    suggested_factors: List[str],
+    scorer: VLMFactorScorer,
+) -> Dict[str, Any]:
+    """
+    Score suggested filtering factors with a VLM.
+
+    Returns:
+    - score: 0.0, 0.6..1.0
+    - explanation: model explanation
+    """
+    return await scorer.score_async(image, suggested_factors)
 
 
 # -----------------------------
