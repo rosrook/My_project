@@ -286,6 +286,15 @@ async def run_pipeline_with_failure_sampling(
     rank = int(os.environ.get("RANK", "0"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     
+    # Manually bind GPU if torchrun is used and torch is available
+    if world_size > 1:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.set_device(local_rank)
+        except Exception:
+            pass
+    
     # Use per-rank output dir to avoid write conflicts under torchrun
     output_dir_path = Path(output_dir)
     if world_size > 1:
