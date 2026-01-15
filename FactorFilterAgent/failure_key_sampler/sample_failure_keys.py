@@ -19,11 +19,30 @@ class SampledFailure:
     image_id: str
     sampled_failure: Optional[str]
     failure_keys: List[str]
+    suggested_filtering_factors: List[str]
+
+
+def load_failure_config(config_path: str) -> Dict[str, List[str]]:
+    """
+    Load failure_id -> suggested_filtering_factors mapping from config.
+    """
+    path = Path(config_path)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    mapping: Dict[str, List[str]] = {}
+    for item in data.get("failure_reasons", []):
+        failure_id = item.get("failure_id")
+        factors = item.get("suggested_filtering_factors", []) or []
+        if failure_id:
+            mapping[failure_id] = list(factors)
+    return mapping
 
 
 def sample_failure_keys(
     input_path: str,
     output_path: str,
+    failure_config_path: str,
     random_seed: Optional[int] = None,
 ) -> List[SampledFailure]:
     """
@@ -39,6 +58,7 @@ def sample_failure_keys(
 
     in_path = Path(input_path)
     out_path = Path(output_path)
+    failure_factor_map = load_failure_config(failure_config_path)
 
     with open(in_path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -57,11 +77,14 @@ def sample_failure_keys(
         else:
             sampled = random.choice(keys)
 
+        suggested_factors = failure_factor_map.get(sampled, []) if sampled else []
+
         results.append(
             SampledFailure(
                 image_id=image_id,
                 sampled_failure=sampled,
                 failure_keys=keys,
+                suggested_filtering_factors=suggested_factors,
             )
         )
 
@@ -74,6 +97,7 @@ def sample_failure_keys(
                         "image_id": r.image_id,
                         "sampled_failure": r.sampled_failure,
                         "failure_keys": r.failure_keys,
+                        "suggested_filtering_factors": r.suggested_filtering_factors,
                     },
                     ensure_ascii=False,
                 )
@@ -91,10 +115,20 @@ def main() -> None:
     )
     parser.add_argument("--input", required=True, help="Path to probing_results.json")
     parser.add_argument("--output", required=True, help="Output JSONL path")
+    parser.add_argument(
+        "--failure_config",
+        required=True,
+        help="Path to failure_config.example.json (or compatible config)",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Random seed")
     args = parser.parse_args()
 
-    sample_failure_keys(args.input, args.output, random_seed=args.seed)
+    sample_failure_keys(
+        args.input,
+        args.output,
+        failure_config_path=args.failure_config,
+        random_seed=args.seed,
+    )
 
 
 if __name__ == "__main__":

@@ -263,7 +263,8 @@ async def run_pipeline_with_failure_sampling(
     use_local_baseline: bool = False,
     random_seed: int = 42,
     include_source_metadata: bool = False,
-    max_empty_batches: int = None
+    max_empty_batches: int = None,
+    parquet_sample_size: Optional[int] = None
 ):
     """
     运行 pipeline，持续采样直到收集到指定数量的有failure的图片。
@@ -280,6 +281,7 @@ async def run_pipeline_with_failure_sampling(
         random_seed: 随机种子
         include_source_metadata: 是否包含源元数据
         max_empty_batches: 最大连续空batch数量，如果经过n个batch仍没有找到错误案例，则终止程序
+        parquet_sample_size: Parquet 文件采样数量（None = 使用全部 parquet 文件）
     """
     # Detect torchrun/distributed context (no hard dependency on torch)
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
@@ -304,7 +306,7 @@ async def run_pipeline_with_failure_sampling(
     image_loader = ImageLoader(
         parquet_dir=parquet_dir,
         sample_size=None,  # Don't limit initial sampling
-        parquet_sample_size=None,  # Use all parquet files
+        parquet_sample_size=parquet_sample_size,  # Optionally sample parquet files
         random_seed=random_seed,
         lazy_load=True
     )
@@ -788,7 +790,8 @@ def main():
             use_local_baseline=args.use_local_baseline,
             random_seed=args.random_seed,
             include_source_metadata=args.include_source_metadata,
-            max_empty_batches=args.max_empty_batches
+            max_empty_batches=args.max_empty_batches,
+            parquet_sample_size=args.parquet_sample_size
         ))
     else:
         # 运行原有的固定采样模式
