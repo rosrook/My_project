@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import csv
 import yaml
+from collections import Counter
 
 
 class DataSaver:
@@ -207,3 +208,92 @@ class DataSaver:
             "error_rates_by_claim_type": error_rates,
             "filtering_factor_distribution": factor_distribution
         }
+
+
+def analyze_failure_collection(output_dir: Union[str, Path]) -> Dict[str, Any]:
+    """
+    Analyze failure collection output from rank*/failures folders.
+
+    Counts total collected cases (JSON files) and failure type distribution.
+    """
+    output_dir = Path(output_dir)
+    if not output_dir.exists():
+        raise FileNotFoundError(f"Output directory not found: {output_dir}")
+
+    rank_dirs = sorted(
+        d for d in output_dir.iterdir() if d.is_dir() and d.name.startswith("rank")
+    )
+    candidate_dirs = rank_dirs if rank_dirs else [output_dir]
+
+    failure_json_paths: List[Path] = []
+    failure_image_paths: List[Path] = []
+    for base_dir in candidate_dirs:
+        failure_dir = base_dir / "failures"
+        if not failure_dir.exists():
+            continue
+        failure_json_paths.extend(sorted(failure_dir.glob("*.json")))
+        for ext in ("*.jpg", "*.jpeg", "*.png", "*.webp"):
+            failure_image_paths.extend(failure_dir.glob(ext))
+
+    failure_type_counts: Counter = Counter()
+    bad_json_files: List[str] = []
+    for json_path in failure_json_paths:
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            bad_json_files.append(str(json_path))
+            continue
+
+        breakdown = (
+            data.get("aggregated_failures", {}).get("failure_breakdown")
+            if isinstance(data, dict)
+            else None
+        )
+        if isinstance(breakdown, dict) and breakdown:
+            for key, value in breakdown.items():
+                failure_key = key or "unknown"
+                try:
+                    count = int(value)
+                except Exception:
+                    count = 1
+                failure_type_counts[failure_key] += count
+            continue
+
+        verifications = data.get("verifications", []) if isinstance(data, dict) else []
+        used_verifications = False
+        for verif in verifications:
+            if verif.get("is_correct", True):
+                continue
+            failure_key = (
+                verif.get("failure_id")
+                or verif.get("failure_reason")
+                or "unknown"
+            )
+            failure_type_counts[failure_key] += 1
+            used_verifications = True
+
+        if not used_verifications:
+            failed_ids = (
+                data.get("aggregated_failures", {}).get("failed_claim_ids", [])
+                if isinstance(data, dict)
+                else []
+            )
+            if isinstance(failed_ids, list):
+                for failure_id in failed_ids:
+                    failure_type_counts[str(failure_id) if failure_id else "unknown"] += 1
+
+    failure_type_distribution = dict(
+        sorted(failure_type_counts.items(), key=lambda item: (-item[1], item[0]))
+    )
+    ranks_detected = [
+        d.name for d in candidate_dirs if (d / "failures").exists()
+    ]
+
+    return {
+        "total_collected": len(failure_json_paths),
+        "total_images": len(failure_image_paths),
+        "ranks_detected": ranks_detected,
+        "failure_type_distribution": failure_type_distribution,
+        "bad_json_files": bad_json_files,
+    }

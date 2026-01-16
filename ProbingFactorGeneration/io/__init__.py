@@ -1,5 +1,5 @@
 """Input/Output modules for saving results."""
 
-from .saver import DataSaver
+from .saver import DataSaver, analyze_failure_collection
 
-__all__ = ["DataSaver"]
+__all__ = ["DataSaver", "analyze_failure_collection"]
