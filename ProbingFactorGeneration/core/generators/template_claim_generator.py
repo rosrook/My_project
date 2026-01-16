@@ -74,8 +74,19 @@ class TemplateClaimGenerator:
         # 6. "slot_type_definitions" - definitions of slot types (v1.1+)
         # 7. "global_guidelines" - global guidelines for template completion (v1.1+)
         
-        valid_keys = ["claim_schemas", "global_templates", "templates", "metadata", 
-                     "domain", "version", "description", "slot_type_definitions", "global_guidelines"]
+        valid_keys = [
+            "claim_schemas",
+            "global_templates",
+            "templates",
+            "metadata",
+            "domain",
+            "version",
+            "description",
+            "slot_type_definitions",
+            "global_guidelines",
+            "enabled_claim_ids",
+            "enabled_claim_names",
+        ]
         for key in self.config.keys():
             if key not in valid_keys:
                 raise ValueError(
@@ -130,7 +141,33 @@ class TemplateClaimGenerator:
             if "claims" in self.config:
                 templates.extend(self._normalize_templates(self.config["claims"], image_id))
         
-        return templates
+        return self._filter_templates(templates)
+
+    def _filter_templates(self, templates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Filter templates by enabled claim ids/names from config.
+        """
+        enabled_ids = self.config.get("enabled_claim_ids", [])
+        enabled_names = self.config.get("enabled_claim_names", [])
+
+        if isinstance(enabled_ids, str):
+            enabled_ids = [enabled_ids]
+        if isinstance(enabled_names, str):
+            enabled_names = [enabled_names]
+
+        enabled_ids = [v for v in enabled_ids if isinstance(v, str) and v.strip()]
+        enabled_names = [v for v in enabled_names if isinstance(v, str) and v.strip()]
+
+        if not enabled_ids and not enabled_names:
+            return templates
+
+        filtered = []
+        for template in templates:
+            claim_id = template.get("claim_id", "")
+            claim_name = template.get("metadata", {}).get("name", "")
+            if (enabled_ids and claim_id in enabled_ids) or (enabled_names and claim_name in enabled_names):
+                filtered.append(template)
+        return filtered
     
     def _normalize_templates(self, templates: Union[List[Dict], List[str], Dict], 
                             image_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -182,6 +219,12 @@ class TemplateClaimGenerator:
                         f"Got: {template.keys()}"
                     )
                 
+                prefill_slots = template.get("prefill_slots", [])
+                if isinstance(prefill_slots, str):
+                    prefill_slots = [prefill_slots]
+                elif not isinstance(prefill_slots, list):
+                    prefill_slots = []
+
                 normalized_template = {
                     "claim_id": (template.get("claim_id") or 
                                self._generate_template_id(image_id, idx)),
@@ -190,10 +233,12 @@ class TemplateClaimGenerator:
                                    self._infer_content_type(template_text)),
                     "placeholders": (template.get("placeholders") or 
                                    self._extract_placeholders(template_text)),
+                    "prefill_slots": prefill_slots,
                     "metadata": {
                         **template.get("metadata", {}),
                         "source": "predefined_config",
-                        "original_format": "dict"
+                        "original_format": "dict",
+                        "prefill_slots": prefill_slots
                     }
                 }
             else:
@@ -231,6 +276,11 @@ class TemplateClaimGenerator:
             # Extract slot/placeholder names from template and schema
             slot_names = list(schema.get("slots", {}).keys())
             placeholders = self._extract_placeholders(claim_template)
+            prefill_slots = schema.get("prefill_slots", [])
+            if isinstance(prefill_slots, str):
+                prefill_slots = [prefill_slots]
+            elif not isinstance(prefill_slots, list):
+                prefill_slots = []
             
             # Ensure all placeholders have corresponding slots or vice versa
             if slot_names and placeholders:
@@ -271,6 +321,7 @@ class TemplateClaimGenerator:
                 "content_type": content_type or self._infer_content_type(claim_template),
                 "placeholders": used_placeholders,
                 "slots": slots_info,  # Rich slot information (including selection_criteria)
+                "prefill_slots": prefill_slots,
                 "metadata": {
                     "name": schema.get("name", ""),
                     "capability": capability,
@@ -279,6 +330,7 @@ class TemplateClaimGenerator:
                     "common_failure_modes": schema.get("common_failure_modes", []),
                     "not_related_conditions": schema.get("not_related_conditions", []),  # v1.1+: when to return NOT_RELATED
                     "target_failure_id": schema.get("target_failure_id", ""),  # v1.1+: target failure ID
+                    "prefill_slots": prefill_slots,  # v1.1+: slots to prefill with judge
                     "source": "claim_schema",
                     "original_format": "schema"
                 }

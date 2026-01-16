@@ -238,6 +238,175 @@ Failure reasons (if is_correct is false):
 answered from the image, set "is_correct" to false and "not_related_judgment_correct" to false."""
         
         return prompt
+
+    def _build_prefill_prompt(
+        self,
+        claim_template: str,
+        prefill_slots: List[str],
+        slots_info: Optional[Dict[str, Any]] = None,
+        claim_name: Optional[str] = None
+    ) -> str:
+        """
+        Build prompt for pre-filling selected template slots.
+        """
+        slot_lines = []
+        for slot_name in prefill_slots:
+            slot_data = (slots_info or {}).get(slot_name, {})
+            line = f"- {slot_name}"
+            if slot_data.get("type"):
+                line += f" (type: {slot_data['type']})"
+            if slot_data.get("selection_criteria"):
+                line += f"\n  Selection criteria: {slot_data['selection_criteria']}"
+            if slot_data.get("values"):
+                line += f"\n  Valid values: {', '.join(slot_data['values'])}"
+            slot_lines.append(line)
+
+        slots_section = "\n".join(slot_lines) if slot_lines else "- None"
+        claim_name_line = f"Claim Name: {claim_name}\n" if claim_name else ""
+
+        prompt = f"""You are selecting core objects or values for specific placeholders in a claim template.
+Choose suitable and moderately challenging objects when possible.
+If the image is not relevant or you cannot find any suitable object, mark it as not relevant.
+Fill ONLY the requested slots based on the image. Keep values concise.
+If a slot cannot be determined, return an empty string for that slot.
+
+{claim_name_line}Claim Template: {claim_template}
+Slots to prefill:
+{slots_section}
+
+Please respond in JSON format:
+{{
+  "is_relevant": true/false,
+  "filled_values": {{"SLOT_NAME": "value", "...": "..."}}
+}}
+"""
+        return prompt
+
+    async def prefill_template_slots_async(
+        self,
+        image: Image.Image,
+        claim_template: Dict[str, Any],
+        prefill_slots: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Prefill selected slots in a claim template based on the image.
+        """
+        if not prefill_slots:
+            return {"filled_values": {}, "metadata": {"source": "prefill_slots", "skipped": True}}
+
+        try:
+            template_text = claim_template.get("claim_template") or claim_template.get("claim_text", "")
+            slots_info = claim_template.get("slots", {})
+            claim_name = claim_template.get("metadata", {}).get("name")
+
+            if not template_text:
+                raise ValueError("claim_template must contain 'claim_template' or 'claim_text' field")
+
+            # Validate and convert image
+            if not isinstance(image, Image.Image):
+                raise TypeError(f"Expected PIL.Image.Image, got {type(image)}")
+            if image.mode not in ("RGB", "RGBA", "L"):
+                image = image.convert("RGB")
+
+            prompt = self._build_prefill_prompt(
+                template_text,
+                prefill_slots=prefill_slots,
+                slots_info=slots_info if slots_info else None,
+                claim_name=claim_name
+            )
+
+            image_base64 = self._image_to_base64(image)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+                        }
+                    ]
+                }
+            ]
+
+            response = await self._call_model_async(
+                messages,
+                response_format={"type": "json_object"}
+            )
+            response_text = response.choices[0].message.content
+
+            try:
+                parsed = json.loads(response_text)
+            except json.JSONDecodeError:
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group())
+                else:
+                    raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
+
+            filled_values = parsed.get("filled_values", {})
+            if not isinstance(filled_values, dict):
+                filled_values = {}
+            is_relevant = parsed.get("is_relevant", None)
+
+            # Keep only requested slots, coerce to strings
+            normalized = {}
+            for slot in prefill_slots:
+                value = filled_values.get(slot, "")
+                if value is None:
+                    value = ""
+                normalized[slot] = str(value)
+
+            has_any_value = any(str(v).strip() for v in normalized.values())
+            if is_relevant is None:
+                is_relevant = bool(has_any_value)
+
+            result = {
+                "filled_values": normalized,
+                "is_relevant": bool(is_relevant),
+                "metadata": {
+                    "response_text": response_text,
+                    "source": "prefill_slots",
+                    "prefill_slots": prefill_slots
+                }
+            }
+
+            if hasattr(response, "usage"):
+                result["metadata"]["usage"] = {
+                    "prompt_tokens": getattr(response.usage, "prompt_tokens", None),
+                    "completion_tokens": getattr(response.usage, "completion_tokens", None),
+                    "total_tokens": getattr(response.usage, "total_tokens", None),
+                }
+
+            return result
+        except Exception as e:
+            return {
+                "filled_values": {},
+                "is_relevant": False,
+                "metadata": {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "source": "prefill_slots"
+                }
+            }
+
+    async def prefill_template_slots_batch_async(
+        self,
+        images: List[Image.Image],
+        claim_templates: List[Dict[str, Any]],
+        prefill_slots_list: List[List[str]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Prefill selected slots for a batch of templates (async version).
+        """
+        if not (len(images) == len(claim_templates) == len(prefill_slots_list)):
+            raise ValueError("Images, claim_templates, and prefill_slots_list must have same length")
+
+        tasks = [
+            self.prefill_template_slots_async(image, template, slots)
+            for image, template, slots in zip(images, claim_templates, prefill_slots_list)
+        ]
+        return await asyncio.gather(*tasks)
     
     async def _call_model_async(
         self, 

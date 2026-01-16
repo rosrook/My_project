@@ -6,6 +6,7 @@ Demonstrates the data flow through all modules.
 from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 from PIL import Image
+import json
 
 from ProbingFactorGeneration.core import ImageLoader, ClaimGenerator, FailureAggregator, FilteringFactorMapper
 from ProbingFactorGeneration.core.generators.template_claim_generator import TemplateClaimGenerator
@@ -73,6 +74,144 @@ class ProbingFactorPipeline:
             self.failure_reason_matcher = FailureReasonMatcher()
         else:
             self.failure_reason_matcher = failure_reason_matcher
+        
+        self._dessert_lock = asyncio.Lock()
+
+    @staticmethod
+    def _apply_prefilled_values(
+        claim_template: Dict[str, Any],
+        prefill_result: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        prefilled_values = prefill_result.get("filled_values", {}) if isinstance(prefill_result, dict) else {}
+        if not isinstance(prefilled_values, dict) or not prefilled_values:
+            return claim_template
+
+        template_text = claim_template.get("claim_template") or claim_template.get("claim_text", "")
+        placeholders = list(claim_template.get("placeholders", []))
+        slots_info = dict(claim_template.get("slots", {}))
+
+        for slot_name, value in prefilled_values.items():
+            value_str = str(value).strip() if value is not None else ""
+            if not value_str:
+                continue
+            template_text = template_text.replace(f"[{slot_name}]", value_str)
+            template_text = template_text.replace(f"{{{slot_name}}}", value_str)
+            if slot_name in placeholders:
+                placeholders.remove(slot_name)
+            if slot_name in slots_info:
+                slots_info.pop(slot_name)
+
+        metadata = {**claim_template.get("metadata", {})}
+        if "original_template_unfilled" not in metadata:
+            metadata["original_template_unfilled"] = claim_template.get("claim_template")
+        metadata["prefilled_values"] = {
+            **metadata.get("prefilled_values", {}),
+            **{k: v for k, v in prefilled_values.items() if v is not None}
+        }
+        metadata["prefill_result"] = prefill_result.get("metadata", {})
+
+        updated = {**claim_template}
+        updated["claim_template"] = template_text
+        updated["placeholders"] = placeholders
+        updated["slots"] = slots_info
+        updated["metadata"] = metadata
+        return updated
+
+    async def _prefill_slots_with_judge(
+        self,
+        image: Image.Image,
+        claim_templates: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        prefill_indices = []
+        prefill_templates = []
+        prefill_slots_list = []
+        has_non_prefill_claim = False
+
+        for idx, template in enumerate(claim_templates):
+            prefill_slots = template.get("prefill_slots") or template.get("metadata", {}).get("prefill_slots", [])
+            if isinstance(prefill_slots, str):
+                prefill_slots = [prefill_slots]
+            if isinstance(prefill_slots, list) and prefill_slots:
+                prefill_indices.append(idx)
+                prefill_templates.append(template)
+                prefill_slots_list.append(prefill_slots)
+            else:
+                has_non_prefill_claim = True
+
+        if not prefill_templates:
+            return {
+                "templates": claim_templates,
+                "skip": False,
+                "skip_reason": None,
+                "prefill_results": []
+            }
+
+        prefill_results = await self.judge_model.prefill_template_slots_batch_async(
+            [image] * len(prefill_templates),
+            prefill_templates,
+            prefill_slots_list
+        )
+
+        updated_templates = list(claim_templates)
+        keep_mask = [True] * len(updated_templates)
+        indexed_prefill_results = []
+
+        for idx, prefill_result in zip(prefill_indices, prefill_results):
+            filled_values = prefill_result.get("filled_values", {}) if isinstance(prefill_result, dict) else {}
+            has_any_value = any(str(v).strip() for v in filled_values.values()) if isinstance(filled_values, dict) else False
+            is_relevant = prefill_result.get("is_relevant") if isinstance(prefill_result, dict) else None
+            is_relevant = bool(is_relevant) if is_relevant is not None else bool(has_any_value)
+
+            indexed_prefill_results.append({
+                "index": idx,
+                "prefill_result": prefill_result,
+                "has_any_value": has_any_value,
+                "is_relevant": is_relevant
+            })
+
+            if not is_relevant or not has_any_value:
+                keep_mask[idx] = False
+                continue
+
+            updated_templates[idx] = self._apply_prefilled_values(
+                updated_templates[idx],
+                prefill_result
+            )
+
+        filtered_templates = [t for t, keep in zip(updated_templates, keep_mask) if keep]
+        if not filtered_templates and not has_non_prefill_claim:
+            return {
+                "templates": filtered_templates,
+                "skip": True,
+                "skip_reason": "prefill_no_object",
+                "prefill_results": indexed_prefill_results
+            }
+
+        return {
+            "templates": filtered_templates,
+            "skip": False,
+            "skip_reason": None,
+            "prefill_results": indexed_prefill_results
+        }
+
+    async def _record_dessert(
+        self,
+        image_path: str,
+        image_id: str,
+        reason: str,
+        prefill_results: List[Dict[str, Any]]
+    ) -> None:
+        dessert_path = Path(self.data_saver.output_dir) / "dessert.jsonl"
+        record = {
+            "image_id": image_id,
+            "image_path": image_path,
+            "reason": reason,
+            "prefill_results": prefill_results
+        }
+        async with self._dessert_lock:
+            dessert_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(dessert_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
     
     def process_single_image(self, image_path: str) -> Dict[str, Any]:
         """
@@ -148,11 +287,12 @@ class ProbingFactorPipeline:
         Complete workflow:
         1. Load image
         2. Generate claim templates from claim_template.example_v1_1.json (with placeholders)
-        3. Baseline model completes templates (fills placeholders or returns "not related")
-        4. Judge model verifies completions and explanations (checks correctness and not_related judgments)
-        5. Match failures to failure_config.example.json to get failure_id and suggested_filtering_factors
-        6. Aggregate failures for the image
-        7. Collect all suggested_filtering_factors from failed claims as the image's filtering factors
+        3. Prefill selected slots with judge model (optional)
+        4. Baseline model completes templates (fills remaining placeholders or returns "not related")
+        5. Judge model verifies completions and explanations (checks correctness and not_related judgments)
+        6. Match failures to failure_config.example.json to get failure_id and suggested_filtering_factors
+        7. Aggregate failures for the image
+        8. Collect all suggested_filtering_factors from failed claims as the image's filtering factors
         
         Args:
             image_path: Path to the image file
@@ -191,20 +331,46 @@ class ProbingFactorPipeline:
                 for c in claims
             ]
         
-        # Step 3: Baseline model completes templates
+        # Step 3: Prefill selected slots with judge model (optional)
+        prefill_output = await self._prefill_slots_with_judge(image, claim_templates)
+        claim_templates = prefill_output["templates"]
+        if prefill_output["skip"]:
+            await self._record_dessert(
+                image_path=image_path,
+                image_id=image_id,
+                reason=prefill_output["skip_reason"],
+                prefill_results=prefill_output["prefill_results"]
+            )
+            return {
+                "image_id": image_id,
+                "completions": [],
+                "verifications": [],
+                "aggregated_failures": {
+                    "image_id": image_id,
+                    "total_claims": 0,
+                    "failed_claims": 0,
+                    "success_rate": 0.0,
+                    "failure_breakdown": {}
+                },
+                "suggested_filtering_factors": [],
+                "skipped": True,
+                "skip_reason": prefill_output["skip_reason"]
+            }
+
+        # Step 4: Baseline model completes templates
         completions = await self.baseline_model.complete_template_batch_async(
             [image] * len(claim_templates),
             claim_templates
         )
         
-        # Step 4: Judge model verifies completions
+        # Step 5: Judge model verifies completions
         verifications = await self.judge_model.verify_completion_batch_async(
             [image] * len(claim_templates),
             claim_templates,
             completions
         )
         
-        # Step 5: Match failure reasons and extract filtering factors
+        # Step 6: Match failure reasons and extract filtering factors
         # For each verification, match to failure_config and get suggested_filtering_factors
         enhanced_verifications = []
         all_filtering_factors = []  # Collect all filtering factors for failed claims
@@ -258,21 +424,21 @@ class ProbingFactorPipeline:
             
             enhanced_verifications.append(enhanced_verification)
         
-        # Step 6: Aggregate failures for this image
+        # Step 7: Aggregate failures for this image
         aggregated_failures = self.failure_aggregator.aggregate(
             image_id, 
             claim_templates, 
             enhanced_verifications
         )
         
-        # Step 7: Merge all filtering factors from failed claims
+        # Step 8: Merge all filtering factors from failed claims
         # Collect all unique filtering factors as the image's suggested filtering factors
         if all_filtering_factors:
             image_filtering_factors = self.filtering_factor_mapper.map_batch(all_filtering_factors)
         else:
             image_filtering_factors = []
         
-        # Enhance aggregated failures
+        # Step 9: Enhance aggregated failures
         aggregated_with_factors = self.filtering_factor_mapper.map_aggregated_failures(
             aggregated_failures
         )

@@ -2,6 +2,26 @@
     "domain": "visual_reasoning",
     "version": "v1.1",
     "description": "Claim schemas for probing visual reasoning capabilities across entity grounding, spatial reasoning, scale estimation, counting, absence detection, occlusion handling, orientation, geographic recognition, and image-text alignment. Baseline model selects optimal instantiation targets from image content.",
+    "enabled_claim_ids": [
+      "entity_basic_grounding",
+      "concept_single_object",
+      "spatial_absolute_position",
+      "spatial_relative_position",
+      "scale_proportion_estimation",
+      "counting_object_instances",
+      "absence_negative_reasoning",
+      "orientation_facing_direction"
+    ],
+    "enabled_claim_names": [
+      "Basic Visual Entity Grounding",
+      "Single Object Abstract Concept Extraction",
+      "Absolute Position Recognition",
+      "Relative Spatial Relationship",
+      "Scale and Proportion Estimation",
+      "Object Instance Counting",
+      "Object Absence Detection",
+      "Object Orientation Recognition"
+    ],
     
     "slot_type_definitions": {
       "object_instance": "A specific, visually identifiable object in the image selected by the baseline model",
@@ -64,6 +84,7 @@
             "selection_criteria": "Infer a stable, category-level property from common knowledge (not instance-specific visual features)"
           }
         },
+        "prefill_slots": ["OBJECT_INSTANCE"],
         "baseline_instructions": [
           "Identify the most prominent single object with clear categorical identity.",
           "Infer its abstract category and a stable, non-visual property from common knowledge.",
@@ -127,6 +148,7 @@
             "selection_criteria": "Determine the absolute region based on the selected object's position"
           }
         },
+        "prefill_slots": ["TARGET_OBJECT"],
         "baseline_instructions": [
           "Identify the most salient object with clear boundaries and unambiguous position.",
           "Determine its absolute position using directional terms.",
@@ -166,6 +188,7 @@
             "selection_criteria": "Determine the spatial relationship from OBJECT_A to OBJECT_B"
           }
         },
+        "prefill_slots": ["OBJECT_A", "OBJECT_B"],
         "baseline_instructions": [
           "Identify at least two visually salient objects from different semantic categories.",
           "Determine their relative spatial relationship using directional terms.",
@@ -202,6 +225,7 @@
             "selection_criteria": "Estimate the proportion of total image area occupied by the object"
           }
         },
+        "prefill_slots": ["TARGET_OBJECT"],
         "baseline_instructions": [
           "Identify the most salient object with clear, discernible boundaries.",
           "Estimate the approximate proportion of image area it occupies.",
@@ -236,6 +260,7 @@
             "selection_criteria": "Count all visible instances, including partially visible ones, of the selected object type"
           }
         },
+        "prefill_slots": ["OBJECT_TYPE"],
         "baseline_instructions": [
           "Identify the most salient countable object category (should have discrete, identifiable instances).",
           "Count all visible instances of that category, including partially visible ones.",
@@ -271,6 +296,7 @@
             "selection_criteria": "Select a salient object category present elsewhere in the image or plausibly expected in the scene"
           }
         },
+        "prefill_slots": ["OBJECT_TYPE"],
         "baseline_instructions": [
           "Identify at least one salient object category present in the image or expected in the scene context.",
           "Identify a clearly distinguishable spatial region that is devoid of that object type.",
@@ -337,6 +363,7 @@
             "selection_criteria": "Determine the facing direction of the selected object"
           }
         },
+        "prefill_slots": ["OBJECT"],
         "baseline_instructions": [
           "Identify the most salient object that has an inherent facing or pointing direction.",
           "Determine its orientation using directional terms.",
