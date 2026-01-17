@@ -1,0 +1,66 @@
+{
+  "pipelines": [
+    {
+      "failure_id": "FR_BASIC_VISUAL_ENTITY_GROUNDING_FAILURE",
+      "pipeline_type": "visual_recognition",
+      "pipeline_name": "Main Object Identification Pipeline"
+    },
+    {
+      "failure_id": "FR_PLACE_RECOGNITION_ERROR",
+      "pipeline_type": "place_recognition",
+      "pipeline_name": "Place Recognition Pipeline"
+    },
+    {
+      "failure_id": "FR_MULTI_OBJECT_CONCEPT_ABSTRACTION_FAILURE",
+      "pipeline_type": "caption",
+      "pipeline_name": "Caption Pipeline"
+    },
+    {
+      "failure_id": "FR_OBJECT_LEVEL_ABSTRACT_CONCEPT_MISSING",
+      "pipeline_type": "question",
+      "pipeline_name": "Question Pipeline"
+    },
+    {
+      "failure_id": "FR_OBJECT_COUNTING_CONFUSION",
+      "pipeline_type": "object_counting",
+      "pipeline_name": "Object Counting Pipeline"
+    },
+    {
+      "failure_id": "FR_ABSOLUTE_POSITION_ERROR",
+      "pipeline_type": "object_position",
+      "pipeline_name": "Object Position Pipeline"
+    },
+    {
+      "failure_id": "FR_RELATIVE_POSITION_ERROR",
+      "pipeline_type": "object_position",
+      "pipeline_name": "Object Position Pipeline"
+    },
+    {
+      "failure_id": "FR_OBJECT_ORIENTATION_ERROR",
+      "pipeline_type": "object_orientation",
+      "pipeline_name": "Object Orientation Pipeline"
+    },
+    {
+      "failure_id": "FR_ABSENCE_REASONING_FAILURE",
+      "pipeline_type": "object_absence",
+      "pipeline_name": "Object Absence Pipeline"
+    },
+    {
+      "failure_id": "FR_BASIC_IMAGE_TEXT_ALIGNMENT",
+      "pipeline_type": "text_association",
+      "pipeline_name": "Text Association Pipeline"
+    },
+    {
+      "failure_id": "FR_SCALE_PROPORTION_ERROR",
+      "pipeline_type": "object_proportion",
+      "pipeline_name": "Object Proportion Pipeline"
+    },
+    {
+      "failure_id": "FR_OCCLUSION_SENSITIVITY",
+      "pipeline_type": "caption",
+      "pipeline_name": "Caption Pipeline"
+    }
+  ],
+  "default_pipeline_type": "unknown",
+  "default_pipeline_name": "unknown"
+}
