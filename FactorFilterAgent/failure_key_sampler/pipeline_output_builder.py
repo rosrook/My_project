@@ -177,10 +177,16 @@ def _sample_failure_key(
 
 
 def _resolve_failure_image_path(json_path: Path) -> Optional[str]:
-    for ext in (".jpg", ".jpeg", ".png", ".webp"):
-        candidate = json_path.with_suffix(ext)
-        if candidate.exists():
-            return str(candidate)
+    stem = json_path.stem
+    base_stems = [stem]
+    if stem.endswith("_result"):
+        base_stems.append(stem[: -len("_result")])
+
+    for base_stem in base_stems:
+        for ext in (".jpg", ".jpeg", ".png", ".webp"):
+            candidate = json_path.with_name(f"{base_stem}{ext}")
+            if candidate.exists():
+                return str(candidate)
     return None
 
 
