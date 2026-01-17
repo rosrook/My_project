@@ -152,14 +152,35 @@ class ImageLoader:
                         
                         # Handle binary type (jpg column)
                         if col_name == 'jpg':
+                            jpg_value = None
                             if isinstance(value, bytes):
-                                record['image_bytes'] = value
+                                jpg_value = value
                             elif hasattr(value, 'as_py'):
                                 # PyArrow binary type
-                                record['image_bytes'] = value.as_py()
+                                jpg_value = value.as_py()
                             elif value is not None:
                                 # Convert to bytes
-                                record['image_bytes'] = bytes(value)
+                                try:
+                                    jpg_value = bytes(value)
+                                except Exception:
+                                    jpg_value = value
+
+                            if isinstance(jpg_value, memoryview):
+                                jpg_value = jpg_value.tobytes()
+                            elif isinstance(jpg_value, bytearray):
+                                jpg_value = bytes(jpg_value)
+                            elif isinstance(jpg_value, list) and all(isinstance(i, int) for i in jpg_value):
+                                # Some parquet writers store bytes as list<uint8>
+                                jpg_value = bytes(jpg_value)
+                            elif isinstance(jpg_value, dict) and "bytes" in jpg_value:
+                                # Handle nested dict-like representations
+                                try:
+                                    jpg_value = bytes(jpg_value["bytes"])
+                                except Exception:
+                                    pass
+
+                            if isinstance(jpg_value, bytes):
+                                record['image_bytes'] = jpg_value
                             # Note: image_bytes will be set above, continue to next column
                             continue
 
