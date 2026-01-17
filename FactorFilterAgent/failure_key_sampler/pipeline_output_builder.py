@@ -102,11 +102,13 @@ def build_error_output(
     samples: List[object],
     pipeline_config_path: str,
     image_dir: Optional[str],
+    start_index: int = 0,
 ) -> List[Dict[str, object]]:
     pipeline_map, defaults = load_pipeline_config(pipeline_config_path)
     error_records: List[Dict[str, object]] = []
 
-    for sample_index, sample in enumerate(samples):
+    for offset, sample in enumerate(samples):
+        sample_index = start_index + offset
         sampled_failure = getattr(sample, "sampled_failure", None)
         if not sampled_failure:
             continue
@@ -194,6 +196,7 @@ def build_error_output_from_failure_root(
     failure_root: str,
     pipeline_config_path: str,
     random_seed: Optional[int] = None,
+    start_index: int = 0,
 ) -> List[Dict[str, object]]:
     base_dir = Path(failure_root)
     if not base_dir.exists():
@@ -245,9 +248,10 @@ def build_error_output_from_failure_root(
             except (TypeError, ValueError):
                 record_id = len(error_records)
 
+        sample_index = start_index + len(error_records)
         error_records.append(
             {
-                "sample_index": len(error_records),
+                "sample_index": sample_index,
                 "id": record_id,
                 "source_a": {
                     "original_id": str(image_id),
@@ -266,11 +270,13 @@ def write_error_output_from_failure_root(
     pipeline_config_path: str,
     error_output_path: str,
     random_seed: Optional[int] = None,
+    start_index: int = 0,
 ) -> None:
     error_records = build_error_output_from_failure_root(
         failure_root=failure_root,
         pipeline_config_path=pipeline_config_path,
         random_seed=random_seed,
+        start_index=start_index,
     )
     error_path = Path(error_output_path)
     error_path.parent.mkdir(parents=True, exist_ok=True)
@@ -283,8 +289,14 @@ def write_error_output(
     pipeline_config_path: str,
     error_output_path: str,
     image_dir: Optional[str],
+    start_index: int = 0,
 ) -> None:
-    error_records = build_error_output(samples, pipeline_config_path, image_dir)
+    error_records = build_error_output(
+        samples,
+        pipeline_config_path,
+        image_dir,
+        start_index=start_index,
+    )
     error_path = Path(error_output_path)
     error_path.parent.mkdir(parents=True, exist_ok=True)
     with open(error_path, "w", encoding="utf-8") as f:

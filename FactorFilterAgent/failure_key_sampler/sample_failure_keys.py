@@ -243,6 +243,12 @@ def main() -> None:
         default=None,
         help="Optional output JSON file for error cases with base64 images",
     )
+    parser.add_argument(
+        "--start_index",
+        type=int,
+        default=0,
+        help="Start index for sample_index in error output",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Random seed")
     args = parser.parse_args()
 
@@ -256,6 +262,7 @@ def main() -> None:
             pipeline_config_path=args.pipeline_config,
             error_output_path=args.error_output,
             random_seed=args.seed,
+            start_index=args.start_index,
         )
         return
 
@@ -275,6 +282,7 @@ def main() -> None:
             pipeline_config_path=args.pipeline_config,
             error_output_path=args.error_output,
             image_dir=args.image_dir,
+            start_index=args.start_index,
         )
 
 
