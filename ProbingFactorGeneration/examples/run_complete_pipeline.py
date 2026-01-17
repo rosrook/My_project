@@ -303,10 +303,14 @@ async def run_pipeline_with_failure_sampling(
         output_dir_path = output_dir_path / f"rank_{rank}"
     
     # Initialize ImageLoader (load all parquet files for sampling)
+    # In distributed mode, sample after sharding to avoid empty shards.
+    per_rank_parquet_sample = None
+    if world_size <= 1:
+        per_rank_parquet_sample = parquet_sample_size
     image_loader = ImageLoader(
         parquet_dir=parquet_dir,
         sample_size=None,  # Don't limit initial sampling
-        parquet_sample_size=parquet_sample_size,  # Optionally sample parquet files
+        parquet_sample_size=per_rank_parquet_sample,
         random_seed=random_seed,
         lazy_load=True
     )
@@ -385,7 +389,10 @@ async def run_pipeline_with_failure_sampling(
     )
     
     # Build deterministic shard of parquet files, then incrementally load images
-    parquet_files = image_loader.get_parquet_files()
+    if world_size > 1:
+        parquet_files = image_loader._discover_parquet_files()
+    else:
+        parquet_files = image_loader.get_parquet_files()
     if not parquet_files:
         print("No parquet files found!")
         return
@@ -397,12 +404,16 @@ async def run_pipeline_with_failure_sampling(
             p for p in parquet_files
             if _stable_hash(str(p)) % world_size == rank
         ]
+        if parquet_sample_size is not None and parquet_sample_size < len(parquet_files):
+            parquet_files = random.sample(parquet_files, parquet_sample_size)
+            print(f"Sampled {parquet_sample_size} parquet files from shard {rank}/{world_size}")
         print(f"Shard {rank}/{world_size}: {len(parquet_files)} parquet files")
     
     rng = random.Random(random_seed + rank * 1000)
     rng.shuffle(parquet_files)
     parquet_index = 0
     
+    processed_paths = set()
     all_image_paths = []
     queued_paths = set()
     
@@ -448,7 +459,6 @@ async def run_pipeline_with_failure_sampling(
     shard_index = 0
     
     # Track processed images and collected failures
-    processed_paths = set()
     failure_results = []
     total_processed = 0
     batch_num = 0
