@@ -10,7 +10,8 @@
       "scale_proportion_estimation",
       "counting_object_instances",
       "absence_negative_reasoning",
-      "orientation_facing_direction"
+      "orientation_facing_direction",
+      "intra_class_single_instance_localization"
     ],
     "enabled_claim_names": [
       "Basic Visual Entity Grounding",
@@ -20,7 +21,8 @@
       "Scale and Proportion Estimation",
       "Object Instance Counting",
       "Object Absence Detection",
-      "Object Orientation Recognition"
+      "Object Orientation Recognition",
+      "Intra-class Single-instance Disambiguation and Relative Localization"
     ],
     
     "slot_type_definitions": {
@@ -30,7 +32,9 @@
       "categorical_value": "A value from a predefined set of options",
       "integer_value": "An exact integer count or numeric value",
       "spatial_descriptor": "A description of a spatial region or position in the image",
-      "natural_language_text": "Free-form natural language description generated from visual content"
+      "natural_language_text": "Free-form natural language description generated from visual content",
+      "instance_level_visual_feature": "A visually observable characteristic that distinguishes one or a small subset of instances within the same object category",
+      "relative_spatial_relation": "A description of an object's position relative to other instances of the same category, expressed using ordinal, comparative, or group-relative spatial relations"
     },
   
     "claim_schemas": [
@@ -167,6 +171,48 @@
           "confusing similar objects in different positions"
         ]
       },
+      {
+        "claim_id": "intra_class_single_instance_localization",
+        "name": "Intra-class Single-instance Disambiguation and Relative Localization",
+        "capability": "intra_class_instance_grounding_and_relative_positioning",
+        "target_failure_id": "FR_INTRA_CLASS_INSTANCE_POSITIONING_FAILURE",
+        "claim_template": "Among the [OBJECT_CATEGORY] in the image, the one with the characteristic [DISTINCTIVE_FEATURE] is located at [RELATIVE_POSITION] compared to the others.",
+        "slots": {
+          "OBJECT_CATEGORY": {
+            "type": "object_category",
+            "selection_criteria": "Select an object category for which more than one instance appears in the image; categories with moderate visual similarity among instances are preferred but not required"
+          },
+          "DISTINCTIVE_FEATURE": {
+            "type": "instance_level_visual_feature",
+            "selection_criteria": "Prefer a non-positional visual characteristic that uniquely identifies a single instance within the category; if no such feature exists, select a non-positional characteristic that identifies the smallest possible subset of instances; the feature must not be shared by all instances and must not rely on spatial location or relative position"
+          },
+          "RELATIVE_POSITION": {
+            "type": "relative_spatial_relation",
+            "selection_criteria": "Describe the spatial position of the target instance relative to other instances of the same category (e.g., ordinal order, extremal position, or group-relative location)"
+          }
+        },
+        "prefill_slots": ["OBJECT_CATEGORY", "DISTINCTIVE_FEATURE"],
+        "baseline_instructions": [
+          "Identify an object category with multiple visible instances in the image.",
+          "Use the prefilled distinctive feature to locate a single target instance whenever possible.",
+          "Only if unique identification is impossible, interpret the feature as referring to the smallest identifiable subset of instances.",
+          "Determine the relative position of the target instance (or subset) with respect to other instances of the same category.",
+          "If neither unique nor minimal-subset identification is possible, return NOT_RELATED."
+        ],
+        "not_related_conditions": [
+          "Only a single instance of the object category is present",
+          "The distinctive feature applies to all instances",
+          "Multiple candidate instances remain indistinguishable after applying the feature",
+          "Relative position among instances cannot be determined (e.g., severe occlusion or undefined ordering)"
+        ],
+        "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+        "common_failure_modes": [
+          "defaulting to multi-instance features when a unique feature exists",
+          "treating a non-unique feature as if it referred to a single instance",
+          "using absolute image coordinates instead of intra-class relative position",
+          "incorrect ordinal reasoning among similar objects"
+        ]
+      },      
       {
         "claim_id": "spatial_relative_position",
         "name": "Relative Spatial Relationship",

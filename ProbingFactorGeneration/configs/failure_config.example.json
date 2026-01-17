@@ -176,6 +176,27 @@
         ]
       },
       {
+        "failure_id": "FR_INTRA_CLASS_INSTANCE_POSITIONING_FAILURE",
+        "failure_category": "intra_class_instance_grounding_and_relative_positioning",
+        "failure_name": "Intra-class Instance Disambiguation and Relative Positioning Failure",
+        "description": "The model fails to correctly identify a specific instance within a group of same-category objects based on instance-level visual characteristics, and/or fails to determine the target instance’s relative position with respect to other instances of the same category. Errors may arise from improper instance disambiguation, reliance on category-level or positional shortcuts, or incorrect relative spatial reasoning.",
+        "suggested_filtering_factors": [
+          "Image contains at least one object category with multiple visually distinguishable instances suitable for intra-class comparison",
+          "Candidate object category consists of discrete, countable instances rather than dense textures or indistinguishable crowds",
+          "Within the candidate category, there exists at least one visually observable instance-level characteristic that distinguishes a single instance, or the smallest possible subset of instances, from the rest of the category",
+          "The distinguishing characteristic is not a category-level common property and does not apply to all instances of the category",
+          "The distinguishing characteristic operates at a moderate semantic granularity and does not rely on extremely fine-grained or pixel-level details",
+          "The target instance must be identifiable based on the distinguishing characteristic alone, independent of its spatial location in the image",
+          "Relative position is used only after the target instance has been identified via a non-positional characteristic, and serves solely to describe its location among other instances of the same category",
+          "Purely positional descriptors (e.g., 'the leftmost one', 'the one in the center') are not acceptable as distinguishing characteristics for target instance selection",
+          "Based on the distinguishing characteristic, the target instance’s relative position among other instances of the same category can be determined in a stable manner",
+          "Relative position may be expressed using clear ordinal, extremal, or coarse group-relative spatial descriptions, provided that the spatial reference is consistent and reproducible",
+          "[optional] The candidate category includes instances with partial occlusion, background interference, or visual similarity that increases instance-level identification difficulty",
+          "[optional] The distinguishing characteristic itself exhibits moderate ambiguity or visual similarity to other instances without becoming indistinguishable",
+          "[optional] The number of instances in the candidate category is sufficiently large to discourage exhaustive counting and encourage coarse-grained relative positioning"
+        ]
+      },
+      {
         "failure_id": "FR_BASIC_IMAGE_TEXT_ALIGNMENT",
         "failure_category": "image_text_reasoning",
         "failure_name": "Basic Image-to-Text Misalignment",
