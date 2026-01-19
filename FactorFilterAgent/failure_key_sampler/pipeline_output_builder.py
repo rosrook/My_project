@@ -130,6 +130,7 @@ def build_error_output(
             except (TypeError, ValueError):
                 record_id = sample_index
 
+        prefill_claim = getattr(sample, "prefill_claim", None)
         error_records.append(
             {
                 "sample_index": sample_index,
@@ -137,6 +138,9 @@ def build_error_output(
                 "source_a": {
                     "original_id": image_id,
                     "jpg": encode_image_base64(resolved_path),
+                },
+                "prefill": {
+                    "claim": prefill_claim,
                 },
                 "pipeline_type": pipeline_info.get("pipeline_type", ""),
                 "pipeline_name": pipeline_info.get("pipeline_name", ""),
@@ -176,6 +180,26 @@ def _sample_failure_key(
     if len(keys) == 1:
         return keys[0]
     return rng.choice(keys)
+
+
+def _extract_prefill_claim(
+    data: Dict[str, object],
+    failure_id: str,
+) -> Optional[str]:
+    verifications = data.get("verifications", [])
+    if not isinstance(verifications, list):
+        return None
+    for verif in verifications:
+        if not isinstance(verif, dict):
+            continue
+        if verif.get("failure_id") != failure_id:
+            continue
+        metadata = verif.get("metadata", {})
+        if isinstance(metadata, dict):
+            original_template = metadata.get("original_template")
+            if isinstance(original_template, str) and original_template.strip():
+                return original_template
+    return None
 
 
 def _resolve_failure_image_path(json_path: Path) -> Optional[str]:
@@ -240,6 +264,7 @@ def build_error_output_from_failure_root(
             )
 
         pipeline_info = pipeline_map.get(str(sampled_failure), defaults)
+        prefill_claim = _extract_prefill_claim(data, str(sampled_failure))
 
         record_id = data.get("id", None)
         if record_id is None:
@@ -256,6 +281,9 @@ def build_error_output_from_failure_root(
                 "source_a": {
                     "original_id": str(image_id),
                     "jpg": encode_image_base64(image_path),
+                },
+                "prefill": {
+                    "claim": prefill_claim,
                 },
                 "pipeline_type": pipeline_info.get("pipeline_type", ""),
                 "pipeline_name": pipeline_info.get("pipeline_name", ""),
