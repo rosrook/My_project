@@ -1,0 +1,23 @@
+{
+  "meta": {
+    "version": "1.0",
+    "task": "VQA_answer_generation",
+    "description": "VQA答案生成配置"
+  },
+  "multiple_choice": {
+    "wrong_options": {
+      "min_count": 2,
+      "max_count": 4,
+      "similarity_requirements": {
+        "format_similar": true,
+        "length_similar": true,
+        "plausible": true
+      }
+    }
+  },
+  "generation_settings": {
+    "temperature": 0.7,
+    "max_tokens": 512
+  }
+}
+

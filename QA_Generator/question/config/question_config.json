@@ -1,0 +1,265 @@
+{
+  "meta": {
+    "version": "1.1",
+    "task": "VQA_question_generation",
+    "design_principle": "intent_constrained_and_image_grounded_generation",
+    "language": "en"
+  },
+
+  "global_constraints": {
+    "image_dependency_required": false,
+    "no_pure_language_questions": true,
+
+    "forbidden_question_types": [
+      "commonsense_only"
+    ],
+
+    "grounding_policy": {
+      "allowed_grounding_types": [
+        "object_grounded",
+        "scene_grounded",
+        "concept_grounded"
+      ],
+      "disallowed_grounding_types": [
+        "language_only"
+      ]
+    },
+
+    "validation_rules": [
+      "question must not be answerable without seeing the image"
+    ]
+  },
+
+  "object_selection_policy": {
+    "enabled": true,
+    "selection_stage": "pre_question_generation",
+    "selection_source": "image_objects",
+    "general_criteria": [
+    ],
+    "fallback_strategy": "discard_image"
+  },
+
+  "pipelines": {
+    "question": {
+      "name": "Question Pipeline",
+      "intent": "question",
+      "description": "Recognizing the main object or concept depicted in the image",
+      "question_intent": "identify_object_or_concept",
+      "answer_type": "single_label",
+      "required_slots": [],
+      "optional_slots": ["object_category_granularity"],
+      "question_constraints": [
+        "Questions must target the concept, property, or process conveyed by the image, not only object recognition",
+        "If external knowledge is needed to identify the correct answer, a concise guiding hint must be provided",
+        "Fill-in-the-blank questions should provide sufficient guidance so the concept can be inferred",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Which term best matches the picture?"
+    },
+
+    "visual_recognition": {
+      "name": "Main Object Identification Pipeline",
+      "intent": "visual_recognition",
+      "description": "Recognize the main object depicted in the image without explicitly revealing it in the question text.",
+      "question_intent": "identify_main_object",
+      "answer_type": "single_label",
+      "required_slots": [],
+      "optional_slots": ["object_category_granularity"],
+      "question_constraints": [
+        "Questions must ask about the main object in the image without including its name or synonyms in the question itself",
+        "Questions should encourage reasoning from visual features, context, or function rather than directly stating the object",
+        "If external knowledge is necessary to infer the correct answer, a brief, neutral hint may be included without revealing the object",
+        "Questions must instruct the respondent to answer based solely on the image",
+        "Avoid leading questions or providing cues that make the answer trivial"
+      ],
+      "example_template": "Which object appears as the primary focus in the picture?"
+    },
+
+    "caption": {
+      "name": "Caption Pipeline",
+      "intent": "caption_matching",
+      "description": "Identifying the correct overall caption for an image",
+      "question_intent": "image_caption_understanding",
+      "answer_type": "caption_text",
+      "required_slots": [],
+      "optional_slots": ["caption_style"],
+      "question_constraints": [
+        "question must ask the overall scene",
+        "no object-level localization or counting",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Which one is the correct caption of this image?"
+    },
+
+    "place_recognition": {
+      "name": "Place Recognition Pipeline",
+      "intent": "place_recognition",
+      "description": "Identifying a place or landmark shown in the image",
+      "question_intent": "identify_place",
+      "answer_type": "named_location",
+      "required_slots": [],
+      "optional_slots": ["location_granularity"],
+      "question_constraints": [
+        "Questions must focus only on the visually salient or highlighted region of the image",
+        "Questions should specifically ask for the real-world place name depicted in that region",
+        "External or historical knowledge may be used to identify the place name if necessary",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "What is the name of the place shown?"
+    },
+
+    "text_association": {
+      "name": "Text Association Pipeline",
+      "intent": "image_text_association",
+      "description": "Associating an image with appropriate short text",
+      "question_intent": "match_image_with_text",
+      "answer_type": "short_text",
+      "required_slots": [],
+      "optional_slots": ["platform_context"],
+      "question_constraints": [
+        "associated text must be image-grounded",
+        "no fictional storytelling",
+        "text should be realistic and concise",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Which text could be associated with this image if it were posted on social media?"
+    },
+
+    "object_proportion": {
+      "name": "Object Proportion Pipeline",
+      "intent": "object_proportion",
+      "description": "Estimating the proportion of the image occupied by a selected object",
+      "question_intent": "estimate_object_area_ratio",
+      "answer_type": "approximate_ratio",
+      "required_slots": ["object"],
+      "optional_slots": ["expression_format"],
+      "object_grounding": {
+        "selection_required": true,
+        "selection_strategy": "significant_area",
+        "constraints": [
+          "object occupies a non-trivial portion of the image",
+          "object boundary is visually distinguishable",
+          "object is not pure background"
+        ]
+      },
+      "question_constraints": [
+        "question must focus on relative size or proportion in the image",
+        "question must explicitly mention the selected object or category",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Approximately what proportion of the picture is occupied by [object]?"
+    },
+
+    "object_position": {
+      "name": "Object Position Pipeline",
+      "intent": "object_position",
+      "description": "Identifying the spatial location of a selected object within the image",
+      "question_intent": "locate_object",
+      "answer_type": "spatial_region",
+      "required_slots": ["object"],
+      "optional_slots": ["spatial_granularity", "reference_frame"],
+      "object_grounding": {
+        "selection_required": true,
+        "selection_strategy": "best_fit",
+        "constraints": [
+          "object must be clearly visible",
+          "object has a stable spatial extent",
+          "object is not trivial or purely background"
+        ]
+      },
+      "question_constraints": [
+        "question must explicitly mention the selected object",
+        "no object counting or attribute reasoning",
+        "question must ask target object position",
+        "the question must explicitly instruct the respondent to answer using absolute image-based spatial positions (e.g., bottom-right of the image)",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Where is the [object] located in the picture?"
+    },
+
+    "object_absence": {
+      "name": "Object Absence Pipeline",
+      "intent": "object_absence",
+      "description": "Identifying regions where a selected object is absent",
+      "question_intent": "identify_object_absence_region",
+      "answer_type": "image_region",
+      "required_slots": ["objects"],
+      "optional_slots": ["region_partition"],
+      "object_grounding": {
+        "selection_required": true,
+        "selection_strategy": "region_exclusive",
+        "constraints": [
+          "image can be partitioned into regions",
+          "object appears in some regions and is absent in others",
+          "absence is visually verifiable"
+        ]
+      },
+      "question_constraints": [
+        "question must focus on absence, not presence",
+        "if the question is a fill-in-the-blank type, the question must roughly describe the expected answer format, e.g., how to indicate positions in the image or how many regions are involved",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Which corner doesn't have any [objects]?"
+    },
+
+    "object_orientation": {
+      "name": "Object Orientation Pipeline",
+      "intent": "object_orientation",
+      "description": "Determining the facing or orientation of a selected object",
+      "question_intent": "identify_object_orientation",
+      "answer_type": "direction",
+      "required_slots": ["object"],
+      "optional_slots": ["direction_granularity"],
+      "object_grounding": {
+        "selection_required": true,
+        "selection_strategy": "orientation_visible",
+        "constraints": [
+          "object has a clear front-back or directional cue",
+          "object is not symmetric",
+          "orientation is inferable from appearance"
+        ]
+      },
+      "question_constraints": [
+        "question must ask about facing direction only, referring to absolute direction in the image (e.g., facing left in the image), not relative direction within the scene",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "In the picture, which direction is the [object] facing?"
+    },
+
+    "object_counting": {
+      "name": "Object Counting Pipeline",
+      "intent": "object_counting",
+      "description": "Counting instances of a selected object in the image",
+      "question_intent": "count_objects",
+      "answer_type": "integer",
+      "required_slots": ["objects"],
+      "optional_slots": ["count_scope"],
+      "object_grounding": {
+        "selection_required": true,
+        "selection_strategy": "max_count_distinct",
+        "constraints": [
+          "object appears multiple times",
+          "instances are visually separable",
+          "object is not severely occluded"
+        ]
+      },
+      "question_constraints": [
+        "question must ask for a numeric count",
+        "no estimation or comparison"
+      ],
+      "example_template": "How many [objects] are in the picture?"
+    }
+  },
+
+  "generation_policy": {
+    "allow_paraphrase": true,
+    "max_variants_per_image": 5,
+    "slot_consistency_required": true,
+    "semantic_drift_check": true,
+    "discard_if_object_selection_fails": true,
+    "question_type_ratio": {
+      "multiple_choice": 1.0,
+      "fill_in_blank": 0.0
+    }
+  }
+}
