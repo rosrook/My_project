@@ -4,6 +4,7 @@
 __pycache__/
 **/__pycache__/
 *.py[cod]
+*.pyo
 
 ############################
 # Virtual environments
@@ -11,17 +12,21 @@ __pycache__/
 .env
 .venv
 venv/
-conda_env/
 env/
+conda_env/
+conda/
+.conda/
 
 ############################
 # Logs and runtime files
 ############################
 *.log
 nohup.out
+*.out
+*.err
 
 ############################
-# Experiment outputs
+# Experiment outputs (generic)
 ############################
 output/
 outputs/
@@ -37,16 +42,80 @@ statistics_and_logs/
 QA_Generator/output_data/
 FactorFilterAgent/failure_key_sampler/vqa_data
 FactorFilterAgent/failure_key_sampler/img_with_pipeline_type_and_prefill
+temp/
+cache/
 ############################
-# Large data / models
+# Keyword-based experiment outputs
+############################
+
+# Any directory containing these keywords
+*output*/
+*outputs*/
+*error*/
+*errors*/
+*report*/
+*reports*/
+
+# Common variants
+*log*/
+*logs*/
+*debug*/
+*debugs*/
+
+############################
+# Experiment outputs (your actual patterns)
+############################
+output_*/
+*_statistic/
+*_statistics/
+*_analysis/
+*_analysis.json
+*_report.json
+
+############################
+# Large data / datasets
 ############################
 data/
+dataset/
 datasets/
+raw_data/
+processed_data/
+vqa_data/
+images/
+videos/
+
+############################
+# Model weights / checkpoints
+############################
 *.pt
 *.pth
 *.ckpt
 *.bin
 *.safetensors
+*.onnx
+
+############################
+# Generated files / intermediate
+############################
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.parquet
+*.arrow
+*.tar
+*.tar.gz
+*.zip
+
+############################
+# Evaluation / debug artifacts
+############################
+red_euler.log
+run_pipeline.log
+debug/
+logs/
 
 ############################
 # OS / editor
@@ -57,3 +126,18 @@ datasets/
 
 FactorFilterAgent/failure_key_sampler/first_error_cases.json
 output_1_17_1_statistic*
+*.swp
+*.swo
+*.tmp
+
+############################
+# Jupyter
+############################
+.ipynb_checkpoints/
+
+############################
+# Optional: allow tracking small example data
+############################
+# !data/example/
+# !datasets/sample/
+
