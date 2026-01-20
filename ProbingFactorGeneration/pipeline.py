@@ -446,7 +446,7 @@ class ProbingFactorPipeline:
         # Construct result
         result = {
             "image_id": image_id,
-            # "claim_templates": claim_templates,
+            "claim_templates": claim_templates,
             "completions": completions,
             "verifications": enhanced_verifications,  # Enhanced with failure_id, failure_category, and suggested_filtering_factors
             "aggregated_failures": aggregated_with_factors,

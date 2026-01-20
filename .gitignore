@@ -30,7 +30,13 @@ runs/
 checkpoints/
 artifacts/
 tmp/
-
+data/
+red_euler.log
+run_pipeline.log
+statistics_and_logs/
+QA_Generator/output_data/
+FactorFilterAgent/failure_key_sampler/vqa_data
+FactorFilterAgent/failure_key_sampler/img_with_pipeline_type_and_prefill
 ############################
 # Large data / models
 ############################
@@ -48,3 +54,6 @@ datasets/
 .DS_Store
 .idea/
 .vscode/
+
+FactorFilterAgent/failure_key_sampler/first_error_cases.json
+output_1_17_1_statistic*
