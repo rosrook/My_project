@@ -6,7 +6,6 @@
 
 ```bash
 python QA_Generator/pipeline/pipeline.py input.json output_dir/
-python QA_Generator/pipeline/pipeline.py /home/zhuxuzhou/My_project/FactorFilterAgent/failure_key_sampler/second_refined_error_cases.json /home/zhuxuzhou/My_project/QA_Generator/output_data/second_refined_vqa/ --batch-size 1000 --concurrency 8
 ```
 
 常用参数：

@@ -2,7 +2,9 @@
 槽位填充模块
 根据配置填充required_slots和optional_slots
 """
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+import json
+import re
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 import random
@@ -176,7 +178,9 @@ class SlotFiller:
         self,
         image_base64: str,
         pipeline_config: Dict[str, Any],
-        selected_object: Optional[Dict[str, Any]] = None
+        selected_object: Optional[Dict[str, Any]] = None,
+        async_client: Optional[AsyncGeminiClient] = None,
+        fallback_events: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[Dict[str, str]]:
         """
         异步填充槽位
@@ -205,7 +209,9 @@ class SlotFiller:
                 slot=slot,
                 image_base64=image_base64,
                 pipeline_config=pipeline_config,
-                selected_object=selected_object
+                selected_object=selected_object,
+                async_client=async_client,
+                fallback_events=fallback_events
             )
             
             if value is None:
@@ -228,7 +234,9 @@ class SlotFiller:
                     image_base64=image_base64,
                     pipeline_config=pipeline_config,
                     selected_object=selected_object,
-                    is_optional=True
+                    is_optional=True,
+                    async_client=async_client,
+                    fallback_events=fallback_events
                 )
                 if value is not None:
                     slots[slot] = value
@@ -247,7 +255,9 @@ class SlotFiller:
         image_base64: str,
         pipeline_config: Dict[str, Any],
         selected_object: Optional[Dict[str, Any]] = None,
-        is_optional: bool = False
+        is_optional: bool = False,
+        async_client: Optional[AsyncGeminiClient] = None,
+        fallback_events: Optional[List[Dict[str, Any]]] = None
     ) -> Optional[str]:
         """
         异步解析单个槽位值
@@ -312,10 +322,96 @@ class SlotFiller:
             print("[DEBUG] _resolve_slot_async: optional unresolved -> None")
             return None
         
-        # 必需槽位无法解析，返回None（不在这里使用LLM，保持简单）
-        print("[DEBUG] _resolve_slot_async: LLM fallback not used in async path")
-        print("[DEBUG] _resolve_slot_async: unresolved -> None")
+        # 必需槽位无法解析，启用LLM兜底
+        fallback_value, fallback_detail = await self._resolve_with_llm_async(
+            slot=slot,
+            image_base64=image_base64,
+            pipeline_config=pipeline_config,
+            selected_object=selected_object,
+            async_client=async_client
+        )
+        if fallback_value:
+            print(f"[WARNING] 触发LLM兜底: slot='{slot}', value='{fallback_value}'")
+            if fallback_events is not None:
+                fallback_events.append({
+                    "slot": slot,
+                    "value": fallback_value,
+                    "detail": fallback_detail
+                })
+            return fallback_value
+
+        print("[DEBUG] _resolve_slot_async: LLM fallback failed -> None")
         return None
+
+    async def _resolve_with_llm_async(
+        self,
+        slot: str,
+        image_base64: str,
+        pipeline_config: Dict[str, Any],
+        selected_object: Optional[Dict[str, Any]] = None,
+        async_client: Optional[AsyncGeminiClient] = None
+    ) -> Tuple[Optional[str], Dict[str, Any]]:
+        """
+        使用LLM兜底解析槽位值（异步）
+        """
+        intent = pipeline_config.get("intent", "")
+        description = pipeline_config.get("description", "")
+        required_slots = pipeline_config.get("required_slots", [])
+        optional_slots = pipeline_config.get("optional_slots", [])
+        selected_object_name = selected_object.get("name") if isinstance(selected_object, dict) else ""
+        selected_object_category = selected_object.get("category") if isinstance(selected_object, dict) else ""
+
+        prompt = f"""You are a VQA slot filler. Provide a short value for the requested slot.
+
+Pipeline Intent: {intent}
+Pipeline Description: {description}
+Required Slots: {required_slots}
+Optional Slots: {optional_slots}
+Selected Object: name={selected_object_name}, category={selected_object_category}
+Target Slot: {slot}
+
+Return your response in plain text using this format:
+value: <string>
+"""
+        try:
+            if async_client is None:
+                async with AsyncGeminiClient(use_lb_client=False) as client:
+                    response = await client.analyze_image_async(
+                        image_input=image_base64,
+                        prompt=prompt,
+                        temperature=0.3
+                    )
+            else:
+                response = await async_client.analyze_image_async(
+                    image_input=image_base64,
+                    prompt=prompt,
+                    temperature=0.3
+                )
+
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                parsed = json.loads(json_match.group())
+                value = parsed.get("value")
+                if isinstance(value, str):
+                    value = value.strip()
+                if value:
+                    return value, {"raw_response": response, "parsed": parsed}
+
+            value_match = re.search(r'value\s*[:：]\s*(.+)', response, re.IGNORECASE)
+            if value_match:
+                value = value_match.group(1).strip().strip('"\'')
+                if value:
+                    return value, {"raw_response": response}
+
+            lines = [line.strip() for line in response.splitlines() if line.strip()]
+            if lines:
+                value = re.sub(r'^(value\s*[:：]\s*)', '', lines[0], flags=re.IGNORECASE).strip()
+                if value:
+                    return value, {"raw_response": response}
+
+            return None, {"raw_response": response}
+        except Exception as e:
+            return None, {"error": str(e)}
     
     def _resolve_from_image_async(
         self,

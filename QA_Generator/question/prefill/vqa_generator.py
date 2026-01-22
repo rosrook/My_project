@@ -11,6 +11,7 @@ import asyncio
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from contextlib import AsyncExitStack
 
 # 复用原有模块
 import sys
@@ -41,7 +42,8 @@ class VQAGeneratorPrefill:
         self,
         config_path: Path,
         gemini_client: Optional[GeminiClient] = None,
-        failed_selection_dir: Optional[Path] = None
+        failed_selection_dir: Optional[Path] = None,
+        enable_validation_exemptions: bool = False,
     ):
         """
         初始化VQA生成器（预填充版本）
@@ -58,7 +60,10 @@ class VQAGeneratorPrefill:
         self.prefill_processor = PrefillProcessor(self.gemini_client)
         self.slot_filler = SlotFiller(self.gemini_client)
         self.question_generator = QuestionGeneratorPrefill(self.gemini_client)
-        self.validator = QuestionValidator(self.gemini_client)
+        self.validator = QuestionValidator(
+            self.gemini_client,
+            enable_validation_exemptions=enable_validation_exemptions,
+        )
         
         # 获取策略配置
         self.global_constraints = self.config_loader.get_global_constraints()
@@ -75,7 +80,8 @@ class VQAGeneratorPrefill:
         image_input: Any,
         pipeline_name: str,
         prefill_input: Dict[str, Any],  # 预填充输入（必需）
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        debug_record: Optional[Dict[str, Any]] = None,
     ) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """
         处理单个图片-pipeline对，生成VQA问题（使用预填充对象）
@@ -117,6 +123,9 @@ class VQAGeneratorPrefill:
                 error_info["error_stage"] = "config_loading"
                 error_info["error_reason"] = f"Pipeline '{pipeline_name}' 不存在"
                 print(f"[WARNING] {error_info['error_reason']}，跳过")
+                if debug_record is not None:
+                    debug_record["error_stage"] = error_info["error_stage"]
+                    debug_record["error_reason"] = error_info["error_reason"]
                 return None, error_info
             
             # STEP 2: 处理预填充对象（替代对象选择）
@@ -132,6 +141,9 @@ class VQAGeneratorPrefill:
                     error_info["error_stage"] = "prefill_processing"
                     error_info["error_reason"] = "预填充对象处理失败或无效"
                     print(f"[ERROR] {error_info['error_reason']}")
+                    if debug_record is not None:
+                        debug_record["error_stage"] = error_info["error_stage"]
+                        debug_record["error_reason"] = error_info["error_reason"]
                     return None, error_info
                 
                 # 验证：claim方式必须有claim，target_object方式必须有name
@@ -140,18 +152,27 @@ class VQAGeneratorPrefill:
                         error_info["error_stage"] = "prefill_processing"
                         error_info["error_reason"] = "预填充对象为claim类型但claim为空"
                         print(f"[ERROR] {error_info['error_reason']}")
+                        if debug_record is not None:
+                            debug_record["error_stage"] = error_info["error_stage"]
+                            debug_record["error_reason"] = error_info["error_reason"]
                         return None, error_info
                 else:
                     if not prefill_object.get("name"):
                         error_info["error_stage"] = "prefill_processing"
                         error_info["error_reason"] = "预填充对象为target_object类型但name为空"
                         print(f"[ERROR] {error_info['error_reason']}")
+                        if debug_record is not None:
+                            debug_record["error_stage"] = error_info["error_stage"]
+                            debug_record["error_reason"] = error_info["error_reason"]
                         return None, error_info
                     
             except Exception as e:
                 error_info["error_stage"] = "prefill_processing"
                 error_info["error_reason"] = f"预填充对象处理过程出错: {str(e)}"
                 print(f"[ERROR] {error_info['error_reason']}")
+                if debug_record is not None:
+                    debug_record["error_stage"] = error_info["error_stage"]
+                    debug_record["error_reason"] = error_info["error_reason"]
                 return None, error_info
             
             # STEP 3: 槽位填充
@@ -165,11 +186,17 @@ class VQAGeneratorPrefill:
                 if slots is None:
                     error_info["error_stage"] = "slot_filling"
                     error_info["error_reason"] = "槽位填充失败（必需槽位无法解析）"
+                    if debug_record is not None:
+                        debug_record["error_stage"] = error_info["error_stage"]
+                        debug_record["error_reason"] = error_info["error_reason"]
                     return None, error_info
             except Exception as e:
                 error_info["error_stage"] = "slot_filling"
                 error_info["error_reason"] = f"槽位填充过程出错: {str(e)}"
                 print(f"[ERROR] {error_info['error_reason']}")
+                if debug_record is not None:
+                    debug_record["error_stage"] = error_info["error_stage"]
+                    debug_record["error_reason"] = error_info["error_reason"]
                 return None, error_info
             
             # STEP 4: 问题生成（使用预填充对象）
@@ -187,11 +214,17 @@ class VQAGeneratorPrefill:
                 if not question:
                     error_info["error_stage"] = "question_generation"
                     error_info["error_reason"] = "问题生成失败（返回空）"
+                    if debug_record is not None:
+                        debug_record["error_stage"] = error_info["error_stage"]
+                        debug_record["error_reason"] = error_info["error_reason"]
                     return None, error_info
             except Exception as e:
                 error_info["error_stage"] = "question_generation"
                 error_info["error_reason"] = f"问题生成过程出错: {str(e)}"
                 print(f"[ERROR] {error_info['error_reason']}")
+                if debug_record is not None:
+                    debug_record["error_stage"] = error_info["error_stage"]
+                    debug_record["error_reason"] = error_info["error_reason"]
                 return None, error_info
             
             # STEP 5: 输出（跳过验证以提高效率）
@@ -207,6 +240,13 @@ class VQAGeneratorPrefill:
                 "validation_reason": "skipped",
                 "timestamp": datetime.now().isoformat()
             }
+            if debug_record is not None:
+                debug_record["question_type"] = question_type
+                debug_record["prefill_object"] = prefill_object
+                debug_record["slots"] = slots
+                debug_record["question"] = question
+                debug_record["error_stage"] = None
+                debug_record["error_reason"] = None
             
             return result, None
             
@@ -214,6 +254,9 @@ class VQAGeneratorPrefill:
             error_info["error_stage"] = "unknown"
             error_info["error_reason"] = f"未知错误: {str(e)}"
             print(f"[ERROR] {error_info['error_reason']}")
+            if debug_record is not None:
+                debug_record["error_stage"] = error_info["error_stage"]
+                debug_record["error_reason"] = error_info["error_reason"]
             return None, error_info
     
     def process_data_file(
@@ -221,7 +264,9 @@ class VQAGeneratorPrefill:
         input_file: Path,
         output_file: Path,
         pipeline_names: Optional[List[str]] = None,
-        max_samples: Optional[int] = None
+        max_samples: Optional[int] = None,
+        failed_selection_dir: Optional[Path] = None,
+        debug_output_dir: Optional[Path] = None,
     ) -> None:
         """
         处理数据文件，为每张图片生成VQA问题（使用预填充对象）
@@ -231,7 +276,11 @@ class VQAGeneratorPrefill:
             output_file: 输出JSON文件路径
             pipeline_names: 要使用的pipeline列表（None表示使用所有）
             max_samples: 最大处理样本数（None表示全部）
+            failed_selection_dir: 失败案例存储目录（可选）
         """
+        if failed_selection_dir is not None:
+            self.failed_selection_dir = failed_selection_dir
+            self.failed_selection_dir.mkdir(parents=True, exist_ok=True)
         print(f"[INFO] 读取输入文件: {input_file}")
         with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
@@ -253,6 +302,7 @@ class VQAGeneratorPrefill:
         # 处理每条记录
         results = []
         errors = []
+        debug_records: List[Dict[str, Any]] = []
         total_processed = 0
         total_discarded = 0
         
@@ -306,12 +356,22 @@ class VQAGeneratorPrefill:
             # 为确定的pipeline生成问题
             for pipeline_name in pipelines_to_use:
                 total_processed += 1
+                debug_record = {
+                    "record_index": idx,
+                    "sample_index": record.get("sample_index"),
+                    "id": record.get("id"),
+                    "pipeline_name": pipeline_name,
+                    "prefill_input": prefill_input,
+                    "input_record": record,
+                    "timestamp": datetime.now().isoformat(),
+                }
                 
                 result, error_info = self.process_image_pipeline_pair(
                     image_input=image_input,
                     pipeline_name=pipeline_name,
                     prefill_input=prefill_input,  # 传入预填充输入
-                    metadata={"record_index": idx, "id": record.get("id")}
+                    metadata={"record_index": idx, "id": record.get("id")},
+                    debug_record=debug_record,
                 )
                 
                 if result:
@@ -331,6 +391,8 @@ class VQAGeneratorPrefill:
                         error_info["id"] = record.get("id")
                         error_info["source_a_id"] = source_a.get("id")
                         errors.append(error_info)
+                if debug_output_dir is not None:
+                    debug_records.append(debug_record)
                 
                 # 进度报告
                 if total_processed % 10 == 0:
@@ -348,6 +410,15 @@ class VQAGeneratorPrefill:
             with open(error_file, 'w', encoding='utf-8') as f:
                 json.dump(errors, f, ensure_ascii=False, indent=2)
             print(f"  错误/丢弃数据已保存到: {error_file}")
+
+        if debug_output_dir is not None and debug_records:
+            debug_output_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            debug_file = debug_output_dir / f"{output_file.stem}_question_debug_{timestamp}.jsonl"
+            with open(debug_file, "w", encoding="utf-8") as f:
+                for item in debug_records:
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            print(f"  问题生成调试记录已保存到: {debug_file}")
         
         print(f"\n[完成] 处理完成！")
         print(f"  总处理: {total_processed}")
@@ -390,7 +461,7 @@ class VQAGeneratorPrefill:
         """
         # 优先从source_a中查找image_base64字段
         base64_keys = [
-            "image_base64", "img_base64", "base64", "image_b64", "img_b64"
+            "image_base64", "img_base64", "base64", "image_b64", "img_b64", "jpg"
         ]
         
         for key in base64_keys:
@@ -483,13 +554,334 @@ class VQAGeneratorPrefill:
         max_samples: Optional[int] = None,
         num_gpus: int = 1,
         max_concurrent_per_gpu: int = 5,
-        request_delay: float = 0.1
+        request_delay: float = 0.1,
+        failed_selection_dir: Optional[Path] = None,
+        debug_output_dir: Optional[Path] = None,
     ) -> None:
         """
         异步处理数据文件（使用预填充对象）
-        
-        TODO: 实现异步版本的处理逻辑
         """
-        # TODO: 实现异步版本的处理逻辑
-        # 参考 generate_vqa/generate_question/vqa_generator.py 的 process_data_file_async
-        pass
+        if failed_selection_dir is not None:
+            self.failed_selection_dir = failed_selection_dir
+            self.failed_selection_dir.mkdir(parents=True, exist_ok=True)
+
+        print(f"[INFO] 读取输入文件: {input_file}")
+        with open(input_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        if not isinstance(data, list):
+            raise ValueError(f"输入文件应该包含一个数组，但得到: {type(data)}")
+
+        # 确定要使用的pipeline
+        if pipeline_names is None:
+            pipeline_names = self.config_loader.list_pipelines()
+
+        print(f"[INFO] 使用pipelines: {pipeline_names}")
+        print(f"[INFO] 总记录数: {len(data)}")
+
+        if max_samples:
+            data = data[:max_samples]
+            print(f"[INFO] 限制处理前 {max_samples} 条记录")
+
+        # 初始化异步客户端（按GPU数量创建）
+        clients = []
+        for gpu_id in range(max(1, num_gpus)):
+            clients.append(
+                AsyncGeminiClient(
+                    gpu_id=gpu_id if num_gpus > 1 else None,
+                    max_concurrent=max_concurrent_per_gpu,
+                    request_delay=request_delay,
+                    use_lb_client=False
+                )
+            )
+
+        async def process_one(
+            idx: int,
+            record: Dict[str, Any],
+            pipeline_name: str,
+            async_client: AsyncGeminiClient
+        ):
+            """处理单条记录 + 单个pipeline"""
+            fallback_events: List[Dict[str, Any]] = []
+            debug_record = {
+                "record_index": idx,
+                "sample_index": record.get("sample_index"),
+                "id": record.get("id"),
+                "pipeline_name": pipeline_name,
+                "prefill_input": record.get("prefill"),
+                "input_record": record,
+                "timestamp": datetime.now().isoformat(),
+            }
+            source_a = record.get("source_a", {})
+            if not source_a:
+                debug_record["error_stage"] = "data_loading"
+                debug_record["error_reason"] = "记录没有source_a"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "data_loading",
+                    "error_reason": "记录没有source_a",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            image_input = self._extract_image_input(source_a)
+            image_base64 = self._extract_image_base64(source_a, image_input)
+            if not image_base64:
+                debug_record["error_stage"] = "data_loading"
+                debug_record["error_reason"] = "无法提取image_base64"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "source_a_id": source_a.get("id"),
+                    "error_stage": "data_loading",
+                    "error_reason": "无法提取image_base64",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            prefill_input = record.get("prefill")
+            if not prefill_input:
+                debug_record["error_stage"] = "data_loading"
+                debug_record["error_reason"] = "记录缺少prefill字段（需要包含'claim'或'target_object'）"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "data_loading",
+                    "error_reason": "记录缺少prefill字段（需要包含'claim'或'target_object'）",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            # STEP 1: 加载Pipeline规范
+            pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
+            if not pipeline_config:
+                debug_record["error_stage"] = "config_loading"
+                debug_record["error_reason"] = f"Pipeline '{pipeline_name}' 不存在"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "config_loading",
+                    "error_reason": f"Pipeline '{pipeline_name}' 不存在",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            # STEP 2: 处理预填充对象
+            try:
+                prefill_object = await self.prefill_processor.process_prefill_async(
+                    prefill_input=prefill_input,
+                    image_base64=image_base64,
+                    pipeline_config=pipeline_config,
+                    async_client=async_client
+                )
+            except Exception as e:
+                debug_record["error_stage"] = "prefill_processing"
+                debug_record["error_reason"] = f"预填充对象处理过程出错: {str(e)}"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "prefill_processing",
+                    "error_reason": f"预填充对象处理过程出错: {str(e)}",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            if not prefill_object:
+                debug_record["error_stage"] = "prefill_processing"
+                debug_record["error_reason"] = "预填充对象处理失败或无效"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "prefill_processing",
+                    "error_reason": "预填充对象处理失败或无效",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            debug_record["prefill_object"] = prefill_object
+            if prefill_object.get("source") == "claim":
+                if not prefill_object.get("claim"):
+                    debug_record["error_stage"] = "prefill_processing"
+                    debug_record["error_reason"] = "预填充对象为claim类型但claim为空"
+                    return ("err", {
+                        "record_index": idx,
+                        "id": record.get("id"),
+                        "error_stage": "prefill_processing",
+                        "error_reason": "预填充对象为claim类型但claim为空",
+                        "timestamp": datetime.now().isoformat()
+                    }, fallback_events, record, pipeline_name, debug_record)
+            else:
+                if not prefill_object.get("name"):
+                    debug_record["error_stage"] = "prefill_processing"
+                    debug_record["error_reason"] = "预填充对象为target_object类型但name为空"
+                    return ("err", {
+                        "record_index": idx,
+                        "id": record.get("id"),
+                        "error_stage": "prefill_processing",
+                        "error_reason": "预填充对象为target_object类型但name为空",
+                        "timestamp": datetime.now().isoformat()
+                    }, fallback_events, record, pipeline_name, debug_record)
+
+            # STEP 3: 槽位填充
+            slots = await self.slot_filler.fill_slots_async(
+                image_base64=image_base64,
+                pipeline_config=pipeline_config,
+                selected_object=prefill_object,
+                async_client=async_client,
+                fallback_events=fallback_events
+            )
+            if slots is None:
+                debug_record["error_stage"] = "slot_filling"
+                debug_record["error_reason"] = "槽位填充失败（必需槽位无法解析）"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "slot_filling",
+                    "error_reason": "槽位填充失败（必需槽位无法解析）",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            debug_record["slots"] = slots
+            # STEP 4: 问题生成
+            question_type = self._select_question_type()
+            debug_record["question_type"] = question_type
+            question = await self.question_generator.generate_question_async(
+                image_base64=image_base64,
+                pipeline_config=pipeline_config,
+                slots=slots,
+                prefill_object=prefill_object,
+                question_type=question_type,
+                async_client=async_client
+            )
+            if not question:
+                debug_record["error_stage"] = "question_generation"
+                debug_record["error_reason"] = "问题生成失败（返回空）"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "question_generation",
+                    "error_reason": "问题生成失败（返回空）",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            # STEP 5: 异步验证
+            is_valid, reason = await self.validator.validate_async(
+                question=question,
+                image_base64=image_base64,
+                pipeline_config=pipeline_config,
+                global_constraints=self.global_constraints,
+                async_client=async_client
+            )
+            if not is_valid:
+                debug_record["error_stage"] = "question_validation"
+                debug_record["error_reason"] = reason or "问题验证失败"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "question_validation",
+                    "error_reason": reason or "问题验证失败",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            # STEP 6: 输出
+            result = {
+                "pipeline_name": pipeline_name,
+                "pipeline_intent": pipeline_config.get("intent", ""),
+                "question": question,
+                "question_type": question_type,
+                "answer_type": pipeline_config.get("answer_type", ""),
+                "slots": slots,
+                "prefill_object": prefill_object,
+                "prefill_source": prefill_object.get("source"),
+                "validation_reason": reason or "passed",
+                "timestamp": datetime.now().isoformat(),
+                "sample_index": record.get("sample_index"),
+                "id": record.get("id"),
+                "source_a_id": source_a.get("id"),
+                "image_base64": image_base64
+            }
+
+            debug_record["question_type"] = question_type
+            debug_record["prefill_object"] = prefill_object
+            debug_record["slots"] = slots
+            debug_record["question"] = question
+            debug_record["error_stage"] = None
+            debug_record["error_reason"] = None
+
+            return ("ok", result, fallback_events, record, pipeline_name, debug_record)
+
+        results: List[Dict[str, Any]] = []
+        errors: List[Dict[str, Any]] = []
+        fallback_records: List[Dict[str, Any]] = []
+        debug_records: List[Dict[str, Any]] = []
+        total_processed = 0
+        total_discarded = 0
+
+        # 创建所有任务（按记录和pipeline）
+        tasks = []
+        for idx, record in enumerate(data, 1):
+            record_pipeline = self._extract_pipeline_from_record(record)
+            pipelines_to_use = [record_pipeline] if record_pipeline else pipeline_names
+            for pipeline_name in pipelines_to_use:
+                total_processed += 1
+                client = clients[(total_processed - 1) % len(clients)]
+                tasks.append(process_one(idx, record, pipeline_name, client))
+
+        # 执行任务（并发由 AsyncGeminiClient 内部控制）
+        # 使用 as_completed 实现进度报告
+        completed = 0
+        total = len(tasks)
+        # 打开所有客户端
+        async with AsyncExitStack() as stack:
+            for client in clients:
+                await stack.enter_async_context(client)
+            for coro in asyncio.as_completed(tasks):
+                tag, payload, fallback_events, record, pipeline_name, debug_record = await coro
+                if fallback_events:
+                    print(f"[WARNING] 触发兜底: record_index={record.get('sample_index')}, pipeline={pipeline_name}")
+                    fallback_records.append({
+                        "record": record,
+                        "pipeline_name": pipeline_name,
+                        "fallback_events": fallback_events,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                if debug_output_dir is not None:
+                    debug_records.append(debug_record)
+                if tag == "ok":
+                    results.append(payload)
+                else:
+                    errors.append(payload)
+                    total_discarded += 1
+                completed += 1
+                if completed % 10 == 0 or completed == total:
+                    print(f"[进度] 已处理: {completed}/{total}, 成功: {len(results)}, 丢弃: {total_discarded}")
+
+        # 保存成功结果
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+
+        # 保存错误和丢弃的数据
+        if errors:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            error_file = output_file.parent / f"{output_file.stem}_errors_{timestamp}.json"
+            with open(error_file, 'w', encoding='utf-8') as f:
+                json.dump(errors, f, ensure_ascii=False, indent=2)
+            print(f"  错误/丢弃数据已保存到: {error_file}")
+
+        if fallback_records:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fallback_file = output_file.parent / f"{output_file.stem}_fallback_{timestamp}.json"
+            with open(fallback_file, 'w', encoding='utf-8') as f:
+                json.dump(fallback_records, f, ensure_ascii=False, indent=2)
+            print(f"  兜底样本已保存到: {fallback_file}")
+
+        if debug_output_dir is not None and debug_records:
+            debug_output_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            debug_file = debug_output_dir / f"{output_file.stem}_question_debug_{timestamp}.jsonl"
+            with open(debug_file, "w", encoding="utf-8") as f:
+                for item in debug_records:
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            print(f"  问题生成调试记录已保存到: {debug_file}")
+
+        print(f"\n[完成] 处理完成！")
+        print(f"  总处理: {total_processed}")
+        print(f"  成功生成: {len(results)}")
+        print(f"  丢弃/错误: {total_discarded}")
+        print(f"  结果已保存到: {output_file}")

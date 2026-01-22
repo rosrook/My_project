@@ -13,13 +13,12 @@ from PIL import Image
 from QA_Generator.config import config
 import os
 
-# 尝试导入 LBOpenAIAsyncClient（如果可用）
 try:
-    from redeuler.client.openai import LBOpenAIAsyncClient
-    HAS_LB_CLIENT = True
-except ImportError:
-    HAS_LB_CLIENT = False
-    LBOpenAIAsyncClient = None
+    from openai import AsyncOpenAI
+except ImportError as e:
+    raise ImportError(
+        "openai package is required. Please install it with `pip install openai`."
+    ) from e
 
 
 class AsyncGeminiClient:
@@ -29,7 +28,7 @@ class AsyncGeminiClient:
                  base_url: Optional[str] = None, gpu_id: Optional[int] = None,
                  max_concurrent: int = 10, request_delay: float = 0.1,
                  service_name: Optional[str] = None, env: Optional[str] = None,
-                 use_lb_client: bool = True):
+                 use_lb_client: bool = False):
         """
         初始化异步客户端
 
@@ -44,47 +43,23 @@ class AsyncGeminiClient:
             env: 环境（用于LBOpenAIAsyncClient，如果为None则从config读取）
             use_lb_client: 是否使用LBOpenAIAsyncClient（推荐，与vlmtool/generate_vqa一致）
         """
-        self.api_key = api_key or config.API_KEY
+        self.api_key = api_key or getattr(config, "OPENAI_API_KEY", None) or config.API_KEY
         self.model_name = model_name or config.MODEL_NAME
-        self.base_url = base_url or config.BASE_URL
+        self.base_url = base_url or getattr(config, "OPENAI_BASE_URL", None) or config.BASE_URL
         self.service_name = service_name or getattr(config, 'SERVICE_NAME', None)
         self.env = env or getattr(config, 'ENV', 'prod')
         self.gpu_id = gpu_id
         self.max_concurrent = max_concurrent
-        self.use_lb_client = use_lb_client and HAS_LB_CLIENT
+        self.use_lb_client = False
 
-        # 如果使用 LBOpenAIAsyncClient，检查必需参数
-        if self.use_lb_client:
-            if not self.service_name:
-                raise ValueError("Service Name未设置，请在config.py中设置SERVICE_NAME或在初始化时传入")
-            # 初始化 LBOpenAIAsyncClient（与vlmtool/generate_vqa一致）
-            # 注意：LBOpenAIAsyncClient 可能内部创建了 aiohttp.ClientSession
-            self.lb_client = LBOpenAIAsyncClient(
-                service_name=self.service_name,
-                env=self.env,
-                api_key=self.api_key or "1"
-            )
-            # LBOpenAIAsyncClient 内部处理会话，不需要自己创建
-            self.session = None
-            # 标记是否需要关闭 lb_client
-            self._lb_client_needs_close = True
-        else:
-            # 使用自定义实现（向后兼容）
-            # 检查 API Key 是否有效（只检查 None 和空字符串，允许 "1" 作为有效值）
-            if not self.api_key or self.api_key.strip() == "":
-                raise ValueError(
-                    "API Key未设置或无效！\n"
-                    "请设置环境变量 API_KEY，例如：\n"
-                    "  export API_KEY='your-actual-api-key'\n"
-                    "或在 .env 文件中设置：\n"
-                    "  API_KEY=your-actual-api-key"
-                )
+        if not self.base_url:
+            raise ValueError("OpenAI Base URL未设置")
 
-            if not self.base_url:
-                raise ValueError("Base URL未设置")
-
-            # 创建会话
-            self.session: Optional[aiohttp.ClientSession] = None
+        self.client = AsyncOpenAI(
+            api_key=self.api_key or "EMPTY",
+            base_url=self.base_url,
+        )
+        self.session: Optional[aiohttp.ClientSession] = None
 
         # 设置GPU可见性（用于进程隔离）
         if gpu_id is not None:
@@ -99,72 +74,16 @@ class AsyncGeminiClient:
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
-        if self.use_lb_client:
-            # LBOpenAIAsyncClient 自己管理会话
-            return self
-        else:
-            # 自定义实现：创建 aiohttp 会话
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            timeout = aiohttp.ClientTimeout(total=300)  # 5分钟超时
-            self.session = aiohttp.ClientSession(
-                headers=headers,
-                timeout=timeout
-            )
-            return self
+        return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """异步上下文管理器出口"""
-        if self.use_lb_client:
-            # LBOpenAIAsyncClient 自己管理会话，需要正确关闭
-            # 根据 vlmtool/generate_vqa 的实现，LBOpenAIAsyncClient 有 close() 方法
-            try:
-                # 方法1: 直接调用 close() 方法（与vlmtool一致）
-                if hasattr(self.lb_client, 'close'):
-                    close_method = getattr(self.lb_client, 'close')
-                    if asyncio.iscoroutinefunction(close_method):
-                        await close_method()
-                    else:
-                        close_method()
-
-                # 方法2: 尝试关闭内部的 aiohttp session（如果存在）
-                # LBOpenAIAsyncClient 可能内部创建了 aiohttp.ClientSession
-                for attr_name in ['_client', 'client', '_session', 'session', '_http_client']:
-                    if hasattr(self.lb_client, attr_name):
-                        inner_obj = getattr(self.lb_client, attr_name)
-                        if inner_obj is not None:
-                            # 如果是 aiohttp.ClientSession，需要关闭
-                            if isinstance(inner_obj, aiohttp.ClientSession):
-                                if not inner_obj.closed:
-                                    await inner_obj.close()
-                                    await asyncio.sleep(0.1)  # 等待连接完全关闭
-                                    break
-                            # 如果有 close 方法
-                            elif hasattr(inner_obj, 'close'):
-                                close_method = getattr(inner_obj, 'close')
-                                if asyncio.iscoroutinefunction(close_method):
-                                    await close_method()
-                                else:
-                                    close_method()
-                                break
-            except Exception as e:
-                # 记录警告但不抛出异常，避免影响正常流程
-                import warnings
-                warnings.warn(f"关闭 LBOpenAIAsyncClient 时出现警告: {e}", RuntimeWarning)
-        else:
-            # 自定义实现：关闭 aiohttp 会话
-            if self.session and not self.session.closed:
-                try:
-                    await self.session.close()
-                    # 等待一小段时间确保连接完全关闭
-                    await asyncio.sleep(0.1)
-                except Exception as e:
-                    import warnings
-                    warnings.warn(f"关闭 aiohttp session 时出现警告: {e}", RuntimeWarning)
-                finally:
-                    self.session = None
+        if hasattr(self.client, "close"):
+            close_method = getattr(self.client, "close")
+            if asyncio.iscoroutinefunction(close_method):
+                await close_method()
+            else:
+                close_method()
 
     def _encode_image(self, image_input: Union[str, Path, bytes, Image.Image]) -> str:
         """编码图片为base64，自动压缩过大图片"""
@@ -306,130 +225,42 @@ class AsyncGeminiClient:
             响应文本
         """
         async with self.semaphore:  # 限制并发数
-            if not self.session:
-                raise RuntimeError("Session not initialized. Use async with statement.")
-
-            # 添加请求间隔，避免触发API并发限制
             if self.request_delay > 0:
                 await asyncio.sleep(self.request_delay)
 
-            # 编码图片
             image_base64 = self._encode_image(image_input)
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                        },
+                    ],
+                }
+            ]
 
-            # 规范化模型名称（API 需要全小写，无路径前缀）
-            normalized_model_name = self._normalize_model_name(self.model_name)
-
-            # 构建请求
-            url = f"{self.base_url}/chat/completions"
-            payload = {
-                "model": normalized_model_name,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                "stream": False,
-                "max_tokens": 4096,
-                "temperature": temperature
-            }
-
-            # 如果指定了response_format，添加到payload中
-            if response_format:
-                payload["response_format"] = response_format
-
-            # 发送请求（带重试机制）
             last_exception = None
             for attempt in range(max_retries + 1):
                 try:
-                    async with self.session.post(url, json=payload) as response:
-                        # 检查状态码
-                        if response.status != 200:
-                            error_text = await response.text()
-                            error_msg = f"API请求失败: status={response.status}, error={error_text[:500]}"
-
-                            # 如果是 400 错误，尝试获取更详细的错误信息
-                            if response.status == 400:
-                                try:
-                                    error_json = await response.json()
-                                    error_msg = f"API请求失败 (400 Bad Request): {error_json}"
-                                except:
-                                    pass
-
-                            # 如果是401错误且允许重试，可能是并发导致的误报
-                            if response.status == 401 and retry_on_401 and attempt < max_retries:
-                                # 等待后重试（可能是并发限制导致的临时认证失败）
-                                wait_time = (attempt + 1) * 0.5  # 递增等待时间：0.5s, 1.0s
-                                print(f"[WARNING] 401错误，可能是并发限制，等待 {wait_time:.1f}s 后重试 ({attempt + 1}/{max_retries})...")
-                                await asyncio.sleep(wait_time)
-                                last_exception = aiohttp.ClientResponseError(
-                                    request_info=response.request_info,
-                                    history=response.history,
-                                    status=response.status,
-                                    message=error_msg
-                                )
-                                continue  # 重试
-
-                            raise aiohttp.ClientResponseError(
-                                request_info=response.request_info,
-                                history=response.history,
-                                status=response.status,
-                                message=error_msg
-                            )
-
-                        result = await response.json()
-
-                        # 检查响应格式
-                        if "choices" not in result or len(result["choices"]) == 0:
-                            raise ValueError(f"API响应格式错误: {result}")
-
-                        return result["choices"][0]["message"]["content"]
-                except aiohttp.ClientResponseError as e:
-                    # 如果是401且允许重试，且还有重试机会
-                    if e.status == 401 and retry_on_401 and attempt < max_retries:
-                        wait_time = (attempt + 1) * 0.5
-                        print(f"[WARNING] 401错误，可能是并发限制，等待 {wait_time:.1f}s 后重试 ({attempt + 1}/{max_retries})...")
-                        await asyncio.sleep(wait_time)
-                        last_exception = e
-                        continue
-                    # 其他错误或重试次数用完，直接抛出
-                    raise
+                    response = await self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=messages,
+                        temperature=temperature,
+                        max_completion_tokens=4096,
+                    )
+                    return response.choices[0].message.content
                 except Exception as e:
-                    # 非HTTP错误，直接抛出
-                    raise
-
-            # 如果所有重试都失败，抛出最后一个异常（带详细错误信息）
-            if last_exception:
-                error_msg = f"HTTP错误 {last_exception.status}: {last_exception.message}"
-                if last_exception.status == 400:
-                    error_msg += "\n可能的原因："
-                    error_msg += "\n  1. 请求参数格式不正确"
-                    error_msg += "\n  2. 图片 base64 编码有问题"
-                    error_msg += "\n  3. 请求体大小超过限制"
-                    error_msg += f"\n  4. 请求URL: {url}"
-                    error_msg += f"\n  5. 原始模型名称: {self.model_name}"
-                    error_msg += f"\n  6. 规范化模型名称: {self._normalize_model_name(self.model_name)}"
-                elif last_exception.status == 401:
-                    error_msg += "\n认证失败！可能的原因："
-                    error_msg += "\n  1. API Key 未设置或无效"
-                    error_msg += f"\n  2. 当前 API Key: {self.api_key[:10]}..." if len(self.api_key) > 10 else f"\n  2. 当前 API Key: {self.api_key}"
-                    error_msg += "\n  3. 请检查环境变量 API_KEY 是否正确设置"
-                    error_msg += "\n  4. 如果使用默认值 '1'，请设置正确的 API Key"
-                    error_msg += "\n  5. 检查 API Key 是否已过期或被撤销"
-                    error_msg += "\n  6. ⚠️ 可能是API并发限制：某些API不支持高并发，建议降低并发数（--concurrency 1-3）"
-                    error_msg += f"\n  7. 当前并发设置: max_concurrent={self.max_concurrent}, request_delay={self.request_delay}s"
-                raise Exception(error_msg) from last_exception
-            else:
-                # 理论上不应该到达这里，但为了安全
-                raise Exception("请求失败：所有重试都失败，但未捕获到异常")
+                    last_exception = e
+                    if attempt < max_retries:
+                        wait_time = (attempt + 1) * 0.5
+                        print(f"[WARNING] 请求失败，等待 {wait_time:.1f}s 后重试 ({attempt + 1}/{max_retries})... {e}")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        break
+            raise last_exception or Exception("请求失败：所有重试都失败，但未捕获到异常")
 
     # ==================== OpenAI 兼容接口 ====================
 
@@ -444,6 +275,7 @@ class AsyncGeminiClient:
             messages: list,
             temperature: float = 0.7,
             max_tokens: int = 4096,
+            max_completion_tokens: Optional[int] = None,
             stream: bool = False,
             response_format: Optional[Dict] = None,
             **kwargs
@@ -465,87 +297,18 @@ class AsyncGeminiClient:
             """
             if stream:
                 raise NotImplementedError("流式输出暂不支持")
-
-            # 如果使用 LBOpenAIAsyncClient，直接委托给它
-            if self._parent.use_lb_client:
-                async with self._parent.semaphore:  # 控制并发
-                    if self._parent.request_delay > 0:
-                        await asyncio.sleep(self._parent.request_delay)
-                    return await self._parent.lb_client.chat.completions.create(
-                        model=model,
-                        messages=messages,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        response_format=response_format,
-                        **kwargs
-                    )
-
-            # 自定义实现（向后兼容）
-            if not self._parent.session:
-                raise RuntimeError("Session not initialized. Use async with statement.")
-
-            # 从messages中提取文本和图像
-            text_content = None
-            image_input = None
-
-            for msg in messages:
-                if msg.get("role") == "user":
-                    content = msg.get("content", [])
-                    if isinstance(content, str):
-                        # 简单字符串格式（没有图像）
-                        text_content = content
-                    elif isinstance(content, list):
-                        # 列表格式，包含文本和图像
-                        for item in content:
-                            if item.get("type") == "text":
-                                text_content = item.get("text", "")
-                            elif item.get("type") == "image_url":
-                                image_url = item.get("image_url", {}).get("url", "")
-                                # 提取base64部分或使用完整URL
-                                if image_url.startswith("data:image"):
-                                    # 格式: data:image/jpeg;base64,xxxxx
-                                    image_input = image_url.split(",", 1)[1]
-                                else:
-                                    # 可能是纯base64字符串
-                                    image_input = image_url
-
-            if not text_content:
-                raise ValueError("消息中必须包含文本内容")
-
-            # 如果有图像，使用analyze_image_async；否则只发送文本
-            if image_input:
-                # 调用analyze_image_async（内部会处理base64编码）
-                response_text = await self._parent.analyze_image_async(
-                    image_input=image_input,
-                    prompt=text_content,
+            async with self._parent.semaphore:
+                if self._parent.request_delay > 0:
+                    await asyncio.sleep(self._parent.request_delay)
+                if max_completion_tokens is None:
+                    max_completion_tokens = max_tokens
+                return await self._parent.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
                     temperature=temperature,
-                    response_format=response_format
+                    max_completion_tokens=max_completion_tokens,
+                    **kwargs
                 )
-            else:
-                # 纯文本请求（暂不支持，因为当前API主要面向图像）
-                raise ValueError("当前实现需要图像输入")
-
-            # 构建类似OpenAI的响应对象
-            class _Response:
-                def __init__(self, content):
-                    class _Choice:
-                        def __init__(self, content):
-                            class _Message:
-                                def __init__(self, content):
-                                    self.content = content
-                            self.message = _Message(content)
-                            self.finish_reason = "stop"
-                            self.index = 0
-                    self.choices = [_Choice(content)]
-                    self.model = model
-                    self.object = "chat.completion"
-                    self.usage = {
-                        "prompt_tokens": len(text_content) // 4,  # 粗略估算
-                        "completion_tokens": len(content) // 4,
-                        "total_tokens": (len(text_content) + len(content)) // 4
-                    }
-
-            return _Response(response_text)
 
     class _Chat:
         """OpenAI兼容的chat接口"""

@@ -59,6 +59,11 @@
       "failure_id": "FR_OCCLUSION_SENSITIVITY",
       "pipeline_type": "caption",
       "pipeline_name": "Caption Pipeline"
+    },
+    {
+      "failure_id": "FR_INTRA_CLASS_INSTANCE_POSITIONING_FAILURE",
+      "pipeline_type": "object_intra_class_instance_positioning",
+      "pipeline_name": "Object Intra Class Instance Positioning Pipeline"
     }
   ],
   "default_pipeline_type": "unknown",

@@ -131,6 +131,12 @@ def build_error_output(
                 record_id = sample_index
 
         prefill_claim = getattr(sample, "prefill_claim", None)
+        prefill_target_object = getattr(sample, "prefill_target_object", None)
+        prefill_payload: Dict[str, object] = {}
+        if isinstance(prefill_claim, str) and prefill_claim.strip():
+            prefill_payload["claim"] = prefill_claim
+        if isinstance(prefill_target_object, str) and prefill_target_object.strip():
+            prefill_payload["target_object"] = prefill_target_object
         error_records.append(
             {
                 "sample_index": sample_index,
@@ -139,9 +145,7 @@ def build_error_output(
                     "original_id": image_id,
                     "jpg": encode_image_base64(resolved_path),
                 },
-                "prefill": {
-                    "claim": prefill_claim,
-                },
+                "prefill": prefill_payload,
                 "pipeline_type": pipeline_info.get("pipeline_type", ""),
                 "pipeline_name": pipeline_info.get("pipeline_name", ""),
             }
@@ -199,6 +203,101 @@ def _extract_prefill_claim(
             original_template = metadata.get("original_template")
             if isinstance(original_template, str) and original_template.strip():
                 return original_template
+    return None
+
+
+def _extract_target_from_prefilled_values(
+    prefilled_values: Dict[str, object],
+) -> Optional[str]:
+    if not isinstance(prefilled_values, dict):
+        return None
+    priority_keys = [
+        "TARGET_OBJECT",
+        "OBJECT_INSTANCE",
+        "OBJECT",
+        "OBJECT_IDENTITY",
+        "OBJECT_TYPE",
+        "OBJECT_CATEGORY",
+    ]
+    normalized = {str(k).upper(): v for k, v in prefilled_values.items()}
+    for key in priority_keys:
+        value = normalized.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    for value in normalized.values():
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _extract_prefill_target_object(
+    data: Dict[str, object],
+    failure_id: str,
+) -> Optional[str]:
+    claim_templates = data.get("claim_templates", [])
+    if not isinstance(claim_templates, list):
+        return None
+
+    verif = None
+    verifications = data.get("verifications", [])
+    if isinstance(verifications, list):
+        for item in verifications:
+            if not isinstance(item, dict):
+                continue
+            candidate = item.get("failure_id") or item.get("failure_reason")
+            if candidate is None:
+                continue
+            if str(candidate) == str(failure_id):
+                verif = item
+                break
+
+    claim_id = None
+    original_template = None
+    if verif:
+        claim_id = verif.get("claim_id") or verif.get("metadata", {}).get("claim_id")
+        metadata = verif.get("metadata", {})
+        if isinstance(metadata, dict):
+            original_template = metadata.get("original_template")
+
+    matched_template = None
+    if claim_id:
+        for template in claim_templates:
+            if not isinstance(template, dict):
+                continue
+            if template.get("claim_id") == claim_id:
+                matched_template = template
+                break
+
+    if matched_template is None and isinstance(original_template, str):
+        for template in claim_templates:
+            if not isinstance(template, dict):
+                continue
+            tmpl_meta = template.get("metadata", {})
+            candidate = (
+                (tmpl_meta.get("original_template_unfilled") if isinstance(tmpl_meta, dict) else None)
+                or template.get("claim_template")
+                or template.get("claim_text")
+            )
+            if isinstance(candidate, str) and candidate == original_template:
+                matched_template = template
+                break
+
+    if not matched_template:
+        return None
+
+    prefill = matched_template.get("prefill", {})
+    if isinstance(prefill, dict):
+        target_object = prefill.get("target_object")
+        if isinstance(target_object, str) and target_object.strip():
+            return target_object.strip()
+
+    metadata = matched_template.get("metadata", {})
+    if isinstance(metadata, dict):
+        prefilled_values = metadata.get("prefilled_values", {})
+        target_object = _extract_target_from_prefilled_values(prefilled_values)
+        if target_object:
+            return target_object
+
     return None
 
 
@@ -265,6 +364,10 @@ def build_error_output_from_failure_root(
 
         pipeline_info = pipeline_map.get(str(sampled_failure), defaults)
         prefill_claim = _extract_prefill_claim(data, str(sampled_failure))
+        prefill_target_object = _extract_prefill_target_object(
+            data,
+            str(sampled_failure),
+        )
 
         record_id = data.get("id", None)
         if record_id is None:
@@ -274,6 +377,12 @@ def build_error_output_from_failure_root(
                 record_id = len(error_records)
 
         sample_index = start_index + len(error_records)
+        prefill_payload: Dict[str, object] = {}
+        if isinstance(prefill_claim, str) and prefill_claim.strip():
+            prefill_payload["claim"] = prefill_claim
+        if isinstance(prefill_target_object, str) and prefill_target_object.strip():
+            prefill_payload["target_object"] = prefill_target_object
+
         error_records.append(
             {
                 "sample_index": sample_index,
@@ -282,9 +391,7 @@ def build_error_output_from_failure_root(
                     "original_id": str(image_id),
                     "jpg": encode_image_base64(image_path),
                 },
-                "prefill": {
-                    "claim": prefill_claim,
-                },
+                "prefill": prefill_payload,
                 "pipeline_type": pipeline_info.get("pipeline_type", ""),
                 "pipeline_name": pipeline_info.get("pipeline_name", ""),
             }

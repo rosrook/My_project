@@ -29,6 +29,8 @@ class SampledFailure:
     failure_keys: List[str]
     suggested_filtering_factors: List[str]
     image_path: Optional[str] = None
+    prefill_claim: Optional[str] = None
+    prefill_target_object: Optional[str] = None
 
 
 def load_failure_config(config_path: str) -> Dict[str, List[str]]:
@@ -102,6 +104,122 @@ def _resolve_image_path(
     return None
 
 
+def _find_verification_for_failure(
+    data: Dict[str, object],
+    failure_id: str,
+) -> Optional[Dict[str, object]]:
+    verifications = data.get("verifications", [])
+    if not isinstance(verifications, list):
+        return None
+    for verif in verifications:
+        if not isinstance(verif, dict):
+            continue
+        candidate = verif.get("failure_id") or verif.get("failure_reason")
+        if candidate is None:
+            continue
+        if str(candidate) == str(failure_id):
+            return verif
+    return None
+
+
+def _extract_prefill_claim(
+    data: Dict[str, object],
+    failure_id: str,
+) -> Optional[str]:
+    verif = _find_verification_for_failure(data, failure_id)
+    if not verif:
+        return None
+    metadata = verif.get("metadata", {})
+    if isinstance(metadata, dict):
+        original_template = metadata.get("original_template")
+        if isinstance(original_template, str) and original_template.strip():
+            return original_template
+    return None
+
+
+def _extract_target_from_prefilled_values(
+    prefilled_values: Dict[str, object],
+) -> Optional[str]:
+    if not isinstance(prefilled_values, dict):
+        return None
+    priority_keys = [
+        "TARGET_OBJECT",
+        "OBJECT_INSTANCE",
+        "OBJECT",
+        "OBJECT_IDENTITY",
+        "OBJECT_TYPE",
+        "OBJECT_CATEGORY",
+    ]
+    normalized = {str(k).upper(): v for k, v in prefilled_values.items()}
+    for key in priority_keys:
+        value = normalized.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    for value in normalized.values():
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _extract_prefill_target_object(
+    data: Dict[str, object],
+    failure_id: str,
+) -> Optional[str]:
+    claim_templates = data.get("claim_templates", [])
+    if not isinstance(claim_templates, list):
+        return None
+
+    verif = _find_verification_for_failure(data, failure_id)
+    claim_id = None
+    original_template = None
+    if verif:
+        claim_id = verif.get("claim_id") or verif.get("metadata", {}).get("claim_id")
+        metadata = verif.get("metadata", {})
+        if isinstance(metadata, dict):
+            original_template = metadata.get("original_template")
+
+    matched_template = None
+    if claim_id:
+        for template in claim_templates:
+            if not isinstance(template, dict):
+                continue
+            if template.get("claim_id") == claim_id:
+                matched_template = template
+                break
+
+    if matched_template is None and isinstance(original_template, str):
+        for template in claim_templates:
+            if not isinstance(template, dict):
+                continue
+            tmpl_meta = template.get("metadata", {})
+            candidate = (
+                (tmpl_meta.get("original_template_unfilled") if isinstance(tmpl_meta, dict) else None)
+                or template.get("claim_template")
+                or template.get("claim_text")
+            )
+            if isinstance(candidate, str) and candidate == original_template:
+                matched_template = template
+                break
+
+    if not matched_template:
+        return None
+
+    prefill = matched_template.get("prefill", {})
+    if isinstance(prefill, dict):
+        target_object = prefill.get("target_object")
+        if isinstance(target_object, str) and target_object.strip():
+            return target_object.strip()
+
+    metadata = matched_template.get("metadata", {})
+    if isinstance(metadata, dict):
+        prefilled_values = metadata.get("prefilled_values", {})
+        target_object = _extract_target_from_prefilled_values(prefilled_values)
+        if target_object:
+            return target_object
+
+    return None
+
+
 def sample_failure_keys(
     input_path: str,
     output_path: str,
@@ -144,6 +262,10 @@ def sample_failure_keys(
             sampled = random.choice(keys)
 
         suggested_factors = failure_factor_map.get(sampled, []) if sampled else []
+        prefill_claim = _extract_prefill_claim(item, sampled) if sampled else None
+        prefill_target_object = (
+            _extract_prefill_target_object(item, sampled) if sampled else None
+        )
 
         results.append(
             SampledFailure(
@@ -152,6 +274,8 @@ def sample_failure_keys(
                 failure_keys=keys,
                 suggested_filtering_factors=suggested_factors,
                 image_path=image_path,
+                prefill_claim=prefill_claim,
+                prefill_target_object=prefill_target_object,
             )
         )
 
@@ -165,6 +289,8 @@ def sample_failure_keys(
                         "sampled_failure": r.sampled_failure,
                         "failure_keys": r.failure_keys,
                         "suggested_filtering_factors": r.suggested_filtering_factors,
+                        "prefill_claim": r.prefill_claim,
+                        "prefill_target_object": r.prefill_target_object,
                     },
                     ensure_ascii=False,
                 )

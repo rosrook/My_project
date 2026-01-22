@@ -83,6 +83,7 @@ processed_data/
 vqa_data/
 images/
 videos/
+statistics_and_logs
 
 ############################
 # Model weights / checkpoints

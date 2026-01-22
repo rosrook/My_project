@@ -84,6 +84,11 @@ def main():
         default=None,
         help='最大处理样本数（默认: 全部）'
     )
+    parser.add_argument(
+        '--enable-validation-exemptions',
+        action='store_true',
+        help='开启指定pipeline的验证豁免（question/visual_recognition/caption/text_association）'
+    )
     
     args = parser.parse_args()
     
@@ -108,7 +113,10 @@ def main():
     
     try:
         # 初始化生成器
-        generator = VQAGeneratorPrefill(config_path=config_path)
+        generator = VQAGeneratorPrefill(
+            config_path=config_path,
+            enable_validation_exemptions=args.enable_validation_exemptions,
+        )
         
         # 处理数据文件
         generator.process_data_file(

@@ -215,7 +215,69 @@ Generate a natural, fluent question that follows the template and constraints. R
         """
         异步生成问题（使用预填充对象）
         
-        TODO: 实现异步版本
+        Args:
+            image_base64: 图片base64编码
+            pipeline_config: Pipeline配置
+            slots: 填充的槽位字典
+            prefill_object: 预填充的目标对象信息
+            question_type: 题型
+            async_client: 异步客户端实例（可选）
+            model: 模型名称（可选）
+
+        Returns:
+            生成的问题文本，如果生成失败返回None
         """
-        # TODO: 实现异步版本的问题生成
-        pass
+        # 验证预填充对象
+        if not prefill_object:
+            print(f"[WARNING] 预填充对象为空，无法生成问题")
+            return None
+        
+        # 对于claim方式，name可能为空，但必须有claim
+        if prefill_object.get("source") == "claim":
+            if not prefill_object.get("claim"):
+                print(f"[WARNING] 预填充对象为claim类型但claim为空，无法生成问题")
+                return None
+        else:
+            # 对于target_object方式，必须有name
+            if not prefill_object.get("name"):
+                print(f"[WARNING] 预填充对象为target_object类型但name为空，无法生成问题")
+                return None
+        
+        # 获取配置
+        intent = pipeline_config.get("intent", "")
+        example_template = pipeline_config.get("example_template", "")
+        question_constraints = pipeline_config.get("question_constraints", [])
+        description = pipeline_config.get("description", "")
+        
+        # 构建prompt（强调使用预填充对象）
+        prompt = self._build_generation_prompt(
+            intent=intent,
+            description=description,
+            example_template=example_template,
+            question_constraints=question_constraints,
+            slots=slots,
+            prefill_object=prefill_object,
+            question_type=question_type
+        )
+        
+        try:
+            if async_client is None:
+                async with AsyncGeminiClient(model_name=model, use_lb_client=False) as client:
+                    response = await client.analyze_image_async(
+                        image_input=image_base64,
+                        prompt=prompt,
+                        temperature=0.7
+                    )
+            else:
+                response = await async_client.analyze_image_async(
+                    image_input=image_base64,
+                    prompt=prompt,
+                    temperature=0.7
+                )
+            
+            question = self._extract_question(response)
+            return question
+        
+        except Exception as e:
+            print(f"[WARNING] 问题生成失败(异步): {e}")
+            return None

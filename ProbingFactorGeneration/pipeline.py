@@ -109,13 +109,40 @@ class ProbingFactorPipeline:
             **{k: v for k, v in prefilled_values.items() if v is not None}
         }
         metadata["prefill_result"] = prefill_result.get("metadata", {})
+        prefill_target = ProbingFactorPipeline._extract_prefill_target_object(
+            metadata["prefilled_values"]
+        )
 
         updated = {**claim_template}
         updated["claim_template"] = template_text
         updated["placeholders"] = placeholders
         updated["slots"] = slots_info
         updated["metadata"] = metadata
+        if prefill_target:
+            updated["prefill"] = {"target_object": prefill_target}
         return updated
+
+    @staticmethod
+    def _extract_prefill_target_object(prefilled_values: Dict[str, Any]) -> Optional[str]:
+        if not isinstance(prefilled_values, dict):
+            return None
+        priority_keys = [
+            "TARGET_OBJECT",
+            "OBJECT_INSTANCE",
+            "OBJECT",
+            "OBJECT_IDENTITY",
+            "OBJECT_TYPE",
+            "OBJECT_CATEGORY",
+        ]
+        normalized = {str(k).upper(): v for k, v in prefilled_values.items()}
+        for key in priority_keys:
+            value = normalized.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in normalized.values():
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
 
     async def _prefill_slots_with_judge(
         self,

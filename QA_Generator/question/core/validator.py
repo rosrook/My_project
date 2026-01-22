@@ -12,7 +12,11 @@ from QA_Generator.clients.async_client import AsyncGeminiClient
 class QuestionValidator:
     """问题验证器"""
     
-    def __init__(self, gemini_client: Optional[GeminiClient] = None):
+    def __init__(
+        self,
+        gemini_client: Optional[GeminiClient] = None,
+        enable_validation_exemptions: bool = False,
+    ):
         """
         初始化验证器
         
@@ -20,6 +24,8 @@ class QuestionValidator:
             gemini_client: Gemini客户端实例
         """
         self.gemini_client = gemini_client or GeminiClient()
+        self.enable_validation_exemptions = enable_validation_exemptions
+        self.exempt_pipelines = {"question", "visual_recognition", "caption", "text_association"}
     
     def validate(
         self,
@@ -51,6 +57,12 @@ class QuestionValidator:
         # 检查Pipeline特定约束
         if not self._check_pipeline_constraints(question, pipeline_config):
             return False, "违反Pipeline约束"
+
+        # 对于“概念/对象识别类”的通用问题，跳过LLM深度验证
+        if self.enable_validation_exemptions:
+            pipeline_name = pipeline_config.get("intent") or pipeline_config.get("name")
+            if pipeline_name in self.exempt_pipelines:
+                return True, "skip_validation_for_exempt_pipeline"
         
         # 使用LLM进行深度验证
         is_valid, reason = self._validate_with_llm(
@@ -130,13 +142,9 @@ Check if the question:
 4. Does NOT rely on external knowledge or commonsense only
 5. Follows the pipeline intent and constraints
 
-Return ONLY a JSON object in this format:
-{{
-    "valid": true/false,
-    "reason": "detailed explanation of why the question is valid or invalid"
-}}
-
-Return only JSON, no other text."""
+Return your response in plain text using this format:
+valid: true/false
+reason: <short explanation>"""
 
         try:
             response = self.gemini_client.analyze_image(
@@ -146,7 +154,7 @@ Return only JSON, no other text."""
                 context="question_validation"
             )
             
-            # 解析JSON响应
+            # 解析响应（优先JSON，其次文本格式）
             import json
             import re
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
@@ -155,7 +163,14 @@ Return only JSON, no other text."""
                 is_valid = result.get("valid", False)
                 reason = result.get("reason", "验证失败")
                 return is_valid, reason
-            
+
+            valid_match = re.search(r'valid\s*[:：]\s*(true|false|yes|no)', response, re.IGNORECASE)
+            reason_match = re.search(r'reason\s*[:：]\s*(.+)', response, re.IGNORECASE)
+            if valid_match:
+                is_valid = valid_match.group(1).lower() in {"true", "yes"}
+                reason = reason_match.group(1).strip() if reason_match else "验证结果未提供原因"
+                return is_valid, reason
+
             return False, "无法解析验证结果"
             
         except Exception as e:
@@ -196,6 +211,12 @@ Return only JSON, no other text."""
         # 检查Pipeline特定约束
         if not self._check_pipeline_constraints(question, pipeline_config):
             return False, "违反Pipeline约束"
+
+        # 对于“概念/对象识别类”的通用问题，跳过LLM深度验证
+        if self.enable_validation_exemptions:
+            pipeline_name = pipeline_config.get("intent") or pipeline_config.get("name")
+            if pipeline_name in self.exempt_pipelines:
+                return True, "skip_validation_for_exempt_pipeline"
         
         # 使用LLM进行深度验证
         is_valid, reason = await self._validate_with_llm_async(
@@ -241,13 +262,9 @@ Check if the question:
 4. Does NOT rely on external knowledge or commonsense only
 5. Follows the pipeline intent and constraints
 
-You MUST return a valid JSON object with the following structure:
-{{
-    "valid": true/false,
-    "reason": "detailed explanation of why the question is valid or invalid"
-}}
-
-Return ONLY valid JSON, no other text."""
+Return your response in plain text using this format:
+valid: true/false
+reason: <short explanation>"""
 
         try:
             # 构建图像内容（OpenAI兼容格式）
@@ -282,9 +299,8 @@ Return ONLY valid JSON, no other text."""
                                 "content": [text_content, image_content]
                             }
                         ],
-                        max_tokens=1000,
-                        temperature=0.3,
-                        response_format={"type": "json_object"}
+                        max_completion_tokens=1000,
+                        temperature=0.3
                     )
             else:
                 response = await async_client.chat.completions.create(
@@ -295,28 +311,35 @@ Return ONLY valid JSON, no other text."""
                             "content": [text_content, image_content]
                         }
                     ],
-                    max_tokens=1000,
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
+                    max_completion_tokens=1000,
+                    temperature=0.3
                 )
             
             # 提取响应内容
             response_text = response.choices[0].message.content
             
-            # 解析JSON响应
+            # 解析响应（优先JSON，其次文本格式）
             try:
                 result = json.loads(response_text)
+                is_valid = result.get("valid", False)
+                reason = result.get("reason", "验证失败")
+                return is_valid, reason
             except json.JSONDecodeError:
-                # 如果JSON解析失败，尝试从文本中提取JSON
                 json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
                 if json_match:
                     result = json.loads(json_match.group())
-                else:
-                    return False, "无法解析验证结果"
-            
-            is_valid = result.get("valid", False)
-            reason = result.get("reason", "验证失败")
-            return is_valid, reason
+                    is_valid = result.get("valid", False)
+                    reason = result.get("reason", "验证失败")
+                    return is_valid, reason
+
+            valid_match = re.search(r'valid\s*[:：]\s*(true|false|yes|no)', response_text, re.IGNORECASE)
+            reason_match = re.search(r'reason\s*[:：]\s*(.+)', response_text, re.IGNORECASE)
+            if valid_match:
+                is_valid = valid_match.group(1).lower() in {"true", "yes"}
+                reason = reason_match.group(1).strip() if reason_match else "验证结果未提供原因"
+                return is_valid, reason
+
+            return False, "无法解析验证结果"
             
         except Exception as e:
             print(f"[WARNING] 异步问题验证失败: {e}")

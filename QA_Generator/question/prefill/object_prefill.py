@@ -220,19 +220,17 @@ class PrefillProcessor:
 
         try:
             if async_client is None:
-                async with AsyncGeminiClient() as client:
+                async with AsyncGeminiClient(use_lb_client=False) as client:
                     response = await client.analyze_image_async(
                         image_input=image_base64,
                         prompt=prompt,
-                        temperature=0.3,
-                        response_format={"type": "json_object"}
+                        temperature=0.3
                     )
             else:
                 response = await async_client.analyze_image_async(
                     image_input=image_base64,
                     prompt=prompt,
-                    temperature=0.3,
-                    response_format={"type": "json_object"}
+                    temperature=0.3
                 )
 
             parsed = self._parse_json_from_response(response)
@@ -269,24 +267,48 @@ Description: {description}
 Claim:
 {claim}
 
-Return ONLY a JSON object in this format:
-{{
-  "name": "object name",
-  "category": "object category (optional)",
-  "confidence": 0.0-1.0
-}}
+Return your response in plain text using the following format:
+name: <object name>
+category: <object category or empty>
+confidence: <0.0-1.0>
 
 If no clear object is present, return:
-{{"name": "", "category": "", "confidence": 0.0}}"""
+name:
+category:
+confidence: 0.0"""
 
     def _parse_json_from_response(self, response_text: str) -> Dict[str, Any]:
         if not response_text:
             return {}
 
         json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if not json_match:
-            return {}
-        try:
-            return json.loads(json_match.group())
-        except Exception:
-            return {}
+        if json_match:
+            try:
+                return json.loads(json_match.group())
+            except Exception:
+                pass
+
+        name_match = re.search(r'name\s*[:：]\s*(.+)', response_text, re.IGNORECASE)
+        category_match = re.search(r'category\s*[:：]\s*(.+)', response_text, re.IGNORECASE)
+        confidence_match = re.search(r'confidence\s*[:：]\s*([0-9]*\.?[0-9]+)', response_text, re.IGNORECASE)
+
+        name = name_match.group(1).strip() if name_match else ""
+        category = category_match.group(1).strip() if category_match else ""
+        confidence = confidence_match.group(1).strip() if confidence_match else ""
+
+        if not name:
+            lines = [line.strip() for line in response_text.splitlines() if line.strip()]
+            if lines:
+                name = re.sub(r'^(name\s*[:：]\s*)', '', lines[0], flags=re.IGNORECASE).strip()
+
+        data: Dict[str, Any] = {}
+        if name:
+            data["name"] = name
+        if category:
+            data["category"] = category
+        if confidence:
+            try:
+                data["confidence"] = float(confidence)
+            except ValueError:
+                pass
+        return data

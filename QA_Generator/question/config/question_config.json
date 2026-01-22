@@ -57,6 +57,30 @@
       "example_template": "Which term best matches the picture?"
     },
 
+    "object_intra_class_instance_positioning": {
+      "name": "Object Intra-Class Instance Positioning Pipeline",
+      "intent": "object_intra_class_instance_positioning",
+      "description": "Identifying the spatial location of a specific instance within a group of same-class objects by using distinctive features and relative positional relationships",
+      "question_intent": "locate_object_with_specific_features_among_same_class",
+      "answer_type": "spatial_region",
+      "required_slots": ["object", "distinctive_feature"],
+      "optional_slots": ["relative_ordering", "spatial_granularity", "reference_frame"],
+      "question_constraints": [
+        "the image must contain multiple instances of the same object class",
+        "the question must explicitly indicate that multiple same-class objects exist in the image",
+        "the question must explicitly mention one or more distinctive feature(s) that uniquely identify the target instance among the same-class objects",
+        "the question must require reasoning about the target object's position relative to other instances of the same class (e.g., ordering, comparison, or relative placement)",
+        "the question must ask for the spatial location of the target object",
+        "the question must instruct the respondent to answer based solely on visual evidence from the image",
+        "the question must avoid using object indices or labels that are not visually inferable from the image"
+      ],
+      "example_templates": [
+        "Where is the [object type] with [distinctive feature] located relative to the other [object type]s in the image?",
+        "Among the [object type]s shown, where is the one with [distinctive feature] positioned in the image?",
+        "Considering all the [object type]s in the image, where is the [one] that has [distinctive feature] located?"
+      ]
+    },
+
     "visual_recognition": {
       "name": "Main Object Identification Pipeline",
       "intent": "visual_recognition",

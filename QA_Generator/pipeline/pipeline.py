@@ -13,7 +13,7 @@ from datetime import datetime
 import asyncio
 
 # 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from QA_Generator.question.prefill.vqa_generator import VQAGeneratorPrefill
 from QA_Generator.answer.answer_generator import AnswerGenerator
@@ -36,7 +36,8 @@ class VQAPipeline:
     def __init__(
         self,
         question_config_path: Optional[Path] = None,
-        answer_config_path: Optional[Path] = None
+        answer_config_path: Optional[Path] = None,
+        enable_validation_exemptions: bool = False,
     ):
         """
         初始化流程
@@ -54,7 +55,10 @@ class VQAPipeline:
             answer_config_path = project_root / "answer" / "answer_config.json"
         
         # 初始化生成器
-        self.question_generator = VQAGeneratorPrefill(config_path=question_config_path)
+        self.question_generator = VQAGeneratorPrefill(
+            config_path=question_config_path,
+            enable_validation_exemptions=enable_validation_exemptions,
+        )
         self.answer_generator = AnswerGenerator(
             config_path=answer_config_path if answer_config_path.exists() else None
         )
@@ -129,10 +133,21 @@ class VQAPipeline:
                     continue
                 
                 # 生成答案（带重试机制）
+                prefill_object = record.get("prefill_object")
+                prefill = record.get("prefill") if isinstance(record.get("prefill"), dict) else {}
+                target_object = None
+                if isinstance(prefill_object, dict):
+                    target_object = prefill_object.get("name")
+                if not target_object and isinstance(prefill, dict):
+                    target_object = prefill.get("target_object")
+                prefill_claim = prefill.get("claim") if isinstance(prefill, dict) else None
                 pipeline_info = {
                     "pipeline_name": record.get("pipeline_name"),
                     "pipeline_intent": record.get("pipeline_intent"),
-                    "answer_type": record.get("answer_type")
+                    "answer_type": record.get("answer_type"),
+                    "prefill_object": prefill_object,
+                    "target_object": target_object,
+                    "prefill_claim": prefill_claim,
                 }
                 
                 # 生成答案（移除重试和验证逻辑以提高效率）
@@ -269,10 +284,21 @@ class VQAPipeline:
                             "error": "缺少image_base64字段"
                         })
                     
+                    prefill_object = record.get("prefill_object")
+                    prefill = record.get("prefill") if isinstance(record.get("prefill"), dict) else {}
+                    target_object = None
+                    if isinstance(prefill_object, dict):
+                        target_object = prefill_object.get("name")
+                    if not target_object and isinstance(prefill, dict):
+                        target_object = prefill.get("target_object")
+                    prefill_claim = prefill.get("claim") if isinstance(prefill, dict) else None
                     pipeline_info = {
                         "pipeline_name": record.get("pipeline_name"),
                         "pipeline_intent": record.get("pipeline_intent"),
-                        "answer_type": record.get("answer_type")
+                        "answer_type": record.get("answer_type"),
+                        "prefill_object": prefill_object,
+                        "target_object": target_object,
+                        "prefill_claim": prefill_claim,
                     }
                     
                     max_retries = 3
@@ -473,7 +499,8 @@ class VQAPipeline:
         batch_size: int = 1000,
         concurrency: int = 5,  # 异步并发数（建议1-5）
         request_delay: float = 0.1,  # 请求延迟（秒）
-        use_async: bool = True  # 是否使用异步并行处理
+        use_async: bool = True,  # 是否使用异步并行处理
+        debug_question_output_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """
         运行完整流程（支持大文件分流处理）
@@ -574,7 +601,8 @@ class VQAPipeline:
                             num_gpus=1,  # 问题生成阶段使用单GPU组
                             max_concurrent_per_gpu=concurrency,
                             request_delay=request_delay,
-                            failed_selection_dir=failed_selection_dir
+                            failed_selection_dir=failed_selection_dir,
+                            debug_output_dir=debug_question_output_dir,
                         )
                     else:
                         # 使用同步方法（兼容模式）
@@ -585,7 +613,8 @@ class VQAPipeline:
                             output_file=batch_questions_file,
                             pipeline_names=pipeline_names,
                             max_samples=None,  # 批次文件已经限制大小
-                            failed_selection_dir=failed_selection_dir
+                            failed_selection_dir=failed_selection_dir,
+                            debug_output_dir=debug_question_output_dir,
                         )
                     
                     # 读取生成的问题
@@ -844,6 +873,29 @@ class VQAPipeline:
         if (output_dir / "failed_selection").exists():
             print(f"对象选择失败案例: {output_dir / 'failed_selection'}")
         print("=" * 80)
+
+        meta_path = output_dir / "meta.json"
+        meta = {
+            "generated_at": datetime.now().isoformat(),
+            "input_file": str(input_file),
+            "output_dir": str(output_dir),
+            "total_records": total_records,
+            "successful_vqa_count": len(successful_vqa_data),
+            "question_errors_count": len(all_question_errors),
+            "answer_validation_failed_count": len(validation_failed_data),
+            "pipeline_names": pipeline_names,
+            "max_samples": max_samples,
+            "batch_size": batch_size,
+            "concurrency": concurrency,
+            "request_delay": request_delay,
+            "use_async": use_async,
+            "QA-generator code changes": "",
+            "Config changes": "",
+            "Other things": "",
+        }
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+        print(f"元信息已保存: {meta_path}")
         
         return {
             "successful_vqa": successful_vqa_file,
@@ -862,7 +914,8 @@ class VQAPipeline:
         batch_size: int = 1000,
         concurrency: int = 5,  # 异步并发数（建议1-5）
         request_delay: float = 0.1,  # 请求延迟（秒）
-        use_async: bool = True  # 是否使用异步并行处理
+        use_async: bool = True,  # 是否使用异步并行处理
+        debug_question_output_dir: Optional[Path] = None,
     ) -> Dict[str, Any]:
         """
         运行完整流程（同步包装器，内部调用异步版本）
@@ -890,7 +943,8 @@ class VQAPipeline:
             batch_size=batch_size,
             concurrency=concurrency,
             request_delay=request_delay,
-            use_async=use_async
+            use_async=use_async,
+            debug_question_output_dir=debug_question_output_dir,
         ))
     
     def _prepare_final_dataset(self, answers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1116,19 +1170,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 基本使用
-  python QA_Generator/pipeline/pipeline.py input.json output_dir/
+  # 基本使用（输出目录自动命名）
+  python QA_Generator/pipeline/pipeline.py input.json
   
   # 指定pipeline和样本数
-  python QA_Generator/pipeline/pipeline.py input.json output_dir/ \\
+  python QA_Generator/pipeline/pipeline.py input.json \\
       --pipelines question object_counting \\
       -n 100
   
   # 不保存中间结果
-  python QA_Generator/pipeline/pipeline.py input.json output_dir/ --no-intermediate
+  python QA_Generator/pipeline/pipeline.py input.json --no-intermediate
   
   # 指定日志文件（所有错误和警告信息将写入该文件）
-  python QA_Generator/pipeline/pipeline.py input.json output_dir/ --log-file log.txt
+  python QA_Generator/pipeline/pipeline.py input.json --log-file log.txt
         """
     )
     
@@ -1136,11 +1190,6 @@ def main():
         'input_file',
         type=str,
         help='输入JSON文件路径（batch_process.sh的输出）'
-    )
-    parser.add_argument(
-        'output_dir',
-        type=str,
-        help='输出目录路径'
     )
     parser.add_argument(
         '--question-config',
@@ -1196,6 +1245,22 @@ def main():
         help='禁用异步并行处理，使用串行处理（兼容模式）'
     )
     parser.add_argument(
+        '--debug-questions',
+        action='store_true',
+        help='保存问题生成调试信息（包含输入/题型/slots/问题文本等）'
+    )
+    parser.add_argument(
+        '--debug-question-dir',
+        type=str,
+        default=None,
+        help='问题生成调试信息输出目录（默认: output_dir/debug/questions）'
+    )
+    parser.add_argument(
+        '--enable-validation-exemptions',
+        action='store_true',
+        help='开启指定pipeline的验证豁免（question/visual_recognition/caption/text_association）'
+    )
+    parser.add_argument(
         '--log-file',
         type=str,
         default=None,
@@ -1205,7 +1270,14 @@ def main():
     args = parser.parse_args()
     
     input_file = Path(args.input_file)
-    output_dir = Path(args.output_dir)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path.cwd() / f"vqa_ready4use_{timestamp}"
+    debug_question_output_dir = None
+    if args.debug_questions:
+        if args.debug_question_dir:
+            debug_question_output_dir = Path(args.debug_question_dir)
+        else:
+            debug_question_output_dir = output_dir / "debug" / "questions"
     
     # 处理配置文件路径（支持相对路径和绝对路径）
     question_config_path = None
@@ -1279,7 +1351,8 @@ def main():
         # 初始化流程
         pipeline = VQAPipeline(
             question_config_path=question_config_path,
-            answer_config_path=answer_config_path
+            answer_config_path=answer_config_path,
+            enable_validation_exemptions=args.enable_validation_exemptions,
         )
         
         # 运行流程（支持异步并行处理）
@@ -1306,7 +1379,8 @@ def main():
             batch_size=args.batch_size,
             concurrency=args.concurrency,
             request_delay=args.request_delay,
-            use_async=use_async
+            use_async=use_async,
+            debug_question_output_dir=debug_question_output_dir,
         )
         
         success_msg = "流程执行成功！"

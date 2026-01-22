@@ -561,9 +561,28 @@ class AnswerGenerator:
         Returns:
             {"answer": "答案文本", "explanation": "解释"} 或 None
         """
+        target_object = None
+        prefill_claim = None
+        if isinstance(pipeline_info, dict):
+            target_object = pipeline_info.get("target_object")
+            prefill_claim = pipeline_info.get("prefill_claim")
+            if not target_object:
+                prefill_object = pipeline_info.get("prefill_object")
+                if isinstance(prefill_object, dict):
+                    target_object = prefill_object.get("name")
+        target_hint = ""
+        if target_object or prefill_claim:
+            hint_lines = ["Additional context (do not change the question):"]
+            if prefill_claim:
+                hint_lines.append(f"- Claim: {prefill_claim}")
+            if target_object:
+                hint_lines.append(f"- Target object (use as the answer): {target_object}")
+            target_hint = "\n" + "\n".join(hint_lines) + "\n"
+
         prompt = f"""Based on the image and the question, provide a concise and accurate answer.
 
 Question: {question}
+{target_hint}
 
 Requirements:
 1. Provide ONLY the answer text, keep it concise and direct (typically 1-5 words)
@@ -610,9 +629,28 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
         """
         异步生成正确答案（使用OpenAI兼容接口，与vlmtool/generate_vqa完全对齐）
         """
+        target_object = None
+        prefill_claim = None
+        if isinstance(pipeline_info, dict):
+            target_object = pipeline_info.get("target_object")
+            prefill_claim = pipeline_info.get("prefill_claim")
+            if not target_object:
+                prefill_object = pipeline_info.get("prefill_object")
+                if isinstance(prefill_object, dict):
+                    target_object = prefill_object.get("name")
+        target_hint = ""
+        if target_object or prefill_claim:
+            hint_lines = ["Additional context (do not change the question):"]
+            if prefill_claim:
+                hint_lines.append(f"- Claim: {prefill_claim}")
+            if target_object:
+                hint_lines.append(f"- Target object (use as the answer): {target_object}")
+            target_hint = "\n" + "\n".join(hint_lines) + "\n"
+
         prompt = f"""Based on the image and the question, provide a concise and accurate answer.
 
 Question: {question}
+{target_hint}
 
 Requirements:
 1. Provide ONLY the answer text, keep it concise and direct (typically 1-5 words)
@@ -622,34 +660,11 @@ Requirements:
 5. Keep the answer brief - avoid unnecessary words
 6. The answer must be a plain text string, NOT a JSON object or JSON string
 
-You MUST return a valid JSON object with the following structure:
-{{
-    "answer": "your concise answer here (plain text, 1-5 words typically)",
-    "explanation": "optional brief explanation, only if needed for clarity"
-}}
+Provide your response in the following format:
+Answer: [your concise answer here, 1-5 words typically]
+Explanation: [optional brief explanation, only if needed for clarity]
 
-CRITICAL FORMATTING RULES:
-- The "answer" field must be a plain text string (e.g., "three", "left", "red car")
-- Do NOT return the answer as a JSON object like {{"Answer": "text"}} or {{"answer": {{"text": "value"}}}}
-- Do NOT return the answer as a JSON string like "{{\\"Answer\\": \\"text\\"}}"
-- The answer should be brief and direct (typically 1-5 words)
-
-Example of CORRECT format:
-{{
-    "answer": "three",
-    "explanation": "There are three cows visible in the image"
-}}
-
-Example of INCORRECT format (DO NOT USE):
-{{
-    "answer": {{"Answer": "three"}},
-    "explanation": "..."
-}}
-OR
-{{
-    "answer": "{{\\"Answer\\": \\"three\\"}}",
-    "explanation": "..."
-}}"""
+Important: The Answer field should contain ONLY the answer itself, nothing else. Keep it very brief."""
         try:
             # 构建图像内容（OpenAI兼容格式）
             image_content = {
@@ -684,9 +699,8 @@ OR
                                 "content": [text_content, image_content]
                             }
                         ],
-                        max_tokens=1000,  # 与vlmtool对齐：max_tokens=1000
-                        temperature=0.3,  # 与vlmtool对齐：temperature=0.3
-                        response_format={"type": "json_object"}
+                        max_completion_tokens=1000,
+                        temperature=0.3
                     )
             else:
                 response = await async_client.chat.completions.create(
@@ -697,168 +711,35 @@ OR
                             "content": [text_content, image_content]
                         }
                     ],
-                    max_tokens=1000,  # 与vlmtool对齐：max_tokens=1000
-                    temperature=0.3,  # 与vlmtool对齐：temperature=0.3
-                    response_format={"type": "json_object"}
+                    max_completion_tokens=1000,
+                    temperature=0.3
                 )
             
             # 提取响应内容
             response_text = response.choices[0].message.content
             
-            # 解析 JSON 响应
-            try:
-                import json
-                # 尝试直接解析 JSON
-                result = json.loads(response_text)
-                answer_raw = result.get("answer", "")
-                explanation_raw = result.get("explanation", "")
-                
-                # 处理 answer 可能是字典的情况（某些模型返回 {"Answer": "...", "Explanation": "..."}）
-                if isinstance(answer_raw, dict):
-                    # 尝试从字典中提取答案文本
-                    answer = answer_raw.get("Answer", answer_raw.get("answer", "")).strip()
-                    if not answer:
-                        # 如果字典中没有找到，尝试获取第一个字符串值（跳过 Explanation）
-                        for key, value in answer_raw.items():
-                            if key.lower() not in ["explanation", "reason"] and isinstance(value, str) and value.strip():
-                                answer = value.strip()
-                                break
-                elif isinstance(answer_raw, str):
-                    answer_str = answer_raw.strip().strip('"\'')
-                    
-                    # 如果字符串太短（少于3个字符），不太可能是有效的JSON，直接使用
-                    if len(answer_str) < 3:
-                        answer = answer_str
-                    # 检查是否是 JSON 字符串格式（模型可能返回 JSON 字符串而不是解析后的对象）
-                    elif answer_str.startswith("{") and answer_str.endswith("}") and len(answer_str) > 2:
-                        try:
-                            # 尝试解析 JSON 字符串
-                            answer_dict = json.loads(answer_str)
-                            # 从解析后的字典中提取 Answer 字段
-                            answer = answer_dict.get("Answer") or answer_dict.get("answer") or answer_dict.get("option") or answer_dict.get("text")
-                            if not answer or not isinstance(answer, str):
-                                # 尝试获取第一个字符串值（跳过 Explanation）
-                                for key, value in answer_dict.items():
-                                    if key.lower() not in ["explanation", "reason"] and isinstance(value, str) and value.strip():
-                                        answer = value.strip()
-                                        break
-                            if not answer:
-                                # 如果解析后没有找到答案，尝试使用正则表达式提取
-                                import re
-                                text_match = re.search(r'["\']?(?:Answer|answer|option|text)["\']?\s*[:=]\s*["\']?([^"\'}]+)["\']?', answer_str, re.IGNORECASE)
-                                if text_match:
-                                    extracted_text = text_match.group(1).strip().strip('"\'')
-                                    if extracted_text and len(extracted_text) > 0:
-                                        answer = extracted_text
-                                        log_warning(f"从格式不完整的JSON中提取答案文本: {extracted_text[:50]}...")
-                                    else:
-                                        # 如果都提取不到，使用文本解析方法作为后备
-                                        log_warning(f"无法从JSON字符串中提取答案，尝试文本解析: {answer_str[:100]}...")
-                                        answer, _ = self._parse_answer_response(response_text)
-                                else:
-                                    # 如果都提取不到，使用文本解析方法作为后备
-                                    log_warning(f"无法从JSON字符串中提取答案，尝试文本解析: {answer_str[:100]}...")
-                                    answer, _ = self._parse_answer_response(response_text)
-                            else:
-                                answer = answer.strip()
-                                # 验证答案是否有效（不能是单个标点符号）
-                                if len(answer.strip()) < 2 or answer.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?"]:
-                                    log_warning(f"解析出的答案无效: '{answer}'，尝试文本解析")
-                                    answer, _ = self._parse_answer_response(response_text)
-                        except (json.JSONDecodeError, ValueError) as e:
-                            # 如果解析失败，尝试使用正则表达式提取
-                            import re
-                            text_match = re.search(r'["\']?(?:Answer|answer|option|text)["\']?\s*[:=]\s*["\']?([^"\'}]+)["\']?', answer_str, re.IGNORECASE)
-                            if text_match:
-                                extracted_text = text_match.group(1).strip().strip('"\'')
-                                if extracted_text and len(extracted_text) > 0:
-                                    answer = extracted_text
-                                    log_warning(f"从格式不完整的JSON中提取答案文本: {extracted_text[:50]}...")
-                                else:
-                                    # 如果都提取不到，使用文本解析方法作为后备
-                                    log_warning(f"JSON解析失败且无法提取文本，尝试文本解析: {answer_str[:100]}... (错误: {str(e)})")
-                                    answer, _ = self._parse_answer_response(response_text)
-                            else:
-                                # 如果都提取不到，使用文本解析方法作为后备
-                                log_warning(f"JSON解析失败且无法提取文本，尝试文本解析: {answer_str[:100]}... (错误: {str(e)})")
-                                answer, _ = self._parse_answer_response(response_text)
-                    else:
-                        answer = answer_str
-                else:
-                    answer = str(answer_raw).strip() if answer_raw else ""
-                
-                # 处理 explanation 可能是字典的情况
-                if isinstance(explanation_raw, dict):
-                    explanation = explanation_raw.get("Explanation", explanation_raw.get("explanation", "")).strip()
-                    if not explanation:
-                        for key, value in explanation_raw.items():
-                            if isinstance(value, str) and value.strip():
-                                explanation = value.strip()
-                                break
-                elif isinstance(explanation_raw, str):
-                    explanation_str = explanation_raw.strip().strip('"\'')
-                    # 检查是否是 JSON 字符串格式
-                    if explanation_str.startswith("{") and explanation_str.endswith("}"):
-                        try:
-                            explanation_dict = json.loads(explanation_str)
-                            explanation = explanation_dict.get("Explanation") or explanation_dict.get("explanation") or explanation_dict.get("text")
-                            if not explanation or not isinstance(explanation, str):
-                                for key, value in explanation_dict.items():
-                                    if isinstance(value, str) and value.strip():
-                                        explanation = value.strip()
-                                        break
-                            if not explanation:
-                                explanation = explanation_str
-                            else:
-                                explanation = explanation.strip()
-                        except (json.JSONDecodeError, ValueError):
-                            explanation = explanation_str
-                    else:
-                        explanation = explanation_str
-                else:
-                    explanation = str(explanation_raw).strip() if explanation_raw else ""
-                
-                # 如果 answer 是 JSON 字符串格式但 explanation 为空，尝试从 answer 的 JSON 中提取 explanation
-                if not explanation and isinstance(answer_raw, str):
-                    answer_str = answer_raw.strip().strip('"\'')
-                    if answer_str.startswith("{") and answer_str.endswith("}"):
-                        try:
-                            answer_dict = json.loads(answer_str)
-                            explanation = answer_dict.get("Explanation") or answer_dict.get("explanation", "")
-                            if explanation:
-                                explanation = explanation.strip()
-                        except (json.JSONDecodeError, ValueError):
-                            pass
-                
-                if not answer:
-                    # 如果 JSON 中没有 answer，尝试使用旧的文本解析方法作为后备
-                    log_warning(f"JSON中没有answer字段，尝试文本解析: {response_text[:200]}...")
-                    answer, explanation = self._parse_answer_response(response_text)
-                
-                # 最终验证：确保答案不是无效值
-                if answer:
-                    answer = answer.strip()
-                    # 如果答案是单个标点符号或太短，视为无效
-                    if len(answer) < 2 or answer in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]:
-                        log_error(f"解析出的答案无效: '{answer}'，原始响应: {response_text[:300]}...")
-                        # 尝试使用文本解析方法作为最后的后备
-                        parsed_answer, parsed_explanation = self._parse_answer_response(response_text)
-                        if parsed_answer and len(parsed_answer.strip()) >= 2 and parsed_answer.strip() not in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?"]:
-                            answer = parsed_answer
-                            if not explanation:
-                                explanation = parsed_explanation
-                            log_warning(f"使用文本解析方法提取的答案: {answer[:50]}...")
-                        else:
-                            # 如果文本解析也失败，返回None
-                            log_error(f"所有解析方法都失败，无法提取有效答案")
+            # 解析响应（先文本格式，必要时兼容JSON）
+            answer, explanation = self._parse_answer_response(response_text)
+
+            response_str = response_text.strip()
+            if response_str.startswith("{") and response_str.endswith("}"):
+                try:
+                    import json
+                    result = json.loads(response_str)
+                    answer_raw = result.get("answer") or result.get("Answer")
+                    explanation_raw = result.get("explanation") or result.get("Explanation")
+                    if answer_raw:
+                        answer = str(answer_raw).strip().strip('"\'')
+                    if explanation_raw:
+                        explanation = str(explanation_raw).strip()
+                except Exception:
+                    pass
+
+            # 最终校验：答案必须有效
+            if not answer or len(answer.strip()) < 2 or answer.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]:
                             return None
                 
-                return {"answer": answer, "explanation": explanation}
-            except json.JSONDecodeError:
-                # 如果 JSON 解析失败，使用旧的文本解析方法作为后备
-                log_warning(f"JSON 解析失败，尝试文本解析: {response_text[:100]}...")
-                answer, explanation = self._parse_answer_response(response_text)
-                return {"answer": answer, "explanation": explanation}
+            return {"answer": answer, "explanation": explanation}
         except Exception as e:
             error_msg = str(e)
             # 如果是 400 错误，添加更详细的诊断信息
@@ -1032,28 +913,11 @@ Requirements:
 7. Make sure each option is a single, concise phrase similar to the correct answer format
 8. Each option must be a plain text string, NOT a JSON object or JSON string
 
-You MUST return a valid JSON object with the following structure:
-{{
-    "options": ["option 1 text", "option 2 text", ..., "option {wrong_count} text"]
-}}
-
-CRITICAL FORMATTING RULES:
-- The "options" array must contain exactly {wrong_count} options.
-- Each option in the array must be a plain text string (e.g., "three", "five", "left", "right")
-- Do NOT return options as JSON objects like {{"Answer": "text"}} or {{"option": "text"}}
-- Do NOT return options as JSON strings like "{{\\"Answer\\": \\"text\\"}}"
-- Each option should be brief and similar in style to "{correct_answer}".
-- Return ONLY valid JSON, no other text.
-
-Example of CORRECT format:
-{{
-    "options": ["two", "four", "six"]
-}}
-
-Example of INCORRECT format (DO NOT USE):
-{{
-    "options": [{{"Answer": "two"}}, {{"option": "four"}}, "six"]
-}}"""
+Provide your response in the following format (one option per line):
+Option 1: [option text]
+Option 2: [option text]
+...
+Option {wrong_count}: [option text]"""
         try:
             # 构建图像内容（OpenAI兼容格式）
             image_content = {
@@ -1088,9 +952,8 @@ Example of INCORRECT format (DO NOT USE):
                                 "content": [text_content, image_content]
                             }
                         ],
-                        max_tokens=1000,  # 与vlmtool对齐：max_tokens=1000
-                        temperature=0.3,  # 与vlmtool对齐：temperature=0.3
-                        response_format={"type": "json_object"}
+                        max_completion_tokens=1000,
+                        temperature=0.3
                     )
             else:
                 response = await async_client.chat.completions.create(
@@ -1101,9 +964,8 @@ Example of INCORRECT format (DO NOT USE):
                             "content": [text_content, image_content]
                         }
                     ],
-                    max_tokens=1000,  # 与vlmtool对齐：max_tokens=1000
-                    temperature=0.3,  # 与vlmtool对齐：temperature=0.3
-                    response_format={"type": "json_object"}
+                    max_completion_tokens=1000,
+                    temperature=0.3
                 )
             
             # 提取响应内容
@@ -1112,111 +974,10 @@ Example of INCORRECT format (DO NOT USE):
             # 记录原始响应（用于调试）
             log_debug(f"错误选项生成的原始响应: {response_text[:500]}...")
             
-            # 解析 JSON 响应
-            try:
-                import json
-                # 尝试直接解析 JSON
-                result = json.loads(response_text)
-                options = result.get("options", [])
-                
-                log_debug(f"解析后的options: {options}")
-                
-                if not options or not isinstance(options, list):
-                    # 如果 JSON 中没有 options，尝试使用旧的文本解析方法作为后备
-                    log_warning(f"JSON中没有options字段或不是列表，尝试文本解析。响应: {response_text[:200]}...")
-                    wrong_options = self._parse_wrong_options_response(response_text, wrong_count)
-                else:
-                    # 清理选项文本（处理可能是字典的情况）
-                    wrong_options = []
-                    for opt in options:
-                        opt_text = None
-                        
-                        if isinstance(opt, dict):
-                            # 如果是字典，按优先级提取文本：
-                            # 1. 优先提取 "Answer" 字段（模型返回的标准格式）
-                            # 2. 其次提取 "option" 或 "text" 字段
-                            # 3. 最后尝试提取第一个字符串值
-                            opt_text = opt.get("Answer") or opt.get("answer") or opt.get("option") or opt.get("text")
-                            
-                            if not opt_text or not isinstance(opt_text, str):
-                                # 尝试获取第一个字符串值（跳过 Explanation 等字段）
-                                for key, value in opt.items():
-                                    # 跳过 Explanation 字段，优先选择其他字符串字段
-                                    if key.lower() not in ["explanation", "reason"] and isinstance(value, str) and value.strip():
-                                        opt_text = value.strip()
-                                        break
-                            
-                            # 如果还是没有找到，转换为字符串（不应该发生）
-                            if not opt_text:
-                                log_warning(f"无法从字典中提取选项文本: {opt}")
-                                opt_text = str(opt)
-                            
-                            opt_text = opt_text.strip().strip('"\'')
-                        elif isinstance(opt, str):
-                            # 如果是字符串，检查是否是 JSON 字符串
-                            opt_str = opt.strip().strip('"\'')
-                            # 如果字符串太短，不太可能是有效的JSON，直接使用
-                            if len(opt_str) < 3:
-                                opt_text = opt_str
-                            # 尝试解析 JSON 字符串（处理模型返回的 JSON 字符串格式）
-                            elif opt_str.startswith("{") and opt_str.endswith("}") and len(opt_str) > 2:
-                                try:
-                                    import json
-                                    opt_dict = json.loads(opt_str)
-                                    # 从解析后的字典中提取 Answer 字段
-                                    opt_text = opt_dict.get("Answer") or opt_dict.get("answer") or opt_dict.get("option") or opt_dict.get("text")
-                                    if not opt_text or not isinstance(opt_text, str):
-                                        # 尝试获取第一个字符串值
-                                        for key, value in opt_dict.items():
-                                            if key.lower() not in ["explanation", "reason"] and isinstance(value, str) and value.strip():
-                                                opt_text = value.strip()
-                                                break
-                                    if not opt_text:
-                                        opt_text = opt_str  # 如果解析失败，使用原始字符串
-                                    else:
-                                        opt_text = opt_text.strip()
-                                except (json.JSONDecodeError, ValueError) as e:
-                                    # 如果解析失败，尝试使用正则表达式提取可能的文本内容
-                                    import re
-                                    text_match = re.search(r'["\']?(?:Answer|answer|option|text)["\']?\s*[:=]\s*["\']?([^"\'}]+)["\']?', opt_str, re.IGNORECASE)
-                                    if text_match:
-                                        extracted_text = text_match.group(1).strip().strip('"\'')
-                                        if extracted_text and len(extracted_text) > 0:
-                                            opt_text = extracted_text
-                                            log_warning(f"从格式不完整的JSON中提取选项文本: {extracted_text[:50]}...")
-                                        else:
-                                            opt_text = opt_str
-                                    else:
-                                        opt_text = opt_str  # 如果解析失败，使用原始字符串
-                                    log_warning(f"选项JSON解析失败，使用提取的文本或原始字符串: {opt_str[:50]}... (错误: {str(e)})")
-                            else:
-                                opt_text = opt_str
-                        else:
-                            opt_text = str(opt).strip().strip('"\'')
-                        
-                        if opt_text:
-                            # 验证选项文本是否有效
-                            if len(opt_text.strip()) < 2 or opt_text.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?"]:
-                                log_warning(f"选项文本无效: '{opt_text}' (原始值: {opt})，跳过此选项")
-                            else:
-                                wrong_options.append(opt_text)
-                        else:
-                            log_warning(f"选项解析后为空，原始值: {opt}")
-                    
-                    # 确保数量正确
-                    wrong_options = wrong_options[:wrong_count]
-                    if len(wrong_options) < wrong_count:
-                        log_warning(f"生成的错误选项数量不足: 期望 {wrong_count}，实际 {len(wrong_options)}")
-                
-                if not wrong_options:
-                    log_error(f"错误选项解析失败，返回空列表。原始响应: {response_text[:300]}...")
-                
-                return wrong_options
-            except json.JSONDecodeError:
-                # 如果 JSON 解析失败，使用旧的文本解析方法作为后备
-                log_warning(f"JSON 解析失败，尝试文本解析: {response_text[:100]}...")
-                wrong_options = self._parse_wrong_options_response(response_text, wrong_count)
-                return wrong_options
+            wrong_options = self._parse_wrong_options_response(response_text, wrong_count)
+            if not wrong_options:
+                log_error(f"错误选项解析失败，返回空列表。原始响应: {response_text[:300]}...")
+            return wrong_options
         except Exception as e:
             log_error(f"异步生成错误选项失败: {e}")
             return []

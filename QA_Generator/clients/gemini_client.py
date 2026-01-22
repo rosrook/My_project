@@ -8,20 +8,16 @@ from datetime import datetime
 from PIL import Image
 from QA_Generator.config import config
 
-# 自动安装 redeuler（如果未安装）
 try:
-    from redeuler.client.openai import LBOpenAIClient
-except ImportError:
-    print("redeuler 未安装，正在自动安装...")
-    import subprocess
-    import sys
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "redeuler"])
-    print("安装完成！")
-    from redeuler.client.openai import LBOpenAIClient
+    from openai import OpenAI
+except ImportError as e:
+    raise ImportError(
+        "openai package is required. Please install it with `pip install openai`."
+    ) from e
 
 
 class GeminiClient:
-    """Gemini API客户端封装（使用OpenAI兼容格式）"""
+    """OpenAI兼容API客户端封装（同步）"""
 
     def __init__(
         self,
@@ -45,28 +41,27 @@ class GeminiClient:
         """
         self.service_name = service_name or getattr(config, 'SERVICE_NAME', None)
         self.env = env or getattr(config, 'ENV', 'prod')
-        self.api_key = api_key or config.API_KEY or "1"  # LBOpenAIClient需要api_key，但可能不使用
+        self.api_key = api_key or getattr(config, "OPENAI_API_KEY", None) or "EMPTY"
         self.model_name = model_name or config.MODEL_NAME
+        self.base_url = getattr(config, "OPENAI_BASE_URL", None) or config.BASE_URL
         self.save_debug_images = save_debug_images
         self.debug_image_dir = Path(debug_image_dir)
         self.debug_image_counter = 0
 
-        # 验证必需参数
-        if not self.service_name:
-            raise ValueError("Service Name未设置，请在config.py中设置SERVICE_NAME或在初始化时传入")
         if not self.model_name:
             raise ValueError("Model Name未设置，请在config.py中设置MODEL_NAME")
+        if not self.base_url:
+            raise ValueError("OpenAI Base URL未设置，请在config.py中设置OPENAI_BASE_URL")
 
         # 创建调试目录
         if self.save_debug_images:
             self.debug_image_dir.mkdir(parents=True, exist_ok=True)
             print(f"调试模式已开启，图片将保存到: {self.debug_image_dir}")
 
-        # 初始化LBOpenAIClient
-        self.client = LBOpenAIClient(
-            service_name=self.service_name,
-            env=self.env,
-            api_key=self.api_key
+        # 初始化 OpenAI 客户端（兼容接口）
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
         )
         self._closed = False
 
@@ -322,12 +317,12 @@ class GeminiClient:
             messages_str = json.dumps(messages, ensure_ascii=False)[:500]
             print(messages_str)
 
-            # 调用API（使用LBOpenAIClient，完全按照debug_qwen3vl.py的格式）
+            # 调用API（OpenAI兼容接口）
             completion = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_completion_tokens=max_tokens,
             )
 
             print(f"[DEBUG] API调用成功")
