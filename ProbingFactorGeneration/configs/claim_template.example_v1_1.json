@@ -331,35 +331,39 @@
         "name": "Object Absence Detection",
         "capability": "negative_spatial_reasoning",
         "target_failure_id": "FR_ABSENCE_REASONING_FAILURE",
-        "claim_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+        "claim_template": "The [REGION_DESCRIPTION] region shows no visible instances of [OBJECT_TYPE].",
         "slots": {
           "REGION_DESCRIPTION": {
             "type": "spatial_descriptor",
-            "selection_criteria": "Select a clearly distinguishable spatial region in the image (e.g., 'left half', 'upper portion', 'upper-right')"
+            "selection_criteria": "Select a clearly distinguishable spatial region that is visually identifiable as an empty or low-occupancy area, with continuous background texture or scene structure (e.g., visible floor, wall, sky, road). Do not select regions defined only by arbitrary partition (e.g., 'left half', 'upper portion') unless a clear visual boundary exists."
           },
           "OBJECT_TYPE": {
             "type": "object_category",
-            "selection_criteria": "Select a salient object category present elsewhere in the image or plausibly expected in the scene"
+            "selection_criteria": "Select a salient object category that is clearly visible elsewhere in the image or strongly expected in the scene context, such that its absence in a region would be visually noticeable."
           }
         },
         "prefill_slots": ["OBJECT_TYPE"],
         "baseline_instructions": [
-          "Identify at least one salient object category present in the image or expected in the scene context.",
-          "Identify a clearly distinguishable spatial region that is devoid of that object type.",
-          "If no clear empty regions exist, objects are uniformly distributed across the image, or no spatial boundaries are distinguishable, return NOT_RELATED."
+          "Identify at least one salient object category that is clearly visible elsewhere in the image or strongly expected by the scene context.",
+          "Identify a spatial region that shows clear visual evidence of emptiness or low occupancy, supported by continuous background such as floor, wall, sky, or road.",
+          "Do not rely on subjective inference or arbitrary spatial partition when selecting the region; the emptiness must be visually supported.",
+          "If the region does not exhibit clear visual emptiness, or the absence of the object relies on subjective judgment, return NOT_RELATED.",
+          "If no such visually empty region exists, objects are distributed without clear gaps, or spatial boundaries are ambiguous, return NOT_RELATED."
         ],
         "not_related_conditions": [
-          "Objects are uniformly distributed across the entire image with no empty regions",
-          "No clear spatial regions can be distinguished in the image",
-          "No salient object category exists to reason about absence",
-          "Image is too cluttered or ambiguous to identify empty regions"
+          "No spatial region exhibits clear visual evidence of emptiness or continuous background",
+          "All spatial regions contain partial, occluded, or scattered instances of the object type",
+          "Spatial regions can only be defined by arbitrary partition without clear visual boundaries",
+          "The object category is not clearly visible elsewhere in the image or is not visually salient",
+          "The image is too cluttered, occluded, or ambiguous to support visually grounded absence reasoning"
         ],
         "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
         "common_failure_modes": [
-          "overlooking empty regions",
-          "false positive detection in empty areas",
-          "vague answers for unoccupied regions",
-          "confusion with background blending objects"
+          "overlooking visually empty regions",
+          "false positive detection in background-only areas",
+          "vague or underspecified region descriptions",
+          "confusion between background texture and camouflaged objects",
+          "claiming absence based on assumed rather than visually supported empty regions"
         ]
       },
       {

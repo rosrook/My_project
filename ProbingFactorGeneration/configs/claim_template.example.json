@@ -57,6 +57,42 @@
       ]
     },
     {
+      "claim_id": "absence_negative_reasoning",
+      "name": "Object Absence Detection",
+      "capability": "negative_spatial_reasoning",
+      "target_failure_id": "FR_ABSENCE_REASONING_FAILURE",
+      "claim_template": "The [REGION_DESCRIPTION] region contains no [OBJECT_TYPE].",
+      "slots": {
+        "REGION_DESCRIPTION": {
+          "type": "spatial_descriptor",
+          "selection_criteria": "Select a clearly distinguishable spatial region in the image (e.g., 'left half', 'upper portion', 'upper-right')"
+        },
+        "OBJECT_TYPE": {
+          "type": "object_category",
+          "selection_criteria": "Select a salient object category present elsewhere in the image or plausibly expected in the scene"
+        }
+      },
+      "prefill_slots": ["OBJECT_TYPE"],
+      "baseline_instructions": [
+        "Identify at least one salient object category present in the image or expected in the scene context.",
+        "Identify a clearly distinguishable spatial region that is devoid of that object type.",
+        "If no clear empty regions exist, objects are uniformly distributed across the image, or no spatial boundaries are distinguishable, return NOT_RELATED."
+      ],
+      "not_related_conditions": [
+        "Objects are uniformly distributed across the entire image with no empty regions",
+        "No clear spatial regions can be distinguished in the image",
+        "No salient object category exists to reason about absence",
+        "Image is too cluttered or ambiguous to identify empty regions"
+      ],
+      "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
+      "common_failure_modes": [
+        "overlooking empty regions",
+        "false positive detection in empty areas",
+        "vague answers for unoccupied regions",
+        "confusion with background blending objects"
+      ]
+    },
+    {
       "claim_id": "loc_relative_object",
       "name": "Relative Object Localization",
       "capability": "object_to_object_spatial_reasoning",
