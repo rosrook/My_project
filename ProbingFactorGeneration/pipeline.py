@@ -170,7 +170,13 @@ class ProbingFactorPipeline:
                 "templates": claim_templates,
                 "skip": False,
                 "skip_reason": None,
-                "prefill_results": []
+                "prefill_results": [],
+                "prefill_summary": {
+                    "total_templates": len(claim_templates),
+                    "kept_templates": len(claim_templates),
+                    "dropped_templates": 0,
+                    "dropped_indices": [],
+                },
             }
 
         prefill_results = await self.judge_model.prefill_template_slots_batch_async(
@@ -205,20 +211,29 @@ class ProbingFactorPipeline:
                 prefill_result
             )
 
+        dropped_indices = [i for i, keep in enumerate(keep_mask) if not keep]
         filtered_templates = [t for t, keep in zip(updated_templates, keep_mask) if keep]
+        prefill_summary = {
+            "total_templates": len(updated_templates),
+            "kept_templates": len(filtered_templates),
+            "dropped_templates": len(dropped_indices),
+            "dropped_indices": dropped_indices,
+        }
         if not filtered_templates and not has_non_prefill_claim:
             return {
                 "templates": filtered_templates,
                 "skip": True,
                 "skip_reason": "prefill_no_object",
-                "prefill_results": indexed_prefill_results
+                "prefill_results": indexed_prefill_results,
+                "prefill_summary": prefill_summary,
             }
 
         return {
             "templates": filtered_templates,
             "skip": False,
             "skip_reason": None,
-            "prefill_results": indexed_prefill_results
+            "prefill_results": indexed_prefill_results,
+            "prefill_summary": prefill_summary,
         }
 
     async def _record_dessert(
@@ -381,7 +396,9 @@ class ProbingFactorPipeline:
                 },
                 "suggested_filtering_factors": [],
                 "skipped": True,
-                "skip_reason": prefill_output["skip_reason"]
+                "skip_reason": prefill_output["skip_reason"],
+                "prefill_results": prefill_output.get("prefill_results", []),
+                "prefill_summary": prefill_output.get("prefill_summary", {}),
             }
 
         # Step 4: Baseline model completes templates
@@ -479,6 +496,10 @@ class ProbingFactorPipeline:
             "aggregated_failures": aggregated_with_factors,
             "suggested_filtering_factors": image_filtering_factors  # All unique filtering factors for this image (from failed claims)
         }
+        if prefill_output.get("prefill_results"):
+            result["prefill_results"] = prefill_output["prefill_results"]
+        if prefill_output.get("prefill_summary"):
+            result["prefill_summary"] = prefill_output["prefill_summary"]
         
         # Optionally include source metadata (e.g., conversations) for reference
         if self.include_source_metadata:
