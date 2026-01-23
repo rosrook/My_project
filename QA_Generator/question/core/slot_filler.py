@@ -143,14 +143,14 @@ class SlotFiller:
         slot_defaults = {
             "object_category_granularity": random.choice(["basic", "detailed"]),
             "caption_style": random.choice(["descriptive", "concise"]),
-            "location_granularity": random.choice(["city", "landmark", "region"]),
+            # "location_granularity": random.choice(["city", "landmark", "region"]),
             "platform_context": random.choice(["twitter", "instagram", "facebook"]),
             "expression_format": random.choice(["percentage", "fraction", "ratio"]),
             "spatial_granularity": random.choice(["coarse", "fine"]),
             "reference_frame": random.choice(["absolute", "relative"]),
-            "region_partition": random.choice(["corners", "quadrants", "grid"]),
+            "region_partition": random.choice(["corners", "quadrants"]),
             "direction_granularity": random.choice(["cardinal", "intercardinal", "fine"]),
-            "count_scope": random.choice(["all", "visible", "distinct"])
+            "count_scope": random.choice(["all"])
         }
         
         if slot in slot_defaults:
@@ -302,14 +302,14 @@ class SlotFiller:
         slot_defaults = {
             "object_category_granularity": random.choice(["basic", "detailed"]),
             "caption_style": random.choice(["descriptive", "concise"]),
-            "location_granularity": random.choice(["city", "landmark", "region"]),
+            # "location_granularity": random.choice(["city", "landmark", "region"]),
             "platform_context": random.choice(["twitter", "instagram", "facebook"]),
             "expression_format": random.choice(["percentage", "fraction", "ratio"]),
             "spatial_granularity": random.choice(["coarse", "fine"]),
             "reference_frame": random.choice(["absolute", "relative"]),
-            "region_partition": random.choice(["corners", "quadrants", "grid"]),
+            "region_partition": random.choice(["corners", "quadrants"]),
             "direction_granularity": random.choice(["cardinal", "intercardinal", "fine"]),
-            "count_scope": random.choice(["all", "visible", "distinct"])
+            "count_scope": random.choice(["all"])
         }
         
         if slot in slot_defaults:

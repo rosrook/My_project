@@ -64,7 +64,7 @@
       "question_intent": "locate_object_with_specific_features_among_same_class",
       "answer_type": "spatial_region",
       "required_slots": ["object", "distinctive_feature"],
-      "optional_slots": ["relative_ordering", "spatial_granularity", "reference_frame"],
+      "optional_slots": ["spatial_granularity", "reference_frame"],
       "question_constraints": [
         "the image must contain multiple instances of the same object class",
         "the question must explicitly indicate that multiple same-class objects exist in the image",
