@@ -11,12 +11,13 @@ set -euo pipefail
 # CONFIG (edit here)
 # =========================
 PROJECT_ROOT="/home/zhuxuzhou/My_project"
+BASE_OUTPUT_DIR="${PROJECT_ROOT}/debug_jpg_run"
 
 # Input JPG
 IMAGE_PATH="/path/to/your.jpg"
 
 # ProbingFactorGeneration (step 1)
-OUTPUT_DIR="${PROJECT_ROOT}/data/output_jpg_debug"
+OUTPUT_DIR="${BASE_OUTPUT_DIR}/probing_output"
 BASELINE_MODEL_PATH="/mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model"
 JUDGE_MODEL_NAME="/workspace/Qwen3-VL-235B-A22B-Instruct"
 CLAIM_TEMPLATE_CONFIG="${PROJECT_ROOT}/ProbingFactorGeneration/configs/claim_template.example_v1_1.json"
@@ -28,7 +29,7 @@ INCLUDE_SOURCE_METADATA=false
 
 # Failure mapping (step 2)
 PIPELINE_CONFIG="${PROJECT_ROOT}/FactorFilterAgent/failure_key_sampler/configs/pipeline_config.example.json"
-ERROR_OUTPUT="${PROJECT_ROOT}/FactorFilterAgent/failure_key_sampler/img_with_pipeline_type_and_prefill/jpg_debug_error_cases.json"
+ERROR_OUTPUT="${BASE_OUTPUT_DIR}/failure_key_sampler/jpg_debug_error_cases.json"
 SEED=42
 START_INDEX=0
 
@@ -42,12 +43,13 @@ BATCH_SIZE=1000
 MAX_SAMPLES=""
 QUESTION_CONFIG=""
 ANSWER_CONFIG=""
-LOG_FILE="${PROJECT_ROOT}/QA_Generator/vqa_jpg_debug_$(date +%m%d_%H%M%S)_log.txt"
+QA_OUTPUT_DIR="${BASE_OUTPUT_DIR}/qa_generator"
+LOG_FILE="${QA_OUTPUT_DIR}/vqa_jpg_debug_$(date +%m%d_%H%M%S)_log.txt"
 
 # =========================
 # Derived paths
 # =========================
-PARQUET_DIR="${PROJECT_ROOT}/debug_jpg_parquet"
+PARQUET_DIR="${BASE_OUTPUT_DIR}/parquet_input"
 PARQUET_FILE="${PARQUET_DIR}/single_image.parquet"
 FAILURE_ROOT="${OUTPUT_DIR}/rank_0"
 
@@ -65,6 +67,8 @@ fi
 
 mkdir -p "${PARQUET_DIR}"
 mkdir -p "${OUTPUT_DIR}"
+mkdir -p "$(dirname "${ERROR_OUTPUT}")"
+mkdir -p "${QA_OUTPUT_DIR}"
 
 # =========================
 # Step 0: JPG -> Parquet
@@ -163,7 +167,7 @@ if [[ -n "${ANSWER_CONFIG}" ]]; then
   STEP3_ARGS+=(--answer-config "${ANSWER_CONFIG}")
 fi
 
-python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1
+(cd "${QA_OUTPUT_DIR}" && python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
 
 echo "✅ JPG full pipeline complete."
 echo "Log: ${LOG_FILE}"
