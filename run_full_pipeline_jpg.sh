@@ -47,6 +47,18 @@ QA_OUTPUT_DIR="${BASE_OUTPUT_DIR}/qa_generator"
 LOG_FILE="${QA_OUTPUT_DIR}/vqa_jpg_debug_$(date +%m%d_%H%M%S)_log.txt"
 
 # =========================
+# OpenAI-compatible endpoint (model calls)
+# =========================
+OPENAI_API_KEY="EMPTY"
+OPENAI_BASE_URL="http://10.158.144.81:8000/v1"
+MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
+
+# ProbingFactorGeneration (AsyncGeminiClient) uses these:
+USE_LB_CLIENT="false"
+API_KEY="${OPENAI_API_KEY}"
+BASE_URL="${OPENAI_BASE_URL}"
+
+# =========================
 # Derived paths
 # =========================
 PARQUET_DIR="${BASE_OUTPUT_DIR}/parquet_input"
@@ -125,6 +137,12 @@ if [[ "${INCLUDE_SOURCE_METADATA}" == "true" ]]; then
   STEP1_ARGS+=(--include_source_metadata)
 fi
 
+OPENAI_API_KEY="${OPENAI_API_KEY}" \
+OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
+MODEL_NAME="${MODEL_NAME}" \
+USE_LB_CLIENT="${USE_LB_CLIENT}" \
+API_KEY="${API_KEY}" \
+BASE_URL="${BASE_URL}" \
 torchrun --nproc_per_node=1 \
   "${PROJECT_ROOT}/ProbingFactorGeneration/examples/run_complete_pipeline.py" \
   "${STEP1_ARGS[@]}"
@@ -167,7 +185,11 @@ if [[ -n "${ANSWER_CONFIG}" ]]; then
   STEP3_ARGS+=(--answer-config "${ANSWER_CONFIG}")
 fi
 
-(cd "${QA_OUTPUT_DIR}" && python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
+(cd "${QA_OUTPUT_DIR}" && \
+  OPENAI_API_KEY="${OPENAI_API_KEY}" \
+  OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
+  MODEL_NAME="${MODEL_NAME}" \
+  python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
 
 echo "✅ JPG full pipeline complete."
 echo "Log: ${LOG_FILE}"

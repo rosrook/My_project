@@ -37,6 +37,18 @@ ENABLE_VALIDATION_EXEMPTIONS=true
 LOG_FILE="/home/zhuxuzhou/My_project/QA_Generator/vqa_ready4use_$(date +%m%d_%H%M%S)_log.txt"
 
 # =========================
+# OpenAI-compatible endpoint (model calls)
+# =========================
+OPENAI_API_KEY="EMPTY"
+OPENAI_BASE_URL="http://10.158.144.81:8000/v1"
+MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
+
+# ProbingFactorGeneration (AsyncGeminiClient) uses these:
+USE_LB_CLIENT="false"
+API_KEY="${OPENAI_API_KEY}"
+BASE_URL="${OPENAI_BASE_URL}"
+
+# =========================
 # Less-used parameters
 # =========================
 USE_LOCAL_BASELINE=true
@@ -91,6 +103,12 @@ if [[ "${INCLUDE_SOURCE_METADATA}" == "true" ]]; then
   STEP1_ARGS+=(--include_source_metadata)
 fi
 
+OPENAI_API_KEY="${OPENAI_API_KEY}" \
+OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
+MODEL_NAME="${MODEL_NAME}" \
+USE_LB_CLIENT="${USE_LB_CLIENT}" \
+API_KEY="${API_KEY}" \
+BASE_URL="${BASE_URL}" \
 torchrun --nproc_per_node="${NPROC_PER_NODE}" \
   ProbingFactorGeneration/examples/run_complete_pipeline.py \
   "${STEP1_ARGS[@]}"
@@ -133,9 +151,15 @@ if [[ -n "${ANSWER_CONFIG}" ]]; then
 fi
 
 if [[ -n "${LOG_FILE}" ]]; then
+  OPENAI_API_KEY="${OPENAI_API_KEY}" \
+  OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
+  MODEL_NAME="${MODEL_NAME}" \
   python QA_Generator/pipeline/pipeline.py "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1
   echo "VQA log saved to: ${LOG_FILE}"
 else
+  OPENAI_API_KEY="${OPENAI_API_KEY}" \
+  OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
+  MODEL_NAME="${MODEL_NAME}" \
   python QA_Generator/pipeline/pipeline.py "${STEP3_ARGS[@]}"
 fi
 
