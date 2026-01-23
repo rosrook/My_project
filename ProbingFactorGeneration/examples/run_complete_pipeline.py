@@ -161,11 +161,12 @@ async def run_pipeline(
     # Apply optimization
     baseline_model.optimize_concurrency_for_data_size(data_size, avg_claims_per_image)
     
+    use_lb_client_flag = os.getenv("USE_LB_CLIENT", "true").lower() == "true"
     if judge_model_name:
         judge_model = JudgeModel(
             model_name=judge_model_name,
             max_concurrent=None,  # Auto-optimize
-            use_lb_client=True,
+            use_lb_client=use_lb_client_flag,
             request_delay=0.0
         )
     else:
@@ -357,11 +358,12 @@ async def run_pipeline_with_failure_sampling(
     
     baseline_model.optimize_concurrency_for_data_size(batch_size, avg_claims_per_image)
     
+    use_lb_client_flag = os.getenv("USE_LB_CLIENT", "true").lower() == "true"
     if judge_model_name:
         judge_model = JudgeModel(
             model_name=judge_model_name,
             max_concurrent=None,
-            use_lb_client=True,
+            use_lb_client=use_lb_client_flag,
             request_delay=0.0
         )
     else:
