@@ -321,7 +321,7 @@ class AsyncGeminiClient:
             model_name: Original model name (may contain path prefix, mixed case)
             
         Returns:
-            Normalized model name (lowercase, no path prefix)
+            Normalized model name (no path prefix; optional lowercase)
         """
         if not model_name:
             return model_name
@@ -336,8 +336,9 @@ class AsyncGeminiClient:
         # Remove trailing slash
         normalized = normalized.rstrip('/')
         
-        # Convert to lowercase (API requirement)
-        normalized = normalized.lower()
+        # Convert to lowercase only if explicitly enabled
+        if os.getenv("LOWERCASE_MODEL_NAME", "false").lower() == "true":
+            normalized = normalized.lower()
         
         return normalized
     
