@@ -63,7 +63,8 @@ BASE_URL="${OPENAI_BASE_URL}"
 # =========================
 PARQUET_DIR="${BASE_OUTPUT_DIR}/parquet_input"
 PARQUET_FILE="${PARQUET_DIR}/single_image.parquet"
-FAILURE_ROOT="${OUTPUT_DIR}/rank_0"
+# Probing writes to OUTPUT_DIR in single-rank mode; to OUTPUT_DIR/rank_0 in distributed mode.
+FAILURE_ROOT="${OUTPUT_DIR}"
 
 # =========================
 # Helpers
@@ -150,6 +151,10 @@ torchrun --nproc_per_node=1 \
 # =========================
 # Step 2: FactorFilterAgent failure_key_sampler
 # =========================
+if [[ -d "${OUTPUT_DIR}/rank_0" ]]; then
+  FAILURE_ROOT="${OUTPUT_DIR}/rank_0"
+fi
+
 python -m FactorFilterAgent.failure_key_sampler.main \
   --failure_root "${FAILURE_ROOT}" \
   --pipeline_config "${PIPELINE_CONFIG}" \
