@@ -2,7 +2,7 @@
 Configuration and constants for the probing factor generation framework.
 """
 
-from typing import List, Dict, Optional
+from typing import Any, Dict, List, Optional
 from enum import Enum
 
 
