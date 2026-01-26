@@ -15,7 +15,7 @@ PROJECT_ROOT="/home/zhuxuzhou/My_project"
 
 PARQUET_DIR="/mnt/tidal-alsh01/dataset/perceptionVLMData/processed_v1.0/datasets--OpenImages/data/train/"
 BASELINE_MODEL_PATH="/mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model"
-JUDGE_MODEL_NAME="/workspace/Qwen3-VL-235B-A22B-Instruct"
+JUDGE_MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
 OUTPUT_DIR="/home/zhuxuzhou/My_project/data/output_1_17_prefill"
 
 PIPELINE_CONFIG="/home/zhuxuzhou/My_project/FactorFilterAgent/failure_key_sampler/configs/pipeline_config.example.json"
@@ -40,7 +40,7 @@ LOG_FILE="/home/zhuxuzhou/My_project/QA_Generator/vqa_ready4use_$(date +%m%d_%H%
 # OpenAI-compatible endpoint (model calls)
 # =========================
 OPENAI_API_KEY="EMPTY"
-OPENAI_BASE_URL="http://10.158.144.81:8000/v1"
+OPENAI_BASE_URL="http://10.158.159.139:8000/v1"
 MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
 
 # ProbingFactorGeneration (AsyncGeminiClient) uses these:

@@ -19,7 +19,7 @@ IMAGE_PATH="/path/to/your.jpg"
 # ProbingFactorGeneration (step 1)
 OUTPUT_DIR="${BASE_OUTPUT_DIR}/probing_output"
 BASELINE_MODEL_PATH="/mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model"
-JUDGE_MODEL_NAME="/workspace/Qwen3-VL-235B-A22B-Instruct"
+JUDGE_MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
 CLAIM_TEMPLATE_CONFIG="${PROJECT_ROOT}/ProbingFactorGeneration/configs/claim_template.example_v1_1.json"
 USE_LOCAL_BASELINE=true
 SAMPLE_SIZE=1
@@ -50,7 +50,7 @@ LOG_FILE="${QA_OUTPUT_DIR}/vqa_jpg_debug_$(date +%m%d_%H%M%S)_log.txt"
 # OpenAI-compatible endpoint (model calls)
 # =========================
 OPENAI_API_KEY="EMPTY"
-OPENAI_BASE_URL="http://10.158.144.81:8000/v1"
+OPENAI_BASE_URL="http://10.158.159.139:8000/v1"
 MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
 
 # ProbingFactorGeneration (AsyncGeminiClient) uses these:

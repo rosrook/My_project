@@ -44,7 +44,9 @@ class AsyncGeminiClient:
             use_lb_client: 是否使用LBOpenAIAsyncClient（推荐，与vlmtool/generate_vqa一致）
         """
         self.api_key = api_key or getattr(config, "OPENAI_API_KEY", None) or config.API_KEY
-        self.model_name = model_name or config.MODEL_NAME
+        raw_model_name = model_name or config.MODEL_NAME
+        # Normalize model name: remove /workspace/ prefix but keep original case
+        self.model_name = self._normalize_model_name(raw_model_name) if raw_model_name else None
         self.base_url = base_url or getattr(config, "OPENAI_BASE_URL", None) or config.BASE_URL
         self.service_name = service_name or getattr(config, 'SERVICE_NAME', None)
         self.env = env or getattr(config, 'ENV', 'prod')
@@ -182,7 +184,7 @@ class AsyncGeminiClient:
             model_name: 原始模型名称（可能包含路径前缀、大小写混合等）
 
         Returns:
-            规范化后的模型名称（全小写，无路径前缀）
+            规范化后的模型名称（无路径前缀，保持原始大小写）
         """
         if not model_name:
             return model_name
@@ -197,8 +199,8 @@ class AsyncGeminiClient:
         # 移除末尾的斜杠
         normalized = normalized.rstrip('/')
 
-        # 转换为全小写（API 要求）
-        normalized = normalized.lower()
+        # 保持原始大小写（与新调用方式一致：model="Qwen3-VL-235B-A22B-Instruct"）
+        # 不再转换为全小写
 
         return normalized
 
@@ -249,7 +251,7 @@ class AsyncGeminiClient:
                         model=self.model_name,
                         messages=messages,
                         temperature=temperature,
-                        max_completion_tokens=4096,
+                        max_tokens=4096,  # Use max_tokens (standard OpenAI parameter)
                     )
                     return response.choices[0].message.content
                 except Exception as e:
@@ -300,13 +302,19 @@ class AsyncGeminiClient:
             async with self._parent.semaphore:
                 if self._parent.request_delay > 0:
                     await asyncio.sleep(self._parent.request_delay)
-                if max_completion_tokens is None:
-                    max_completion_tokens = max_tokens
+                
+                # Support both max_tokens and max_completion_tokens for backward compatibility
+                # Prefer max_completion_tokens if provided, otherwise use max_tokens
+                final_max_tokens = max_completion_tokens if max_completion_tokens is not None else max_tokens
+                
+                # Normalize model name (remove /workspace/ prefix)
+                normalized_model = self._parent._normalize_model_name(model)
+                
                 return await self._parent.client.chat.completions.create(
-                    model=model,
+                    model=normalized_model,
                     messages=messages,
                     temperature=temperature,
-                    max_completion_tokens=max_completion_tokens,
+                    max_tokens=final_max_tokens,  # Use max_tokens (standard OpenAI parameter)
                     **kwargs
                 )
 

@@ -79,7 +79,7 @@ class AsyncGeminiClient:
         Args:
             api_key: API key (default: from MODEL_CONFIG or environment)
             model_name: Model name (default: from MODEL_CONFIG)
-            base_url: API base URL (required if not using LBOpenAIAsyncClient, should include /v1, e.g., http://10.158.159.98:8000/v1)
+            base_url: API base URL (required if not using LBOpenAIAsyncClient, should include /v1, e.g., http://10.158.159.139:8000/v1)
             gpu_id: GPU ID for process isolation (doesn't affect API calls)
             max_concurrent: Maximum concurrent requests (default: from MODEL_CONFIG)
             request_delay: Delay between requests in seconds (default: from MODEL_CONFIG)
@@ -89,7 +89,9 @@ class AsyncGeminiClient:
         """
         # Get config values with fallback to MODEL_CONFIG
         self.api_key = api_key or MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY")
-        self.model_name = model_name or MODEL_CONFIG.get("MODEL_NAME")
+        raw_model_name = model_name or MODEL_CONFIG.get("MODEL_NAME")
+        # Normalize model name: remove /workspace/ prefix but keep original case
+        self.model_name = self._normalize_model_name(raw_model_name) if raw_model_name else None
         self.base_url = base_url or MODEL_CONFIG.get("BASE_URL")
         self.service_name = service_name or MODEL_CONFIG.get("SERVICE_NAME")
         self.env = env or MODEL_CONFIG.get("ENV", "prod")
@@ -299,7 +301,7 @@ class AsyncGeminiClient:
             model_name: Original model name (may contain path prefix, mixed case)
             
         Returns:
-            Normalized model name (no path prefix; optional lowercase)
+            Normalized model name (no path prefix, keep original case)
         """
         if not model_name:
             return model_name
@@ -314,9 +316,8 @@ class AsyncGeminiClient:
         # Remove trailing slash
         normalized = normalized.rstrip('/')
         
-        # Convert to lowercase only if explicitly enabled
-        if os.getenv("LOWERCASE_MODEL_NAME", "false").lower() == "true":
-            normalized = normalized.lower()
+        # Keep original case (do not convert to lowercase)
+        # This matches the new calling convention: model="Qwen3-VL-235B-A22B-Instruct"
         
         return normalized
     
@@ -378,15 +379,16 @@ class AsyncGeminiClient:
                             model=self.model_name,
                             messages=messages,
                             temperature=temperature,
-                            max_completion_tokens=4096,
+                            max_tokens=4096,  # Use max_tokens (standard OpenAI parameter)
                         )
                     else:
                         # Use AsyncOpenAI (same as QA_Generator)
+                        # Use max_tokens instead of max_completion_tokens to match new calling convention
                         response = await self.client.chat.completions.create(
                             model=self.model_name,
                             messages=messages,
                             temperature=temperature,
-                            max_completion_tokens=4096,
+                            max_tokens=4096,  # Use max_tokens (standard OpenAI parameter)
                         )
                     
                     return response.choices[0].message.content
@@ -457,18 +459,21 @@ class AsyncGeminiClient:
                 if self._parent.request_delay > 0:
                     await asyncio.sleep(self._parent.request_delay)
                 
-                # Use max_completion_tokens if provided, otherwise use max_tokens
+                # Support both max_tokens and max_completion_tokens for backward compatibility
+                # Prefer max_completion_tokens if provided, otherwise use max_tokens
                 max_completion_tokens = kwargs.pop("max_completion_tokens", None)
-                if max_completion_tokens is None:
-                    max_completion_tokens = max_tokens
+                final_max_tokens = max_completion_tokens if max_completion_tokens is not None else max_tokens
+                
+                # Normalize model name (remove /workspace/ prefix)
+                normalized_model = self._parent._normalize_model_name(model)
                 
                 # If using LBOpenAIAsyncClient, delegate to it
                 if self._parent.use_lb_client:
                     return await self._parent.lb_client.chat.completions.create(
-                        model=model,
+                        model=normalized_model,
                         messages=messages,
                         temperature=temperature,
-                        max_tokens=max_completion_tokens,
+                        max_tokens=final_max_tokens,  # Use max_tokens (standard OpenAI parameter)
                         response_format=response_format,
                         **kwargs
                     )
@@ -478,10 +483,10 @@ class AsyncGeminiClient:
                     raise RuntimeError("Client not initialized. Use async with statement.")
                 
                 return await self._parent.client.chat.completions.create(
-                    model=model,
+                    model=normalized_model,
                     messages=messages,
                     temperature=temperature,
-                    max_completion_tokens=max_completion_tokens,
+                    max_tokens=final_max_tokens,  # Use max_tokens (standard OpenAI parameter)
                     response_format=response_format,
                     **kwargs
                 )
