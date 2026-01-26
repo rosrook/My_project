@@ -136,36 +136,15 @@ class AsyncGeminiClient:
             
             # Create custom httpx client to disable proxy for internal IPs
             # This prevents requests from going through Squid proxy
+            # Use trust_env=False to ignore all proxy environment variables (including those set by torchrun)
             http_client = None
             if httpx is not None:
-                # Temporarily disable proxy via environment variables before creating client
-                # httpx reads proxy settings from environment at initialization time
-                original_http_proxy = os.environ.pop("HTTP_PROXY", None)
-                original_https_proxy = os.environ.pop("HTTPS_PROXY", None)
-                original_http_proxy_lower = os.environ.pop("http_proxy", None)
-                original_https_proxy_lower = os.environ.pop("https_proxy", None)
-                
-                # Set empty values to disable proxy
-                os.environ["HTTP_PROXY"] = ""
-                os.environ["HTTPS_PROXY"] = ""
-                os.environ["NO_PROXY"] = "*"
-                
-                try:
-                    # Create httpx client (will not use proxy due to empty env vars)
-                    http_client = httpx.AsyncClient(
-                        timeout=httpx.Timeout(300.0, connect=30.0),  # 5 minute total, 30s connect
-                    )
-                finally:
-                    # Restore original proxy settings after client creation
-                    if original_http_proxy is not None:
-                        os.environ["HTTP_PROXY"] = original_http_proxy
-                    if original_https_proxy is not None:
-                        os.environ["HTTPS_PROXY"] = original_https_proxy
-                    if original_http_proxy_lower is not None:
-                        os.environ["http_proxy"] = original_http_proxy_lower
-                    if original_https_proxy_lower is not None:
-                        os.environ["https_proxy"] = original_https_proxy_lower
-                    # Keep NO_PROXY set to "*" to ensure no proxy is used
+                # Create httpx client with trust_env=False to completely bypass proxy settings
+                # This is the most reliable way to disable proxy, especially when torchrun sets proxy env vars
+                http_client = httpx.AsyncClient(
+                    trust_env=False,  # Don't trust environment variables for proxy settings
+                    timeout=httpx.Timeout(300.0, connect=30.0),  # 5 minute total, 30s connect
+                )
             
             self.client = AsyncOpenAI(
                 api_key=self.api_key or "EMPTY",
