@@ -4,13 +4,12 @@ Async API Client - Supports GPU binding and async concurrency.
 This module provides AsyncGeminiClient for asynchronous model API calls with:
 - GPU binding for process isolation
 - Concurrent request control via Semaphore
-- Support for LBOpenAIAsyncClient and custom aiohttp implementation
+- Support for LBOpenAIAsyncClient and AsyncOpenAI implementation
 - Automatic image compression and base64 encoding
 - OpenAI-compatible interface (chat.completions.create)
 """
 
 import asyncio
-import aiohttp
 import base64
 import io
 import json
@@ -20,6 +19,14 @@ import warnings
 from pathlib import Path
 from typing import Union, Optional, List, Dict, Any
 from PIL import Image
+
+# Try to import AsyncOpenAI
+try:
+    from openai import AsyncOpenAI
+except ImportError as e:
+    raise ImportError(
+        "openai package is required. Please install it with `pip install openai`."
+    ) from e
 
 # Try to import LBOpenAIAsyncClient (if available)
 try:
@@ -72,7 +79,7 @@ class AsyncGeminiClient:
         Args:
             api_key: API key (default: from MODEL_CONFIG or environment)
             model_name: Model name (default: from MODEL_CONFIG)
-            base_url: API base URL (required if not using LBOpenAIAsyncClient)
+            base_url: API base URL (required if not using LBOpenAIAsyncClient, should include /v1, e.g., http://10.158.144.81:8000/v1)
             gpu_id: GPU ID for process isolation (doesn't affect API calls)
             max_concurrent: Maximum concurrent requests (default: from MODEL_CONFIG)
             request_delay: Delay between requests in seconds (default: from MODEL_CONFIG)
@@ -104,10 +111,10 @@ class AsyncGeminiClient:
                 env=self.env,
                 api_key=self.api_key or "1"
             )
-            self.session = None
+            self.client = None
             self._lb_client_needs_close = True
         else:
-            # Use custom aiohttp implementation
+            # Use AsyncOpenAI (same as QA_Generator)
             if not self.api_key or self.api_key.strip() == "":
                 raise ValueError(
                     "API Key not set or invalid!\n"
@@ -121,7 +128,10 @@ class AsyncGeminiClient:
                     "or pass base_url parameter."
                 )
             
-            self.session: Optional[aiohttp.ClientSession] = None
+            self.client = AsyncOpenAI(
+                api_key=self.api_key or "EMPTY",
+                base_url=self.base_url,
+            )
         
         # Set GPU visibility (for process isolation)
         if gpu_id is not None:
@@ -138,16 +148,7 @@ class AsyncGeminiClient:
             # LBOpenAIAsyncClient manages its own session
             return self
         else:
-            # Create aiohttp session for custom implementation
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            timeout = aiohttp.ClientTimeout(total=300)  # 5 minute timeout
-            self.session = aiohttp.ClientSession(
-                headers=headers,
-                timeout=timeout
-            )
+            # AsyncOpenAI client is already initialized in __init__
             return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -163,49 +164,26 @@ class AsyncGeminiClient:
                     else:
                         close_method()
                 
-                # Try to close internal aiohttp session if it exists (more thorough search)
-                session_found = False
-                for attr_name in ['_client', 'client', '_session', 'session', '_http_client', '_aiohttp_session', 'aiohttp_session']:
-                    if hasattr(self.lb_client, attr_name):
-                        inner_obj = getattr(self.lb_client, attr_name)
-                        if inner_obj is not None:
-                            if isinstance(inner_obj, aiohttp.ClientSession):
-                                if not inner_obj.closed:
-                                    await inner_obj.close()
-                                    session_found = True
-                                    break
-                            elif hasattr(inner_obj, 'close'):
-                                close_method = getattr(inner_obj, 'close')
-                                if asyncio.iscoroutinefunction(close_method):
-                                    await close_method()
-                                else:
-                                    close_method()
-                                break
-                
                 # Also check if lb_client itself is a context manager
                 if hasattr(self.lb_client, '__aexit__'):
                     try:
                         await self.lb_client.__aexit__(None, None, None)
                     except Exception:
                         pass  # Ignore errors in context manager exit
-                
-                # Wait for connections to fully close
-                if session_found:
-                    await asyncio.sleep(0.2)
             except Exception as e:
                 warnings.warn(f"Warning when closing LBOpenAIAsyncClient: {e}", RuntimeWarning)
         else:
-            # Close aiohttp session
-            if self.session is not None:
+            # Close AsyncOpenAI client
+            if self.client is not None:
                 try:
-                    if not self.session.closed:
-                        await self.session.close()
-                    # Wait a bit longer to ensure connections are fully closed
-                    await asyncio.sleep(0.2)
+                    if hasattr(self.client, "close"):
+                        close_method = getattr(self.client, "close")
+                        if asyncio.iscoroutinefunction(close_method):
+                            await close_method()
+                        else:
+                            close_method()
                 except Exception as e:
-                    warnings.warn(f"Warning when closing aiohttp session: {e}", RuntimeWarning)
-                finally:
-                    self.session = None
+                    warnings.warn(f"Warning when closing AsyncOpenAI client: {e}", RuntimeWarning)
     
     def _encode_image(self, image_input: Union[str, Path, bytes, Image.Image]) -> str:
         """
@@ -366,8 +344,8 @@ class AsyncGeminiClient:
             Response text
         """
         async with self.semaphore:  # Control concurrency
-            if not self.use_lb_client and not self.session:
-                raise RuntimeError("Session not initialized. Use async with statement.")
+            if not self.use_lb_client and not self.client:
+                raise RuntimeError("Client not initialized. Use async with statement.")
             
             # Add request delay to avoid triggering API concurrency limits
             if self.request_delay > 0:
@@ -376,116 +354,66 @@ class AsyncGeminiClient:
             # Encode image
             image_base64 = self._encode_image(image_input)
             
-            # Normalize model name (API requires lowercase, no path prefix)
-            normalized_model_name = self._normalize_model_name(self.model_name)
-            
-            # Build request
-            url = f"{self.base_url}/chat/completions"
-            payload = {
-                "model": normalized_model_name,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/jpeg;base64,{image_base64}"
-                                }
-                            }
-                        ]
-                    }
-                ],
-                "stream": False,
-                "max_tokens": 4096,
-                "temperature": temperature
-            }
-            
-            # Add response_format if specified
-            if response_format:
-                payload["response_format"] = response_format
+            # Build messages
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                        },
+                    ],
+                }
+            ]
             
             # Send request with retry mechanism
             last_exception = None
             for attempt in range(max_retries + 1):
                 try:
-                    async with self.session.post(url, json=payload) as response:
-                        # Check status code
-                        if response.status != 200:
-                            error_text = await response.text()
-                            error_msg = f"API request failed: status={response.status}, error={error_text[:500]}"
-                            
-                            # Get more details for 400 errors
-                            if response.status == 400:
-                                try:
-                                    error_json = await response.json()
-                                    error_msg = f"API request failed (400 Bad Request): {error_json}"
-                                except:
-                                    pass
-                            
-                            # Retry on 401 if enabled (may be false positive from concurrency)
-                            if response.status == 401 and retry_on_401 and attempt < max_retries:
-                                wait_time = (attempt + 1) * 0.5  # Incremental wait: 0.5s, 1.0s
-                                print(f"[WARNING] 401 error, possibly concurrency limit, retrying after {wait_time:.1f}s ({attempt + 1}/{max_retries})...")
-                                await asyncio.sleep(wait_time)
-                                last_exception = aiohttp.ClientResponseError(
-                                    request_info=response.request_info,
-                                    history=response.history,
-                                    status=response.status,
-                                    message=error_msg
-                                )
-                                continue  # Retry
-                            
-                            raise aiohttp.ClientResponseError(
-                                request_info=response.request_info,
-                                history=response.history,
-                                status=response.status,
-                                message=error_msg
-                            )
-                        
-                        result = await response.json()
-                        
-                        # Check response format
-                        if "choices" not in result or len(result["choices"]) == 0:
-                            raise ValueError(f"API response format error: {result}")
-                        
-                        return result["choices"][0]["message"]["content"]
-                except aiohttp.ClientResponseError as e:
-                    # Retry on 401 if enabled and retries remaining
-                    if e.status == 401 and retry_on_401 and attempt < max_retries:
-                        wait_time = (attempt + 1) * 0.5
-                        print(f"[WARNING] 401 error, possibly concurrency limit, retrying after {wait_time:.1f}s ({attempt + 1}/{max_retries})...")
-                        await asyncio.sleep(wait_time)
-                        last_exception = e
-                        continue
-                    # Other errors or retries exhausted, raise immediately
-                    raise
+                    if self.use_lb_client:
+                        # Use LBOpenAIAsyncClient
+                        response = await self.lb_client.chat.completions.create(
+                            model=self.model_name,
+                            messages=messages,
+                            temperature=temperature,
+                            max_completion_tokens=4096,
+                        )
+                    else:
+                        # Use AsyncOpenAI (same as QA_Generator)
+                        response = await self.client.chat.completions.create(
+                            model=self.model_name,
+                            messages=messages,
+                            temperature=temperature,
+                            max_completion_tokens=4096,
+                        )
+                    
+                    return response.choices[0].message.content
                 except Exception as e:
-                    # Non-HTTP errors, raise immediately
-                    raise
+                    last_exception = e
+                    # Check if it's a 401 error and retry is enabled
+                    error_str = str(e)
+                    is_401 = "401" in error_str or "Unauthorized" in error_str
+                    
+                    if is_401 and retry_on_401 and attempt < max_retries:
+                        wait_time = (attempt + 1) * 0.5
+                        print(f"[WARNING] 401 error, possibly concurrency limit, retrying after {wait_time:.1f}s ({attempt + 1}/{max_retries})... {e}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                    elif attempt < max_retries:
+                        wait_time = (attempt + 1) * 0.5
+                        print(f"[WARNING] 请求失败，等待 {wait_time:.1f}s 后重试 ({attempt + 1}/{max_retries})... {e}")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        break
             
             # If all retries failed, raise with detailed error message
             if last_exception:
-                error_msg = f"HTTP error {last_exception.status}: {last_exception.message}"
-                if last_exception.status == 400:
-                    error_msg += "\nPossible causes:"
-                    error_msg += "\n  1. Invalid request parameter format"
-                    error_msg += "\n  2. Image base64 encoding issue"
-                    error_msg += "\n  3. Request body size exceeds limit"
-                    error_msg += f"\n  4. Request URL: {url}"
-                    error_msg += f"\n  5. Original model name: {self.model_name}"
-                    error_msg += f"\n  6. Normalized model name: {self._normalize_model_name(self.model_name)}"
-                elif last_exception.status == 401:
-                    error_msg += "\nAuthentication failed! Possible causes:"
-                    error_msg += "\n  1. API Key not set or invalid"
-                    api_key_display = self.api_key[:10] + "..." if len(self.api_key) > 10 else self.api_key
-                    error_msg += f"\n  2. Current API Key: {api_key_display}"
-                    error_msg += "\n  3. Please check if API_KEY is correctly set in MODEL_CONFIG or environment"
-                    error_msg += "\n  4. If using default '1', set correct API Key"
-                    error_msg += "\n  5. Check if API Key has expired or been revoked"
-                    error_msg += "\n  6. ⚠️  May be API concurrency limit: some APIs don't support high concurrency, try reducing max_concurrent (1-3)"
-                    error_msg += f"\n  7. Current concurrency settings: max_concurrent={self.max_concurrent}, request_delay={self.request_delay}s"
+                error_msg = f"Request failed: {str(last_exception)}"
+                error_msg += f"\nModel: {self.model_name}"
+                error_msg += f"\nBase URL: {self.base_url}"
+                error_msg += f"\nMax concurrent: {self.max_concurrent}, Request delay: {self.request_delay}s"
                 raise Exception(error_msg) from last_exception
             else:
                 raise Exception("Request failed: all retries exhausted but no exception caught")
@@ -525,86 +453,38 @@ class AsyncGeminiClient:
             if stream:
                 raise NotImplementedError("Streaming output not supported yet")
             
-            # If using LBOpenAIAsyncClient, delegate to it
-            if self._parent.use_lb_client:
-                async with self._parent.semaphore:  # Control concurrency
-                    if self._parent.request_delay > 0:
-                        await asyncio.sleep(self._parent.request_delay)
+            async with self._parent.semaphore:  # Control concurrency
+                if self._parent.request_delay > 0:
+                    await asyncio.sleep(self._parent.request_delay)
+                
+                # Use max_completion_tokens if provided, otherwise use max_tokens
+                max_completion_tokens = kwargs.pop("max_completion_tokens", None)
+                if max_completion_tokens is None:
+                    max_completion_tokens = max_tokens
+                
+                # If using LBOpenAIAsyncClient, delegate to it
+                if self._parent.use_lb_client:
                     return await self._parent.lb_client.chat.completions.create(
                         model=model,
                         messages=messages,
                         temperature=temperature,
-                        max_tokens=max_tokens,
+                        max_tokens=max_completion_tokens,
                         response_format=response_format,
                         **kwargs
                     )
-            
-            # Custom implementation (backward compatible)
-            if not self._parent.session:
-                raise RuntimeError("Session not initialized. Use async with statement.")
-            
-            # Extract text and image from messages
-            text_content = None
-            image_input = None
-            
-            for msg in messages:
-                if msg.get("role") == "user":
-                    content = msg.get("content", [])
-                    if isinstance(content, str):
-                        # Simple string format (no image)
-                        text_content = content
-                    elif isinstance(content, list):
-                        # List format with text and image
-                        for item in content:
-                            if item.get("type") == "text":
-                                text_content = item.get("text", "")
-                            elif item.get("type") == "image_url":
-                                image_url = item.get("image_url", {}).get("url", "")
-                                # Extract base64 part or use full URL
-                                if image_url.startswith("data:image"):
-                                    # Format: data:image/jpeg;base64,xxxxx
-                                    image_input = image_url.split(",", 1)[1]
-                                else:
-                                    # May be pure base64 string
-                                    image_input = image_url
-            
-            if not text_content:
-                raise ValueError("Messages must contain text content")
-            
-            # If image exists, use analyze_image_async; otherwise text-only (not supported in current implementation)
-            if image_input:
-                # Call analyze_image_async (will handle base64 encoding internally)
-                response_text = await self._parent.analyze_image_async(
-                    image_input=image_input,
-                    prompt=text_content,
+                
+                # Use AsyncOpenAI (same as QA_Generator)
+                if not self._parent.client:
+                    raise RuntimeError("Client not initialized. Use async with statement.")
+                
+                return await self._parent.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
                     temperature=temperature,
-                    response_format=response_format
+                    max_completion_tokens=max_completion_tokens,
+                    response_format=response_format,
+                    **kwargs
                 )
-            else:
-                # Text-only request (not supported, current API is mainly for images)
-                raise ValueError("Current implementation requires image input")
-            
-            # Build OpenAI-like response object
-            class _Response:
-                def __init__(self, content):
-                    class _Choice:
-                        def __init__(self, content):
-                            class _Message:
-                                def __init__(self, content):
-                                    self.content = content
-                            self.message = _Message(content)
-                            self.finish_reason = "stop"
-                            self.index = 0
-                    self.choices = [_Choice(content)]
-                    self.model = model
-                    self.object = "chat.completion"
-                    self.usage = type('Usage', (), {
-                        "prompt_tokens": len(text_content) // 4,  # Rough estimate
-                        "completion_tokens": len(content) // 4,
-                        "total_tokens": (len(text_content) + len(content)) // 4
-                    })()
-            
-            return _Response(response_text)
     
     class _Chat:
         """OpenAI-compatible chat interface"""
