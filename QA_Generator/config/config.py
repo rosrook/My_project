@@ -23,7 +23,7 @@ PROJECT_ROOT = Path(__file__).parent
 # -----------------
 # 新版 OpenAI 兼容接口配置
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "EMPTY")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://10.158.144.81:8000/v1")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://10.158.159.98:8000/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen3-VL-235B-A22B-Instruct")
 
 # 向后兼容（保留旧字段，避免其他模块引用报错）

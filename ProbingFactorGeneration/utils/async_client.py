@@ -28,12 +28,6 @@ except ImportError as e:
         "openai package is required. Please install it with `pip install openai`."
     ) from e
 
-# Try to import httpx for custom client configuration
-try:
-    import httpx
-except ImportError:
-    httpx = None
-
 # Try to import LBOpenAIAsyncClient (if available)
 try:
     from redeuler.client.openai import LBOpenAIAsyncClient
@@ -85,7 +79,7 @@ class AsyncGeminiClient:
         Args:
             api_key: API key (default: from MODEL_CONFIG or environment)
             model_name: Model name (default: from MODEL_CONFIG)
-            base_url: API base URL (required if not using LBOpenAIAsyncClient, should include /v1, e.g., http://10.158.144.81:8000/v1)
+            base_url: API base URL (required if not using LBOpenAIAsyncClient, should include /v1, e.g., http://10.158.159.98:8000/v1)
             gpu_id: GPU ID for process isolation (doesn't affect API calls)
             max_concurrent: Maximum concurrent requests (default: from MODEL_CONFIG)
             request_delay: Delay between requests in seconds (default: from MODEL_CONFIG)
@@ -134,24 +128,10 @@ class AsyncGeminiClient:
                     "or pass base_url parameter."
                 )
             
-            # Create custom httpx client to disable proxy for internal IPs
-            # This prevents requests from going through Squid proxy
-            # Use trust_env=False to ignore all proxy environment variables (including those set by torchrun)
-            http_client = None
-            if httpx is not None:
-                # Create httpx client with trust_env=False to completely bypass proxy settings
-                # This is the most reliable way to disable proxy, especially when torchrun sets proxy env vars
-                http_client = httpx.AsyncClient(
-                    trust_env=False,  # Don't trust environment variables for proxy settings
-                    timeout=httpx.Timeout(300.0, connect=30.0),  # 5 minute total, 30s connect
-                )
-            
             self.client = AsyncOpenAI(
                 api_key=self.api_key or "EMPTY",
                 base_url=self.base_url,
-                http_client=http_client,  # Use custom client to bypass proxy
             )
-            self._http_client = http_client  # Save reference for cleanup
         
         # Set GPU visibility (for process isolation)
         if gpu_id is not None:
@@ -204,13 +184,6 @@ class AsyncGeminiClient:
                             close_method()
                 except Exception as e:
                     warnings.warn(f"Warning when closing AsyncOpenAI client: {e}", RuntimeWarning)
-            
-            # Close httpx client if it exists
-            if hasattr(self, "_http_client") and self._http_client is not None:
-                try:
-                    await self._http_client.aclose()
-                except Exception as e:
-                    warnings.warn(f"Warning when closing httpx client: {e}", RuntimeWarning)
     
     def _encode_image(self, image_input: Union[str, Path, bytes, Image.Image]) -> str:
         """
