@@ -422,6 +422,14 @@ class ProbingFactorPipeline:
         for claim_template, completion, verification in zip(claim_templates, completions, verifications):
             enhanced_verification = verification.copy()
             
+            # Check if this claim is skipped (should be ignored)
+            if verification.get("skipped", False):
+                # Claim is skipped - mark as skipped and do not treat as failure
+                enhanced_verification["failure_id"] = None
+                enhanced_verification["suggested_filtering_factors"] = []
+                enhanced_verifications.append(enhanced_verification)
+                continue  # Skip failure matching for skipped claims
+            
             # Determine if this claim has a failure
             # A failure occurs if:
             # 1. is_correct is False (judge says the claim/completion is incorrect)
@@ -432,7 +440,7 @@ class ProbingFactorPipeline:
             
             # Check if this is a failure case
             is_failure = False
-            if not is_correct:
+            if is_correct is False:  # Explicitly check for False (not None or True)
                 is_failure = True
             elif not is_related and not_related_judgment_correct is False:
                 # Baseline incorrectly marked as not_related (judge says it should be related)

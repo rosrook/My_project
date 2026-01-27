@@ -176,16 +176,131 @@ class JudgeModel:
         img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
         return img_base64
     
+    def _build_precheck_prompt(self, original_template: str) -> str:
+        """
+        Build prompt for Step 1: lightweight precheck to determine if template is answerable.
+        
+        Args:
+            original_template: Original template with placeholders
+            
+        Returns:
+            Formatted prompt for precheck
+        """
+        prompt = f"""You are evaluating whether a claim template can be answered based on the image.
+
+Your task is to make a coarse-grained judgment: Can this template be meaningfully answered from the image?
+
+Template: {original_template}
+
+Consider only:
+- Whether the image contains the necessary visual properties to instantiate this template
+- Whether the template is fundamentally answerable given the image content
+
+Do NOT consider:
+- Any baseline model outputs
+- Any completed claims
+- Any explanations
+
+Please respond in JSON format:
+{{
+    "template_is_answerable": true/false,
+    "confidence": "high" | "medium" | "low",
+    "reason": "Brief explanation for your judgment"
+}}"""
+        
+        return prompt
+    
+    async def _precheck_template_answerability_async(
+        self,
+        image: Image.Image,
+        original_template: str
+    ) -> Dict[str, Any]:
+        """
+        Step 1: Precheck if template is answerable (lightweight judgment).
+        
+        Args:
+            image: PIL Image object
+            original_template: Original template with placeholders
+            
+        Returns:
+            Precheck result dictionary:
+            {
+                "template_is_answerable": bool,
+                "confidence": str,  # "high" | "medium" | "low"
+                "reason": str
+            }
+        """
+        try:
+            # Build precheck prompt
+            prompt = self._build_precheck_prompt(original_template)
+            
+            # Convert image to base64
+            image_base64 = self._image_to_base64(image)
+            
+            # Build messages
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ]
+            
+            # Request JSON response format
+            response = await self._call_model_async(
+                messages,
+                response_format={"type": "json_object"}
+            )
+            
+            # Extract response text
+            response_text = response.choices[0].message.content
+            
+            # Parse JSON response
+            try:
+                parsed = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Try to extract JSON from text
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group())
+                else:
+                    raise ValueError(f"Could not parse JSON from precheck response: {response_text[:200]}")
+            
+            return {
+                "template_is_answerable": parsed.get("template_is_answerable", True),
+                "confidence": parsed.get("confidence", "medium"),
+                "reason": parsed.get("reason", "")
+            }
+            
+        except Exception as e:
+            # Return default answerable=True on error (fail open)
+            return {
+                "template_is_answerable": True,
+                "confidence": "low",
+                "reason": f"Error during precheck: {str(e)}"
+            }
+    
     def _build_verification_prompt(
         self, 
         original_template: str, 
         completed_claim: str, 
         explanation: str, 
         is_related: bool,
-        placeholders: List[str] = None
+        placeholders: List[str] = None,
+        not_related_judgment_correct_rule: Optional[bool] = None
     ) -> str:
         """
         Build prompt for verifying template completion.
+        
+        Note: This method is only called when template_is_answerable=true.
+        The not_related judgment correctness is already determined by rule, not by judge.
         
         Args:
             original_template: Original template with placeholders
@@ -193,32 +308,43 @@ class JudgeModel:
             explanation: Explanation from baseline model
             is_related: Whether baseline model marked it as related
             placeholders: List of placeholder names (optional)
+            not_related_judgment_correct_rule: Pre-determined not_related judgment correctness (None if not applicable)
             
         Returns:
             Formatted prompt for verification
         """
-        prompt = f"""You are a judge evaluating a claim completion task. Your task is to:
-1. Verify if the completed claim is correct based on the image content
-2. Verify if the explanation is reasonable
-3. **Important**: If the baseline model marked it as "not related" (is_related=false), 
-   check if the template could actually be answered based on the image.
-   If you believe the template CAN be answered, this is a FAILURE - the baseline model 
-   incorrectly rejected a valid template.
+        # Add rule-based not_related judgment fact
+        not_related_section = ""
+        if not_related_judgment_correct_rule is False:
+            not_related_section = """**RULE-BASED FACT**:
+- Baseline incorrectly marked this template as "not related" (is_related=false)
+- However, the template CAN be answered from this image (determined by precheck)
+- Therefore: not_related_judgment_correct = false (this is already determined, you don't need to judge it)
+- This contributes to is_correct = false
 
-Original Template: {original_template}
+"""
+        
+        prompt = f"""{not_related_section}**Task**: Verify if the completed claim and explanation are correct based on the image.
+
+**Reference (known facts)**:
+Template: {original_template}
+Placeholders: {', '.join(placeholders) if placeholders else 'None'}
+
+**To verify (baseline outputs - treat as hypotheses, NOT facts)**:
 Completed Claim: {completed_claim}
-Baseline Explanation: {explanation}
+Explanation: {explanation}
 Baseline marked as related: {is_related}
-Placeholders in template: {', '.join(placeholders) if placeholders else 'None'}
+
+**Verification standards**:
+- STRICT: Do NOT accept incorrect equivalences ("left" ≠ "bottom left", "red" ≠ "orange")
+- ACCEPTABLE: Reasonable ranges ("5%-10%"), approximations ("slightly left" ≈ "left"), synonyms ("running" ≈ "jogging" if accurate)
+- Base judgment SOLELY on image content, not baseline outputs
 
 Please respond in JSON format:
 {{
-    "is_correct": true/false,  // Overall correctness
-    "claim_is_valid": true/false,  // If completed claim is valid (ignoring "not related")
+    "is_correct": true/false,  // Overall correctness (considering both claim correctness and any rule-based failures)
+    "claim_is_valid": true/false,  // If completed claim is valid and accurate
     "explanation_is_reasonable": true/false,  // If explanation makes sense
-    "not_related_judgment_correct": true/false/null,  // null if not marked as "not related", 
-                                                      // true if correctly marked "not related",
-                                                      // false if incorrectly marked "not related"
     "failure_reason": "failure_type" or null,  // From taxonomy if incorrect
     "judge_explanation": "Your detailed explanation for the judgment",
     "suggested_correction": "What the claim should be if incorrect, or null"
@@ -229,13 +355,10 @@ Failure reasons (if is_correct is false):
 - "visual_ambiguity": Unclear image content
 - "language_misunderstanding": Ambiguous claim
 - "language_complexity": Complex reasoning required
-- "reasoning_error": Logical inconsistency
+- "reasoning_error": Logical inconsistency (including spatial relationship imprecision)
 - "commonsense_error": Violates common sense
 - "model_limitation": Out of distribution
-- "uncertain": Insufficient information
-
-**Key rule**: If baseline marked as "not related" but you can see the template CAN be 
-answered from the image, set "is_correct" to false and "not_related_judgment_correct" to false."""
+- "uncertain": Insufficient information"""
         
         return prompt
 
@@ -447,11 +570,23 @@ Please respond in JSON format:
         """
         Verify template completion result (async version).
         
-        This is the new method for verifying completed claims from templates.
+        This method performs a two-step verification process:
+        
+        Step 1 (Precheck): Lightweight judgment to determine if template is answerable
+        - Only uses original_template and image
+        - Independent of baseline outputs
+        - Returns template_is_answerable, confidence, reason
+        
+        Step 2 (Verification): Full verification with strict precision rules
+        - Uses precheck result as premise fact
+        - Evaluates completed_claim correctness with strict spatial relationship matching
+        - Checks if baseline incorrectly marked as NOT_RELATED
+        
         It checks:
-        1. If the completed claim is correct
+        1. If the completed claim is correct based on the image content
         2. If the explanation is reasonable
         3. If "not related" judgment is correct (if baseline marked as not related)
+        4. Strict precision for spatial/positional relationships
         
         Args:
             image: PIL Image object
@@ -470,7 +605,7 @@ Please respond in JSON format:
                 "suggested_correction": str or None,  # Suggested correction if wrong
                 "claim_id": str,  # Original claim_id
                 "content_type": str,  # Content type
-                "metadata": dict  # Additional metadata
+                "metadata": dict  # Additional metadata including precheck_result
             }
         """
         try:
@@ -480,13 +615,91 @@ Please respond in JSON format:
             is_related = completion.get("is_related", True)
             placeholders = completion.get("metadata", {}).get("placeholders", []) or claim_template.get("placeholders", [])
             
-            # Build verification prompt
+            # Step 1: Precheck template answerability (lightweight judgment)
+            precheck_result = await self._precheck_template_answerability_async(
+                image,
+                original_template
+            )
+            
+            template_is_answerable = precheck_result.get("template_is_answerable", True)
+            
+            # Step 2: Early return if template is not answerable (skip second judge call)
+            if not template_is_answerable:
+                # Template cannot be answered - determine not_related judgment correctness based on baseline
+                if not is_related:
+                    # Baseline correctly marked as not_related
+                    not_related_judgment_correct = True
+                    failure_reason = None
+                    judge_explanation = f"Template is not answerable from this image. Baseline correctly marked as not_related. {precheck_result.get('reason', '')}"
+                    
+                    return {
+                        "is_correct": False,
+                        "claim_is_valid": False,
+                        "explanation_is_reasonable": False,  # Cannot be reasonable if template is unanswerable
+                        "not_related_judgment_correct": not_related_judgment_correct,
+                        "failure_reason": failure_reason,
+                        "judge_explanation": judge_explanation,
+                        "suggested_correction": None,
+                        "claim_id": completion.get("claim_id", ""),
+                        "content_type": completion.get("content_type", "relation"),
+                        "metadata": {
+                            "original_template": original_template,
+                            "completed_claim": completed_claim,
+                            "baseline_explanation": explanation,
+                            "baseline_is_related": is_related,
+                            "response_text": None,  # No second judge call
+                            "source": "template_completion_verification",
+                            "precheck_result": precheck_result,
+                            "early_return": True,
+                            "early_return_reason": "template_not_answerable"
+                        }
+                    }
+                else:
+                    # Baseline thought it was related, but template is not answerable
+                    # This claim should be ignored/skipped, not marked as error
+                    # Because if claim is not related, no subsequent questions can be constructed
+                    return {
+                        "is_correct": None,  # Not an error, just skipped
+                        "claim_is_valid": False,
+                        "explanation_is_reasonable": False,
+                        "not_related_judgment_correct": None,  # Not applicable since baseline didn't mark as not_related
+                        "failure_reason": None,  # Not a failure, just skipped
+                        "judge_explanation": f"Template is not answerable from this image. This claim should be ignored. {precheck_result.get('reason', '')}",
+                        "suggested_correction": None,
+                        "claim_id": completion.get("claim_id", ""),
+                        "content_type": completion.get("content_type", "relation"),
+                        "skipped": True,  # Mark as skipped
+                        "skip_reason": "template_not_answerable_but_baseline_thought_related",
+                        "metadata": {
+                            "original_template": original_template,
+                            "completed_claim": completed_claim,
+                            "baseline_explanation": explanation,
+                            "baseline_is_related": is_related,
+                            "response_text": None,  # No second judge call
+                            "source": "template_completion_verification",
+                            "precheck_result": precheck_result,
+                            "early_return": True,
+                            "early_return_reason": "template_not_answerable_skip"
+                        }
+                    }
+            
+            # Step 3: Template is answerable - call second judge for claim correctness verification
+            # Determine not_related judgment correctness based on rule (not asking judge to judge)
+            if not is_related:
+                # Baseline incorrectly marked as not_related (since template_is_answerable=true)
+                not_related_judgment_correct_rule = False
+            else:
+                # Baseline correctly marked as related (or didn't mark as not_related)
+                not_related_judgment_correct_rule = None  # Not applicable
+            
+            # Build verification prompt (only for claim correctness, not_related is already determined)
             prompt = self._build_verification_prompt(
                 original_template, 
                 completed_claim, 
                 explanation, 
                 is_related,
-                placeholders
+                placeholders,
+                not_related_judgment_correct_rule=not_related_judgment_correct_rule
             )
             
             # Convert image to base64
@@ -528,12 +741,13 @@ Please respond in JSON format:
                 else:
                     raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
             
-            # Build verification result
+            # Build verification result (Step 0: keep all existing fields)
+            # Override not_related_judgment_correct with rule-based value
             verification = {
                 "is_correct": parsed.get("is_correct", True),
                 "claim_is_valid": parsed.get("claim_is_valid", True),
                 "explanation_is_reasonable": parsed.get("explanation_is_reasonable", True),
-                "not_related_judgment_correct": parsed.get("not_related_judgment_correct"),
+                "not_related_judgment_correct": not_related_judgment_correct_rule,  # Use rule-based value
                 "failure_reason": parsed.get("failure_reason"),
                 "judge_explanation": parsed.get("judge_explanation", ""),
                 "suggested_correction": parsed.get("suggested_correction"),
@@ -545,9 +759,16 @@ Please respond in JSON format:
                     "baseline_explanation": explanation,
                     "baseline_is_related": is_related,
                     "response_text": response_text,
-                    "source": "template_completion_verification"
+                    "source": "template_completion_verification",
+                    "precheck_result": precheck_result
                 }
             }
+            
+            # If baseline incorrectly marked as not_related, ensure is_correct is False
+            if not_related_judgment_correct_rule is False:
+                verification["is_correct"] = False
+                if not verification.get("failure_reason"):
+                    verification["failure_reason"] = "reasoning_error"
             
             # Add usage metadata if available
             if hasattr(response, "usage"):
