@@ -150,7 +150,7 @@
         "failure_id": "FR_OBJECT_ORIENTATION_ERROR",
         "failure_category": "orientation_reasoning",
         "failure_name": "Object Orientation Misjudgment",
-        "description": "The model fails to correctly identify or describe the facing direction of an object. Errors may occur when the object is partially occluded, visually small, overlapping with other objects, or when fine-grained directional discrimination is required.",
+        "description": "The model fails to correctly identify or describe the facing direction of an object. Errors may occur when the object is partially occluded, visually small, overlapping with other objects, or when fine-grained directional discrimination is required. Errors may also occur when the object is facing another object, but the model fails to correctly select or indicate this relative object.",
         "suggested_filtering_factors": [
           "Image contains at least one visually salient object suitable as a target for orientation reasoning",
           "Potential target object belongs to a category that has an inherent facing direction (e.g., animals, vehicles), rather than orientation-neutral objects",

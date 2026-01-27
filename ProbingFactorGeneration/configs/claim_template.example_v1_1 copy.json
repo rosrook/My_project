@@ -401,7 +401,7 @@
         "name": "Object Orientation Recognition",
         "capability": "directional_orientation_reasoning",
         "target_failure_id": "FR_OBJECT_ORIENTATION_ERROR",
-        "claim_template": "The [OBJECT] is facing [ABSOLUTE_DIRECTION] in the image, and it is facing [RELATIVE_OBJECT].",
+        "claim_template": "The [OBJECT] is facing [DIRECTION].",
         "slots": {
           "OBJECT": {
             "type": "object_instance",
@@ -409,18 +409,14 @@
           },
           "DIRECTION": {
             "type": "categorical_value",
-            "values": ["left", "right", "toward viewer", "away from viewer", "upward", "downward", "top-left", "top-right", "bottom-left", "bottom-right"],
+            "values": ["left", "right", "toward viewer", "away from viewer", "upward", "downward"],
             "selection_criteria": "Determine the facing direction of the selected object"
-          },
-          "RELATIVE_OBJECT": {
-            "type": "object_instance",
-            "selection_criteria": "Model selects a visible object to serve as reference for relative facing determination."
           }
         },
         "prefill_slots": ["OBJECT"],
         "baseline_instructions": [
-          "Determine the ABSOLUTE_DIRECTION of the OBJECT using image coordinates and camera viewpoint.",
-          "Select a RELATIVE_OBJECT that lies along the direction the OBJECT is facing. If no object exists in that direction, set RELATIVE_OBJECT to 'nothing'.",
+          "Identify the most salient object that has an inherent facing or pointing direction.",
+          "Determine its orientation using directional terms.",
           "If only orientation-neutral objects exist (e.g., spheres, boxes with no discernible front), or orientation is completely ambiguous, return NOT_RELATED."
         ],
         "not_related_conditions": [
