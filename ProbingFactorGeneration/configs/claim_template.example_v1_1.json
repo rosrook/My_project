@@ -335,7 +335,7 @@
         "slots": {
           "REGION_DESCRIPTION": {
             "type": "spatial_descriptor",
-            "selection_criteria": "Select a clearly distinguishable spatial region that is visually identifiable as an empty or low-occupancy area, with continuous background texture or scene structure (e.g., visible floor, wall, sky, road). Do not select regions defined only by arbitrary partition (e.g., 'left half', 'upper portion') unless a clear visual boundary exists."
+            "selection_criteria": "Select a clearly distinguishable spatial region that is visually identifiable as an empty or low-occupancy area."
           },
           "OBJECT_TYPE": {
             "type": "object_category",
@@ -348,7 +348,8 @@
           "Do not rely on subjective inference or arbitrary spatial partition when selecting the region; the object absence must be visually supported."
         ],
         "not_related_conditions": [
-          "The target object does not occupy a significant portion of the image, so multiple regions could be interpreted as object-absent.",
+          "The target object does not occupy a significant large portion of the image, so a large region or multiple regions could be interpreted as object-absent.",
+          "There exist multiple regions in the image without the target object, so the absence cannot be represented by a single region.",
           "No clearly object-absent region can be identified in the image.",
           "The target object is not clearly visible elsewhere in the image or is not noticeable."
         ],
