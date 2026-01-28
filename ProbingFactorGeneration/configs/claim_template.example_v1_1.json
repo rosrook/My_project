@@ -396,39 +396,61 @@
         "name": "Object Orientation Recognition",
         "capability": "directional_orientation_reasoning",
         "target_failure_id": "FR_OBJECT_ORIENTATION_ERROR",
-        "claim_template": "The [OBJECT] is facing [ABSOLUTE_DIRECTION] in the image, and it is facing [RELATIVE_OBJECT].",
+        "claim_template": "The [OBJECT] is facing [VIEW_DIRECTION] in the image, and it is facing [OBJECT_DIRECTION] relative to itself.",
         "slots": {
           "OBJECT": {
             "type": "object_instance",
-            "selection_criteria": "Select the most salient object that has an inherent facing direction (e.g., animals, vehicles, people, arrows)"
+            "selection_criteria": "Select the most salient object that has a clearly perceivable facing direction in the current view (e.g., people, animals, vehicles, arrows)."
           },
-          "DIRECTION": {
+          "VIEW_DIRECTION": {
             "type": "categorical_value",
-            "values": ["left", "right", "toward viewer", "away from viewer", "upward", "downward", "top-left", "top-right", "bottom-left", "bottom-right"],
-            "selection_criteria": "Determine the facing direction of the selected object"
+            "values": [
+              "left",
+              "right",
+              "up",
+              "down",
+              "top-left",
+              "top-right",
+              "bottom-left",
+              "bottom-right",
+              "toward the viewer",
+              "away from the viewer"
+            ],
+            "selection_criteria": "Determine the facing direction of the selected object relative to the displayed image and viewer perspective, after any image rotation."
           },
-          "RELATIVE_OBJECT": {
-            "type": "object_instance",
-            "selection_criteria": "Model selects a visible object to serve as reference for relative facing determination."
+          "OBJECT_DIRECTION": {
+            "type": "categorical_value",
+            "values": [
+              "forward",
+              "backward",
+              "upward",
+              "downward",
+              "head raised",
+              "head lowered",
+              "leftward",
+              "rightward"
+            ],
+            "selection_criteria": "Determine the facing direction of the object relative to its own canonical orientation, ignoring image rotation or camera viewpoint."
           }
         },
         "prefill_slots": ["OBJECT"],
         "baseline_instructions": [
-          "Determine the ABSOLUTE_DIRECTION of the OBJECT using image coordinates and camera viewpoint.",
-          "Select a RELATIVE_OBJECT that lies along the direction the OBJECT is facing. If no object exists in that direction, set RELATIVE_OBJECT to 'nothing'.",
+          "Determine the VIEW_DIRECTION of the OBJECT using the displayed image and viewer perspective, after any image rotation.",
+          "Determine the OBJECT_DIRECTION of the OBJECT relative to its own canonical orientation, independent of image rotation or camera viewpoint.",
           "If only orientation-neutral objects exist (e.g., spheres, boxes with no discernible front), or orientation is completely ambiguous, return NOT_RELATED."
         ],
         "not_related_conditions": [
-          "All objects in the image are orientation-neutral (no inherent facing direction)",
-          "Object orientation is completely ambiguous or cannot be determined from visible cues",
-          "No objects with directional properties exist in the image"
+          "All objects in the image are orientation-neutral (no inherent facing direction).",
+          "Object orientation is completely ambiguous or cannot be determined from visible cues.",
+          "No objects with directional properties exist in the image."
         ],
         "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
         "common_failure_modes": [
           "left-right confusion",
           "difficulty with small or occluded objects",
           "confusion with overlapping objects",
-          "failure in fine-grained directional discrimination"
+          "failure in fine-grained directional discrimination",
+          "reference frame confusion between image/view perspective and object-centric orientation"
         ]
       },
       {
