@@ -4,7 +4,6 @@
     "description": "Claim schemas for probing visual reasoning capabilities across entity grounding, spatial reasoning, scale estimation, counting, absence detection, occlusion handling, orientation, geographic recognition, and image-text alignment. Baseline model selects optimal instantiation targets from image content.",
     "enabled_claim_ids": [
       "entity_basic_grounding",
-      "concept_single_object",
       "spatial_absolute_position",
       "spatial_relative_position",
       "scale_proportion_estimation",
@@ -15,7 +14,6 @@
     ],
     "enabled_claim_names": [
       "Basic Visual Entity Grounding",
-      "Single Object Abstract Concept Extraction",
       "Absolute Position Recognition",
       "Relative Spatial Relationship",
       "Scale and Proportion Estimation",
