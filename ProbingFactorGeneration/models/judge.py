@@ -294,7 +294,8 @@ Please respond in JSON format:
         explanation: str, 
         is_related: bool,
         placeholders: List[str] = None,
-        not_related_judgment_correct_rule: Optional[bool] = None
+        not_related_judgment_correct_rule: Optional[bool] = None,
+        slots_info: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Build prompt for verifying template completion.
@@ -309,56 +310,57 @@ Please respond in JSON format:
             is_related: Whether baseline model marked it as related
             placeholders: List of placeholder names (optional)
             not_related_judgment_correct_rule: Pre-determined not_related judgment correctness (None if not applicable)
+            slots_info: Slot information including selection_criteria (optional)
             
         Returns:
             Formatted prompt for verification
         """
-        # Add rule-based not_related judgment fact
+        # Add rule-based not_related judgment fact (compact)
         not_related_section = ""
         if not_related_judgment_correct_rule is False:
-            not_related_section = """**RULE-BASED FACT**:
-- Baseline incorrectly marked this template as "not related" (is_related=false)
-- However, the template CAN be answered from this image (determined by precheck)
-- Therefore: not_related_judgment_correct = false (this is already determined, you don't need to judge it)
-- This contributes to is_correct = false
-
-"""
+            not_related_section = "**FACT**: Baseline incorrectly marked as not_related (template is answerable). not_related_judgment_correct=false, is_correct=false.\n\n"
         
-        prompt = f"""{not_related_section}**Task**: Verify if the completed claim and explanation are correct based on the image.
+        # Build baseline standards section (compact, multi-line for readability)
+        # Note: baseline_instructions, NOT_RELATED conditions, and expected_outputs are NOT included
+        baseline_standards_lines = []
+        if slots_info:
+            slot_items = []
+            for slot_name, slot_data in slots_info.items():
+                parts = [slot_name]
+                if slot_data.get("type"):
+                    parts.append(f"type:{slot_data['type']}")
+                if slot_data.get("selection_criteria"):
+                    parts.append(f"criteria:{slot_data['selection_criteria']}")
+                if slot_data.get("values"):
+                    parts.append(f"values:{','.join(slot_data['values'])}")
+                slot_items.append(" | ".join(parts))
+            if slot_items:
+                baseline_standards_lines.append("Slots: " + "; ".join(slot_items))
+        
+        baseline_standards_section = ""
+        if baseline_standards_lines:
+            baseline_standards_section = "\n**Baseline standards**:\n" + "\n".join(baseline_standards_lines) + "\n"
+        
+        prompt = f"""{not_related_section}**Task**: Verify completed claim correctness.
 
-**Reference (known facts)**:
-Template: {original_template}
-Placeholders: {', '.join(placeholders) if placeholders else 'None'}
-
-**To verify (baseline outputs - treat as hypotheses, NOT facts)**:
-Completed Claim: {completed_claim}
+**Template**: {original_template} | Placeholders: {', '.join(placeholders) if placeholders else 'None'}{baseline_standards_section}**CRITICAL - Baseline outputs to VERIFY** (These are HYPOTHESES, NOT facts. Do NOT treat as true or use as prior knowledge. Verify independently against image):
+Claim: {completed_claim}
 Explanation: {explanation}
 Baseline marked as related: {is_related}
 
-**Verification standards**:
-- STRICT: Do NOT accept incorrect equivalences ("left" ≠ "bottom left", "red" ≠ "orange")
-- ACCEPTABLE: Reasonable ranges ("5%-10%"), approximations ("slightly left" ≈ "left"), synonyms ("running" ≈ "jogging" if accurate)
-- Base judgment SOLELY on image content, not baseline outputs
+**Standards**: STRICT equivalences ("left"≠"bottom left"); ACCEPTABLE ranges/approx/synonyms. Verify claim follows baseline standards above. Judge SOLELY by image content, NOT by baseline outputs.
 
-Please respond in JSON format:
+**Required output format (respond in JSON)**:
 {{
-    "is_correct": true/false,  // Overall correctness (considering both claim correctness and any rule-based failures)
-    "claim_is_valid": true/false,  // If completed claim is valid and accurate
-    "explanation_is_reasonable": true/false,  // If explanation makes sense
-    "failure_reason": "failure_type" or null,  // From taxonomy if incorrect
-    "judge_explanation": "Your detailed explanation for the judgment",
-    "suggested_correction": "What the claim should be if incorrect, or null"
+    "is_correct": true/false,
+    "claim_is_valid": true/false,
+    "explanation_is_reasonable": true/false,
+    "failure_reason": "failure_type" or null,
+    "judge_explanation": "your explanation",
+    "suggested_correction": "correction" or null
 }}
 
-Failure reasons (if is_correct is false):
-- "visual_error": Visual recognition mistake
-- "visual_ambiguity": Unclear image content
-- "language_misunderstanding": Ambiguous claim
-- "language_complexity": Complex reasoning required
-- "reasoning_error": Logical inconsistency (including spatial relationship imprecision)
-- "commonsense_error": Violates common sense
-- "model_limitation": Out of distribution
-- "uncertain": Insufficient information"""
+**Failure types** (for failure_reason field): visual_error, visual_ambiguity, language_misunderstanding, language_complexity, reasoning_error, commonsense_error, model_limitation, uncertain"""
         
         return prompt
 
@@ -615,6 +617,10 @@ Please respond in JSON format:
             is_related = completion.get("is_related", True)
             placeholders = completion.get("metadata", {}).get("placeholders", []) or claim_template.get("placeholders", [])
             
+            # Extract baseline completion standards from claim_template
+            slots_info = claim_template.get("slots", {})
+            # Note: baseline_instructions, not_related_conditions, expected_outputs are not used in judge prompt
+            
             # Step 1: Precheck template answerability (lightweight judgment)
             precheck_result = await self._precheck_template_answerability_async(
                 image,
@@ -699,7 +705,8 @@ Please respond in JSON format:
                 explanation, 
                 is_related,
                 placeholders,
-                not_related_judgment_correct_rule=not_related_judgment_correct_rule
+                not_related_judgment_correct_rule=not_related_judgment_correct_rule,
+                slots_info=slots_info
             )
             
             # Convert image to base64
