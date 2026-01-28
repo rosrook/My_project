@@ -413,10 +413,10 @@
               "top-right",
               "bottom-left",
               "bottom-right",
-              "toward the viewer",
-              "away from the viewer"
+              "directly facing the viewer",
+              "exactly opposite the viewer"
             ],
-            "selection_criteria": "Determine the facing direction of the selected object relative to the displayed image and viewer perspective, after any image rotation."
+            "selection_criteria": "Determine the facing direction of the selected object relative to the displayed image and viewer perspective, after any image rotation. Use 'directly facing the viewer' if the object is looking straight at the camera, and 'exactly opposite the viewer' if the object is facing exactly the opposite direction of the camera, not merely not looking at it."
           },
           "OBJECT_DIRECTION": {
             "type": "categorical_value",
