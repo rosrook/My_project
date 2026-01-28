@@ -50,13 +50,17 @@ class FailureAggregator:
         failed_count = 0
         
         for claim, verif in zip(claims, verifications):
+            # Skip skipped claims (should not be counted as failures)
+            if verif.get("skipped", False):
+                continue  # Skip this claim entirely
+            
             # Check if this is a failure
             # A failure occurs if is_correct is False OR if not_related was incorrectly judged
             is_correct = verif.get("is_correct", True)
             not_related_judgment_correct = verif.get("not_related_judgment_correct")
             is_failure = False
             
-            if not is_correct:
+            if is_correct is False:  # Explicitly check for False (not None or True)
                 is_failure = True
             elif not_related_judgment_correct is False:
                 # Incorrectly marked as not_related (judge says baseline should have answered)

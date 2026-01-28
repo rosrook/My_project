@@ -476,11 +476,20 @@ class ProbingFactorPipeline:
             
             enhanced_verifications.append(enhanced_verification)
         
-        # Step 7: Aggregate failures for this image
+        # Step 7: Filter out skipped claims before aggregation
+        # Skipped claims should not be counted in failure statistics
+        non_skipped_claim_templates = []
+        non_skipped_verifications = []
+        for claim_template, verification in zip(claim_templates, enhanced_verifications):
+            if not verification.get("skipped", False):
+                non_skipped_claim_templates.append(claim_template)
+                non_skipped_verifications.append(verification)
+        
+        # Aggregate failures for this image (only non-skipped claims)
         aggregated_failures = self.failure_aggregator.aggregate(
             image_id, 
-            claim_templates, 
-            enhanced_verifications
+            non_skipped_claim_templates, 
+            non_skipped_verifications
         )
         
         # Step 8: Merge all filtering factors from failed claims
