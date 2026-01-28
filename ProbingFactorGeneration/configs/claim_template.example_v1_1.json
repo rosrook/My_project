@@ -395,7 +395,7 @@
         "name": "Object Orientation Recognition",
         "capability": "directional_orientation_reasoning",
         "target_failure_id": "FR_OBJECT_ORIENTATION_ERROR",
-        "claim_template": "The [OBJECT] is facing [VIEW_DIRECTION] in the image, and it is facing [OBJECT_DIRECTION] relative to itself.",
+        "claim_template": "The [OBJECT] is facing [VIEW_DIRECTION] in the image frame, and it is facing [OBJECT_DIRECTION] relative to itself.",
         "slots": {
           "OBJECT": {
             "type": "object_instance",

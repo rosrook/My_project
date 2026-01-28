@@ -176,21 +176,37 @@ class JudgeModel:
         img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
         return img_base64
     
-    def _build_precheck_prompt(self, original_template: str) -> str:
+    def _build_precheck_prompt(
+        self,
+        original_template: str,
+        not_related_conditions: Optional[List[str]] = None,
+    ) -> str:
         """
         Build prompt for Step 1: lightweight precheck to determine if template is answerable.
         
         Args:
             original_template: Original template with placeholders
+            not_related_conditions: Optional NOT_RELATED conditions from claim schema
             
         Returns:
             Formatted prompt for precheck
         """
+        conditions_section = ""
+        if not_related_conditions:
+            # Provide claim-specific NOT_RELATED conditions as additional guidance
+            joined = "; ".join(not_related_conditions)
+            conditions_section = f"""
+
+Additional guidance (NOT_RELATED conditions from schema, for your reference only):
+- Treat the template as NOT answerable if one or more of the following clearly apply:
+  {joined}
+"""
+
         prompt = f"""You are evaluating whether a claim template can be answered based on the image.
 
 Your task is to make a coarse-grained judgment: Can this template be meaningfully answered from the image?
 
-Template: {original_template}
+Template: {original_template}{conditions_section}
 
 Consider only:
 - Whether the image contains the necessary visual properties to instantiate this template
@@ -213,7 +229,8 @@ Please respond in JSON format:
     async def _precheck_template_answerability_async(
         self,
         image: Image.Image,
-        original_template: str
+        original_template: str,
+        not_related_conditions: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Step 1: Precheck if template is answerable (lightweight judgment).
@@ -221,6 +238,7 @@ Please respond in JSON format:
         Args:
             image: PIL Image object
             original_template: Original template with placeholders
+            not_related_conditions: Optional NOT_RELATED conditions from claim schema
             
         Returns:
             Precheck result dictionary:
@@ -231,8 +249,11 @@ Please respond in JSON format:
             }
         """
         try:
-            # Build precheck prompt
-            prompt = self._build_precheck_prompt(original_template)
+            # Build precheck prompt (with optional NOT_RELATED conditions)
+            prompt = self._build_precheck_prompt(
+                original_template,
+                not_related_conditions=not_related_conditions,
+            )
             
             # Convert image to base64
             image_base64 = self._image_to_base64(image)
@@ -617,14 +638,15 @@ Please respond in JSON format:
             is_related = completion.get("is_related", True)
             placeholders = completion.get("metadata", {}).get("placeholders", []) or claim_template.get("placeholders", [])
             
-            # Extract baseline completion standards from claim_template
+            # Extract baseline / schema info from claim_template
             slots_info = claim_template.get("slots", {})
-            # Note: baseline_instructions, not_related_conditions, expected_outputs are not used in judge prompt
+            not_related_conditions = claim_template.get("not_related_conditions")
             
             # Step 1: Precheck template answerability (lightweight judgment)
             precheck_result = await self._precheck_template_answerability_async(
                 image,
-                original_template
+                original_template,
+                not_related_conditions=not_related_conditions,
             )
             
             template_is_answerable = precheck_result.get("template_is_answerable", True)
