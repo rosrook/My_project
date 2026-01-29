@@ -28,6 +28,10 @@ RANDOM_SEED=42
 # Recommended: include image_path in probing_results.json (helps Step 2 locate images)
 INCLUDE_SOURCE_METADATA=true
 
+# Judge prompt dump (for debugging): JSONL file containing the exact prompts
+# sent to the judge model for each precheck/verification call.
+JUDGE_PROMPT_LOG_PATH="${BASE_OUTPUT_DIR}/judge_prompts.jsonl"
+
 # Failure mapping (step 2)
 PIPELINE_CONFIG="${PROJECT_ROOT}/FactorFilterAgent/failure_key_sampler/configs/pipeline_config.example.json"
 FAILURE_CONFIG="${PROJECT_ROOT}/ProbingFactorGeneration/configs/failure_config.example.json"
@@ -85,6 +89,9 @@ mkdir -p "${PARQUET_DIR}"
 mkdir -p "${OUTPUT_DIR}"
 mkdir -p "$(dirname "${ERROR_OUTPUT}")"
 mkdir -p "${QA_OUTPUT_DIR}"
+mkdir -p "$(dirname "${JUDGE_PROMPT_LOG_PATH}")"
+# Truncate prompt log for a clean run
+: > "${JUDGE_PROMPT_LOG_PATH}"
 
 # =========================
 # Step 0: JPG -> Parquet
@@ -147,6 +154,7 @@ MODEL_NAME="${MODEL_NAME}" \
 USE_LB_CLIENT="${USE_LB_CLIENT}" \
 API_KEY="${API_KEY}" \
 BASE_URL="${BASE_URL}" \
+JUDGE_PROMPT_LOG_PATH="${JUDGE_PROMPT_LOG_PATH}" \
 torchrun --nproc_per_node=1 \
   "${PROJECT_ROOT}/ProbingFactorGeneration/examples/run_complete_pipeline.py" \
   "${STEP1_ARGS[@]}"

@@ -13,6 +13,7 @@ import asyncio
 import json
 import re
 import os
+from pathlib import Path
 
 try:
     from ProbingFactorGeneration.config import FailureTaxonomy, MODEL_CONFIG
@@ -85,6 +86,33 @@ class JudgeModel:
         
         # Async client instance (similar to BaselineModel)
         self._async_client: Optional[Any] = None
+
+        # Optional prompt logging (JSONL). Enabled by environment variable.
+        # Intended for debugging/testing to inspect exactly what the judge receives.
+        self._prompt_log_path: Optional[str] = (
+            os.getenv("JUDGE_PROMPT_LOG_PATH")
+            or os.getenv("JUDGE_PROMPT_LOG")
+            or None
+        )
+        self._prompt_log_lock: asyncio.Lock = asyncio.Lock()
+
+    async def _log_judge_prompt_async(self, record: Dict[str, Any]) -> None:
+        """
+        Append a single JSONL record to the prompt log file (if enabled).
+        Never raises (logging must not break the pipeline).
+        """
+        if not self._prompt_log_path:
+            return
+        try:
+            path = Path(self._prompt_log_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            line = json.dumps(record, ensure_ascii=False)
+            async with self._prompt_log_lock:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(line + "\n")
+        except Exception:
+            # Best-effort logging only
+            return
     
     def optimize_concurrency_for_data_size(self, data_size: int, avg_claims_per_image: int = 10):
         """
@@ -231,6 +259,7 @@ Please respond in JSON format:
         image: Image.Image,
         original_template: str,
         not_related_conditions: Optional[List[str]] = None,
+        log_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Step 1: Precheck if template is answerable (lightweight judgment).
@@ -253,6 +282,17 @@ Please respond in JSON format:
             prompt = self._build_precheck_prompt(
                 original_template,
                 not_related_conditions=not_related_conditions,
+            )
+
+            # Optional: log the exact prompt the judge receives (precheck)
+            if log_context is None:
+                log_context = {}
+            await self._log_judge_prompt_async(
+                {
+                    **log_context,
+                    "judge_call": "precheck",
+                    "prompt": prompt,
+                }
             )
             
             # Convert image to base64
@@ -647,6 +687,17 @@ Please respond in JSON format:
                 image,
                 original_template,
                 not_related_conditions=not_related_conditions,
+                log_context={
+                    "claim_id": completion.get("claim_id", ""),
+                    "content_type": completion.get("content_type", "relation"),
+                    "image_id": (
+                        completion.get("image_id")
+                        or completion.get("metadata", {}).get("image_id")
+                        or claim_template.get("image_id")
+                        or claim_template.get("metadata", {}).get("image_id")
+                        or ""
+                    ),
+                },
             )
             
             template_is_answerable = precheck_result.get("template_is_answerable", True)
@@ -729,6 +780,23 @@ Please respond in JSON format:
                 placeholders,
                 not_related_judgment_correct_rule=not_related_judgment_correct_rule,
                 slots_info=slots_info
+            )
+
+            # Optional: log the exact prompt the judge receives (verification)
+            await self._log_judge_prompt_async(
+                {
+                    "judge_call": "verification",
+                    "claim_id": completion.get("claim_id", ""),
+                    "content_type": completion.get("content_type", "relation"),
+                    "image_id": (
+                        completion.get("image_id")
+                        or completion.get("metadata", {}).get("image_id")
+                        or claim_template.get("image_id")
+                        or claim_template.get("metadata", {}).get("image_id")
+                        or ""
+                    ),
+                    "prompt": prompt,
+                }
             )
             
             # Convert image to base64
