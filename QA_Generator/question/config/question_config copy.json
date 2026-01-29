@@ -161,7 +161,9 @@
         "selection_required": true,
         "selection_strategy": "significant_area",
         "constraints": [
-          "object occupies a non-trivial portion of the image"
+          "object occupies a non-trivial portion of the image",
+          "object boundary is visually distinguishable",
+          "object is not pure background"
         ]
       },
       "question_constraints": [
@@ -193,6 +195,7 @@
         "question must explicitly mention the selected object",
         "no object counting or attribute reasoning",
         "question must ask target object position",
+        "the question must explicitly instruct the respondent to answer using absolute image-based spatial positions (e.g., bottom-right of the image)",
         "The question must instruct the respondent to answer based on the image"
       ],
       "example_template": "Where is the [object] located in the picture?"
@@ -210,6 +213,7 @@
         "selection_required": true,
         "selection_strategy": "region_exclusive",
         "constraints": [
+          "image can be partitioned into regions",
           "object appears in some regions and is absent in others",
           "absence is visually verifiable"
         ]
@@ -240,7 +244,7 @@
         ]
       },
       "question_constraints": [
-        "The question must ask exclusively about the facing direction of the target object, and must explicitly specify the reference frame used for direction judgment (either the image/frame coordinate system or the object-centric coordinate system)",
+        "question must ask about facing direction only, referring to absolute direction in the image (e.g., facing left in the image), not relative direction within the scene",
         "The question must instruct the respondent to answer based on the image"
       ],
       "example_template": "In the picture, which direction is the [object] facing?"

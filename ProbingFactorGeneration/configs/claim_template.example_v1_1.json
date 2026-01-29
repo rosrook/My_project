@@ -297,7 +297,7 @@
         "slots": {
           "OBJECT_TYPE": {
             "type": "object_category",
-            "selection_criteria": "Select the single most salient object category that is clearly countable, allowing the number of instances to be zero, one, or more."
+            "selection_criteria": "Select the single most salient object category that is clearly and unambiguously describable in language, whose instances in the image are countable without ambiguity. The category may have zero, one, or multiple instances, but must not appear in large numbers or dense distributions that make counting or reference subjective."
           },
           "COUNT": {
             "type": "integer_value",
@@ -313,7 +313,8 @@
         "not_related_conditions": [
           "No countable object category exists (only amorphous substances, textures, or continuous elements)",
           "Object instances are completely indistinguishable from each other (no boundaries)",
-          "Image is too degraded, blurred, or occluded to allow any instance counting"
+          "Image is too degraded, blurred, or occluded to allow any instance counting",
+          "Target category appears in large numbers or dense arrangements (e.g., forming a background or repeated pattern), such that individual instances cannot be reliably distinguished or counted."
         ],
         "expected_outputs": ["TRUE", "FALSE", "NOT_RELATED"],
         "common_failure_modes": [

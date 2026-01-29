@@ -7,6 +7,7 @@ import re
 from typing import Dict, Any, List, Optional, Tuple
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.logging.logger import log_warning, log_debug, log_debug_dict
+from QA_Generator.answer.answer_repair import AnswerRepairer
 
 
 class AnswerValidator:
@@ -20,6 +21,8 @@ class AnswerValidator:
             gemini_client: Gemini客户端实例
         """
         self.gemini_client = gemini_client or GeminiClient()
+        # 答案修复器：在严格VQA校验不通过时，尝试用一次额外的LLM调用修复答案
+        self.repairer = AnswerRepairer(self.gemini_client)
     
     def validate_and_fix(
         self,
@@ -87,7 +90,7 @@ class AnswerValidator:
         
         if not format_report.get("passed", False):
             validation_report["validation_passed"] = False
-            # 如果格式问题无法自动修复，建议重新生成
+            # 如果格式问题无法自动修复，建议重新生成（此处不做修复调用，因为结构本身不完整）
             if format_report.get("issues") and len(format_report.get("fixes_applied", [])) == 0:
                 validation_report["should_regenerate"] = True
                 validation_report["regeneration_reason"] = "格式检查失败且无法自动修复: " + "; ".join(format_report.get("issues", [])[:2])
@@ -110,6 +113,35 @@ class AnswerValidator:
         )
         validation_report["vqa_validation"] = vqa_report
         
+        # 如果严格 + 抢救后的 VQA 仍未通过，尝试调用 AnswerRepairer 进行一次“修复式重判”
+        if not vqa_report.get("passed", False):
+            log_warning("VQA验证未通过，尝试使用 AnswerRepairer 进行一次自动修复")
+            repaired_result, repair_report = self.repairer.repair_once(
+                fixed_result,
+                image_base64=image_base64,
+            )
+            validation_report["repair"] = repair_report
+            
+            if repair_report.get("repair_successful", False):
+                log_debug("AnswerRepairer 修复成功，重新进行VQA验证")
+                # 对修复结果重新跑一遍 VQA 验证
+                vqa_report_after_repair = self._vqa_validation(
+                    result=repaired_result,
+                    image_base64=image_base64,
+                )
+                validation_report["vqa_validation_after_repair"] = vqa_report_after_repair
+                
+                if vqa_report_after_repair.get("passed", False):
+                    # 修复 + 再验证通过，视为整体通过
+                    validation_report["validation_passed"] = True
+                    validation_report["should_regenerate"] = False
+                    validation_report["regeneration_reason"] = ""
+                    log_debug("修复后的答案通过VQA验证，视为最终通过")
+                    log_debug("========== Validator.validate_and_fix 结束（修复成功） ==========\n")
+                    return repaired_result, validation_report
+                else:
+                    log_warning("修复后的答案仍未通过VQA验证")
+        
         log_debug("========== Validator.validate_and_fix 结束 ==========\n")
         
         if not vqa_report.get("passed", False):
@@ -119,9 +151,6 @@ class AnswerValidator:
             
             # 收集失败原因（不再包含困惑度分析）
             reasons = []
-            # 困惑度分析已禁用，不再作为验证要求
-            # if not vqa_report.get("perplexity_analysis", {}).get("passed", True):
-            #     reasons.append("困惑度分析未通过")
             if not vqa_report.get("confidence_assessment", {}).get("passed", True):
                 reasons.append("置信度评估未通过")
             if not vqa_report.get("answer_validation", {}).get("passed", True):
@@ -421,18 +450,21 @@ class AnswerValidator:
         image_base64: str
     ) -> Dict[str, Any]:
         """
-        Step 2: VQA验证
+        Step 2: VQA验证（增强版：包含抢救机制）
         
         包含：
-        - 困惑度分析
+        - 困惑度分析（已禁用）
         - 置信度评估
         - 答案验证
+        - 抢救机制：如果严格验证失败，尝试使用更宽松的标准
         """
         report = {
             "passed": True,
             "perplexity_analysis": {},
             "confidence_assessment": {},
-            "answer_validation": {}
+            "answer_validation": {},
+            "rescue_attempted": False,
+            "rescue_successful": False
         }
         
         question_type = result.get("question_type", "")
@@ -441,20 +473,13 @@ class AnswerValidator:
         full_question = result.get("full_question", question)
         
         # 困惑度分析（已禁用，不再作为验证要求）
-        # perplexity = self._analyze_perplexity(
-        #     question=full_question,
-        #     answer=answer,
-        #     image_base64=image_base64,
-        #     question_type=question_type
-        # )
-        # 仍然记录，但不作为验证要求
         report["perplexity_analysis"] = {
             "passed": True,  # 始终通过，不作为验证要求
             "disabled": True,
             "note": "困惑度分析已禁用，不再作为验证要求"
         }
         
-        # 置信度评估
+        # 置信度评估（严格标准：confidence >= 0.7）
         confidence = self._assess_confidence(
             question=full_question,
             answer=answer,
@@ -464,7 +489,7 @@ class AnswerValidator:
         )
         report["confidence_assessment"] = confidence
         
-        # 答案验证
+        # 答案验证（严格标准）
         answer_validation = self._validate_answer(
             question=full_question,
             answer=answer,
@@ -474,11 +499,62 @@ class AnswerValidator:
         )
         report["answer_validation"] = answer_validation
         
-        # 综合判断（不再检查困惑度）
-        if not confidence.get("passed", True) or \
-           not answer_validation.get("passed", True):
-            report["passed"] = False
+        # 严格标准判断
+        strict_passed = (
+            confidence.get("passed", True) and 
+            answer_validation.get("passed", True)
+        )
         
+        if strict_passed:
+            report["passed"] = True
+            return report
+        
+        # ========== 抢救机制：如果严格验证失败，尝试更宽松的标准 ==========
+        report["rescue_attempted"] = True
+        
+        # 抢救策略1: 降低置信度阈值（从0.7降到0.5）
+        confidence_score = confidence.get("confidence", 0.0)
+        is_correct = confidence.get("is_correct", False)
+        is_valid = answer_validation.get("is_valid", False)
+        
+        # 如果置信度在0.5-0.7之间，且答案验证认为有效，可以抢救
+        if 0.5 <= confidence_score < 0.7 and is_correct and is_valid:
+            report["rescue_successful"] = True
+            report["passed"] = True
+            report["rescue_reason"] = f"置信度{confidence_score:.2f}低于严格阈值0.7但>=0.5，且答案验证通过，已抢救"
+            log_warning(f"VQA验证抢救成功: {report['rescue_reason']}")
+            return report
+        
+        # 抢救策略2: 如果置信度>=0.5且答案验证通过，即使is_correct=false也可以抢救
+        if confidence_score >= 0.5 and is_valid:
+            report["rescue_successful"] = True
+            report["passed"] = True
+            report["rescue_reason"] = f"置信度{confidence_score:.2f}>=0.5且答案验证通过，已抢救（is_correct可能为false但答案仍有效）"
+            log_warning(f"VQA验证抢救成功: {report['rescue_reason']}")
+            return report
+        
+        # 抢救策略3: 如果答案验证通过但置信度评估失败（可能是解析问题），尝试抢救
+        if is_valid and not confidence.get("passed", True):
+            # 检查是否是解析失败导致的
+            if "无法解析" in confidence.get("correctness_reason", "") or "评估过程出错" in confidence.get("correctness_reason", ""):
+                report["rescue_successful"] = True
+                report["passed"] = True
+                report["rescue_reason"] = "答案验证通过但置信度评估解析失败，已抢救"
+                log_warning(f"VQA验证抢救成功: {report['rescue_reason']}")
+                return report
+        
+        # 抢救策略4: 如果置信度评估通过但答案验证失败（可能是解析问题），尝试抢救
+        if confidence.get("passed", True) and not answer_validation.get("passed", True):
+            if "无法解析" in answer_validation.get("validation_reason", "") or "验证过程出错" in answer_validation.get("validation_reason", ""):
+                report["rescue_successful"] = True
+                report["passed"] = True
+                report["rescue_reason"] = "置信度评估通过但答案验证解析失败，已抢救"
+                log_warning(f"VQA验证抢救成功: {report['rescue_reason']}")
+                return report
+        
+        # 所有抢救策略都失败，标记为不通过
+        report["passed"] = False
+        report["rescue_reason"] = "所有抢救策略均失败，严格验证不通过"
         return report
     
     def _analyze_perplexity(

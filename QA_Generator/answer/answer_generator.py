@@ -786,13 +786,14 @@ Question: {question}
 Correct Answer: {correct_answer}
 
 Requirements:
-1. Generate exactly {wrong_count} wrong options
-2. Each option should be similar in format and length to the correct answer ("{correct_answer}")
-3. Options should be plausible but clearly incorrect when compared to the image
-4. Options should be diverse and not repetitive
-5. Each option should be concise (similar length to the correct answer, typically 1-5 words)
-6. Do NOT include any analysis or explanation, only the options
-7. Make sure each option is a single, concise phrase similar to the correct answer format
+1. Generate exactly {wrong_count} wrong options.
+2. Each option MUST have the same answer TYPE and style as the correct answer ("{correct_answer}") — e.g. if the correct answer is a short direction word like "left", all options must also be short direction words, NOT location phrases like "on the road".
+3. Options must be plausible but clearly incorrect when compared to the image.
+4. Options must be diverse and not repetitive (no duplicate or near-duplicate texts).
+5. Each option should be concise (similar length to the correct answer, typically 1-5 words).
+6. DO NOT include any analysis or explanation, only the options.
+7. Make sure each option is a single, concise phrase similar to the correct answer format.
+8. DO NOT output options that are synonyms, paraphrases, or slight variants of the correct answer (e.g. if the correct answer is "left", do NOT output "on the left", "left side", "to the left", etc.).
 
 Provide your response in the following format (one option per line):
 Option 1: [option text]
@@ -800,7 +801,7 @@ Option 2: [option text]
 ...
 Option {wrong_count}: [option text]
 
-Important: Each option should be brief and similar in style to "{correct_answer}"."""
+Important: Each option should be brief and similar in style to "{correct_answer}", but clearly WRONG and not ambiguous with it."""
 
         try:
             response = self.gemini_client.analyze_image(
@@ -813,7 +814,8 @@ Important: Each option should be brief and similar in style to "{correct_answer}
             
             # 解析错误选项
             wrong_options = self._parse_wrong_options_response(response, wrong_count)
-            
+            # 进行去重和与正确答案的模糊冲突过滤
+            wrong_options = self._postprocess_wrong_options(wrong_options, correct_answer)
             return wrong_options
             
         except Exception as e:
@@ -822,7 +824,7 @@ Important: Each option should be brief and similar in style to "{correct_answer}
     
     def _parse_answer_response(self, response: str) -> Tuple[str, str]:
         """
-        解析答案响应
+        解析答案响应（增强版：支持多种格式）
         
         Returns:
             (answer, explanation)
@@ -830,57 +832,213 @@ Important: Each option should be brief and similar in style to "{correct_answer}
         answer = ""
         explanation = ""
         
-        # 提取Answer行
-        answer_match = re.search(r'Answer:\s*(.+?)(?:\n|$)', response, re.IGNORECASE | re.MULTILINE)
+        if not response or not isinstance(response, str):
+            return "", ""
+        
+        response_clean = response.strip()
+        if not response_clean:
+            return "", ""
+        
+        # 策略1: 尝试解析JSON格式（优先）
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_clean, re.DOTALL)
+        if json_match:
+            try:
+                import json
+                json_str = json_match.group(0)
+                result = json.loads(json_str)
+                # 尝试多种可能的字段名
+                answer = (
+                    result.get("answer") or result.get("Answer") or 
+                    result.get("text") or result.get("Text") or
+                    result.get("option") or result.get("Option") or
+                    ""
+                )
+                explanation = (
+                    result.get("explanation") or result.get("Explanation") or
+                    result.get("reason") or result.get("Reason") or
+                    ""
+                )
+                if answer:
+                    answer = str(answer).strip().strip('"\'')
+                if explanation:
+                    explanation = str(explanation).strip()
+                if answer:
+                    return answer, explanation
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                pass  # JSON解析失败，继续尝试其他格式
+        
+        # 策略2: 提取 "Answer: ..." 格式（标准文本格式）
+        answer_match = re.search(r'Answer\s*[:：]\s*(.+?)(?:\n|Explanation|$)', response_clean, re.IGNORECASE | re.MULTILINE | re.DOTALL)
         if answer_match:
             answer = answer_match.group(1).strip()
+            # 提取Explanation（如果存在）
+            explanation_match = re.search(r'Explanation\s*[:：]\s*(.+?)(?:\n|$)', response_clean, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+            if explanation_match:
+                explanation = explanation_match.group(1).strip()
         
-        # 提取Explanation行
-        explanation_match = re.search(r'Explanation:\s*(.+?)(?:\n|$)', response, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-        if explanation_match:
-            explanation = explanation_match.group(1).strip()
-        
-        # 如果没有找到Answer格式，尝试提取第一行或整个响应
+        # 策略3: 如果没有找到Answer格式，尝试按行提取
         if not answer:
-            lines = response.strip().split('\n')
-            if lines:
-                # 移除可能的"Answer:"前缀
-                answer = re.sub(r'^Answer:\s*', '', lines[0], flags=re.IGNORECASE).strip()
+            lines = [line.strip() for line in response_clean.split('\n') if line.strip()]
+            for i, line in enumerate(lines):
+                # 跳过明显的标题行
+                if re.match(r'^(Answer|Explanation|Question|问题|答案|解释)\s*[:：]?\s*$', line, re.IGNORECASE):
+                    continue
+                # 尝试提取答案（第一行非空内容，或包含关键词的行）
                 if not answer:
-                    answer = lines[0].strip()
+                    # 移除可能的"Answer:"前缀
+                    cleaned = re.sub(r'^(Answer|答案)\s*[:：]\s*', '', line, flags=re.IGNORECASE).strip()
+                    if cleaned and len(cleaned) > 0:
+                        answer = cleaned
+                # 提取解释（在答案之后的行）
+                elif not explanation and i > 0:
+                    cleaned = re.sub(r'^(Explanation|解释)\s*[:：]\s*', '', line, flags=re.IGNORECASE).strip()
+                    if cleaned:
+                        explanation = cleaned
+                        break
         
-        # 清理答案（移除引号等）
-        answer = answer.strip('"\'')
+        # 策略4: 如果仍然没有答案，使用整个响应的第一行（去除引号）
+        if not answer:
+            first_line = response_clean.split('\n')[0].strip()
+            # 移除引号和常见前缀
+            answer = re.sub(r'^["\']|["\']$', '', first_line)
+            answer = re.sub(r'^(Answer|答案|A)\s*[:：.]\s*', '', answer, flags=re.IGNORECASE).strip()
+        
+        # 最终清理
+        answer = answer.strip('"\'`').strip()
+        explanation = explanation.strip('"\'`').strip()
+        
+        # 如果答案看起来像JSON片段，尝试提取
+        if answer.startswith('{') and '}' in answer:
+            try:
+                import json
+                answer_dict = json.loads(answer)
+                answer = answer_dict.get("answer") or answer_dict.get("Answer") or str(answer_dict)
+            except:
+                pass
         
         return answer, explanation
     
     def _parse_wrong_options_response(self, response: str, expected_count: int) -> List[str]:
         """
-        解析错误选项响应
+        解析错误选项响应（增强版：支持多种格式）
         
         Returns:
             错误选项列表
         """
         options = []
         
-        # 尝试按格式解析：Option 1: ... Option 2: ...
-        pattern = r'Option\s+\d+:\s*(.+?)(?:\n|Option|$)'
-        matches = re.findall(pattern, response, re.IGNORECASE | re.MULTILINE)
+        if not response or not isinstance(response, str):
+            return []
         
+        response_clean = response.strip()
+        if not response_clean:
+            return []
+        
+        # 策略1: 尝试解析JSON格式（优先）
+        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_clean, re.DOTALL)
+        if json_match:
+            try:
+                import json
+                json_str = json_match.group(0)
+                result = json.loads(json_str)
+                # 尝试多种可能的字段名
+                if isinstance(result, dict):
+                    # 尝试 options, wrong_options, alternatives 等字段
+                    options_list = (
+                        result.get("options") or result.get("wrong_options") or
+                        result.get("alternatives") or result.get("wrong_answers") or
+                        []
+                    )
+                    if isinstance(options_list, list) and options_list:
+                        options = [str(opt).strip().strip('"\'') for opt in options_list if opt]
+                elif isinstance(result, list):
+                    options = [str(opt).strip().strip('"\'') for opt in result if opt]
+                if options:
+                    return options[:expected_count]
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                pass  # JSON解析失败，继续尝试其他格式
+        
+        # 策略2: 标准格式 "Option 1: ... Option 2: ..."
+        pattern = r'Option\s+\d+\s*[:：.]\s*(.+?)(?=\n\s*Option\s+\d+\s*[:：.]|$)'
+        matches = re.findall(pattern, response_clean, re.IGNORECASE | re.MULTILINE)
         if matches:
             options = [match.strip().strip('"\'') for match in matches]
-        else:
-            # 如果没有找到格式化的选项，尝试按行分割
-            lines = [line.strip() for line in response.strip().split('\n') if line.strip()]
-            # 过滤掉明显的标题行
-            lines = [line for line in lines if not re.match(r'^(Option|选项|错误选项)', line, re.IGNORECASE)]
-            options = lines[:expected_count]
         
-        # 清理选项
-        options = [opt.strip('"\'') for opt in options if opt.strip()]
+        # 策略3: 字母格式 "A: ... B: ..." 或 "A. ... B. ..."
+        if not options:
+            pattern = r'[A-Z]\s*[:：.]\s*(.+?)(?=\n\s*[A-Z]\s*[:：.]|$)'
+            matches = re.findall(pattern, response_clean, re.MULTILINE)
+            if matches:
+                options = [match.strip().strip('"\'') for match in matches]
         
-        # 如果选项数量不足，返回已有的
+        # 策略4: 数字编号格式 "1. ... 2. ..."
+        if not options:
+            pattern = r'\d+\.\s*(.+?)(?=\n\s*\d+\.|$)'
+            matches = re.findall(pattern, response_clean, re.MULTILINE)
+            if matches:
+                options = [match.strip().strip('"\'') for match in matches]
+        
+        # 策略5: 按行分割（过滤标题行）
+        if not options:
+            lines = [line.strip() for line in response_clean.split('\n') if line.strip()]
+            # 过滤掉明显的标题行和空行
+            filtered_lines = []
+            for line in lines:
+                # 跳过标题行
+                if re.match(r'^(Option|选项|错误选项|Wrong|Requirements|要求)\s*[:：]?\s*$', line, re.IGNORECASE):
+                    continue
+                # 跳过纯数字或字母行（可能是编号）
+                if re.match(r'^[A-Z\d]+\.?\s*$', line):
+                    continue
+                # 提取内容（移除可能的编号前缀）
+                cleaned = re.sub(r'^(Option\s+\d+|选项\s*\d+|[A-Z]\s*|[\d]+\.)\s*[:：.]\s*', '', line, flags=re.IGNORECASE).strip()
+                if cleaned and len(cleaned) > 1:  # 至少2个字符
+                    filtered_lines.append(cleaned)
+            options = filtered_lines[:expected_count]
+        
+        # 清理选项（移除引号、去除空白）
+        options = [opt.strip('"\'`').strip() for opt in options if opt and opt.strip()]
+        
+        # 如果选项数量不足，返回已有的（后续再做去重/过滤）
         return options[:expected_count] if options else []
+
+    def _postprocess_wrong_options(self, wrong_options: List[str], correct_answer: str) -> List[str]:
+        """
+        对错误选项做后处理：
+        - 去重（大小写不敏感）
+        - 过滤与正确答案过于相似/模糊的选项（完全相同、包含关系）
+        
+        注意：这是启发式过滤，宁可丢掉一些选项，也要避免“几乎等于正确答案”的干扰项。
+        """
+        if not wrong_options:
+            return wrong_options
+        
+        ca = (correct_answer or "").strip().lower()
+        result: List[str] = []
+        seen: set[str] = set()
+        
+        for opt in wrong_options:
+            if not isinstance(opt, str):
+                opt_text = str(opt)
+            else:
+                opt_text = opt
+            text = opt_text.strip()
+            if not text:
+                continue
+            key = text.lower()
+            # 去重
+            if key in seen:
+                continue
+            # 过滤与正确答案过于接近的情况：
+            # - 完全相同
+            # - 其中一个是另一个的子串（如 "left" vs "on the left", "left side")
+            if ca:
+                if key == ca or ca in key or key in ca:
+                    continue
+            seen.add(key)
+            result.append(text)
+        
+        return result
     
     async def _generate_wrong_options_async(
         self,
@@ -904,14 +1062,15 @@ Question: {question}
 Correct Answer: {correct_answer}
 
 Requirements:
-1. Generate exactly {wrong_count} wrong options
-2. Each option should be similar in format and length to the correct answer ("{correct_answer}")
-3. Options should be plausible but clearly incorrect when compared to the image
-4. Options should be diverse and not repetitive
-5. Each option should be concise (similar length to the correct answer, typically 1-5 words)
-6. Do NOT include any analysis or explanation, only the options
-7. Make sure each option is a single, concise phrase similar to the correct answer format
-8. Each option must be a plain text string, NOT a JSON object or JSON string
+1. Generate exactly {wrong_count} wrong options.
+2. Each option MUST have the same answer TYPE and style as the correct answer ("{correct_answer}") — e.g. if the correct answer is a short direction word like "left", all options must also be short direction words, NOT location phrases like "on the road".
+3. Options must be plausible but clearly incorrect when compared to the image.
+4. Options must be diverse and not repetitive (no duplicate or near-duplicate texts).
+5. Each option should be concise (similar length to the correct answer, typically 1-5 words).
+6. DO NOT include any analysis or explanation, only the options.
+7. Make sure each option is a single, concise phrase similar to the correct answer format.
+8. Each option must be a plain text string, NOT a JSON object or JSON string.
+9. DO NOT output options that are synonyms, paraphrases, or slight variants of the correct answer (e.g. if the correct answer is "left", do NOT output "on the left", "left side", "to the left", etc.).
 
 Provide your response in the following format (one option per line):
 Option 1: [option text]
@@ -977,6 +1136,8 @@ Option {wrong_count}: [option text]"""
             wrong_options = self._parse_wrong_options_response(response_text, wrong_count)
             if not wrong_options:
                 log_error(f"错误选项解析失败，返回空列表。原始响应: {response_text[:300]}...")
+            # 进行去重和与正确答案的模糊冲突过滤
+            wrong_options = self._postprocess_wrong_options(wrong_options, correct_answer)
             return wrong_options
         except Exception as e:
             log_error(f"异步生成错误选项失败: {e}")
