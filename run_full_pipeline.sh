@@ -16,23 +16,29 @@ PROJECT_ROOT="/home/zhuxuzhou/My_project"
 PARQUET_DIR="/mnt/tidal-alsh01/dataset/perceptionVLMData/processed_v1.0/datasets--OpenImages/data/train/"
 BASELINE_MODEL_PATH="/mnt/tidal-alsh01/dataset/perceptionVLM/models_zhuxuzhou/vllm/llava_ov/hf_baseline_model"
 JUDGE_MODEL_NAME="Qwen3-VL-235B-A22B-Instruct"
-OUTPUT_DIR="/home/zhuxuzhou/My_project/data/output_1_17_prefill"
+OUTPUT_DIR="/home/zhuxuzhou/My_project/data/output_1_29_prefill"
 
 PIPELINE_CONFIG="/home/zhuxuzhou/My_project/FactorFilterAgent/failure_key_sampler/configs/pipeline_config.example.json"
-ERROR_OUTPUT="/home/zhuxuzhou/My_project/FactorFilterAgent/failure_key_sampler/img_with_pipeline_type_and_prefill/second_refined_error_cases.json"
+ERROR_OUTPUT="/home/zhuxuzhou/My_project/FactorFilterAgent/failure_key_sampler/img_with_pipeline_type_and_prefill/third_refined_error_cases.json"
 
 # =========================
 # Common parameters
 # =========================
-NPROC_PER_NODE=8
+NPROC_PER_NODE=8  # Using 8 GPUs for distributed processing
 TARGET_FAILURE_COUNT=5000
-FAILURE_BATCH_SIZE=50
+# Optimized for 8 GPUs: Each GPU processes this batch size, total = 100 * 8 = 800 images/batch
+# Increased from 50 to 100 for better GPU utilization (was 50)
+FAILURE_BATCH_SIZE=100
 MAX_EMPTY_BATCHES=10
-PARQUET_SAMPLE_SIZE=4
+# Optimized: Increased parquet sample size to reduce I/O overhead (was 4)
+# With 8 GPUs, we can load more parquet files in parallel
+PARQUET_SAMPLE_SIZE=16
 SEED=42
 START_INDEX=20000
 
-CONCURRENCY=10
+# Optimized for 8 GPUs: Increased concurrency for Step 3 (was 10)
+# With 8 GPUs available, we can support higher concurrency (adjust based on API limits)
+CONCURRENCY=20
 ENABLE_VALIDATION_EXEMPTIONS=true
 LOG_FILE="/home/zhuxuzhou/My_project/QA_Generator/vqa_ready4use_$(date +%m%d_%H%M%S)_log.txt"
 
@@ -56,7 +62,8 @@ SAMPLE_SIZE=""
 CLAIM_TEMPLATE_CONFIG=""
 INCLUDE_SOURCE_METADATA=false
 
-REQUEST_DELAY=0.1
+# Optimized: Reduced request delay for Step 3 (was 0.1, adjust if API has rate limits)
+REQUEST_DELAY=0.05
 NO_ASYNC=false
 NO_INTERMEDIATE=false
 BATCH_SIZE=1000
@@ -64,6 +71,21 @@ PIPELINES=()
 MAX_SAMPLES=""
 QUESTION_CONFIG=""
 ANSWER_CONFIG=""
+
+# =========================
+# Performance optimization notes for 8 GPUs
+# =========================
+# Step 1 (ProbingFactorGeneration):
+#   - Uses torchrun with NPROC_PER_NODE=8 for distributed processing
+#   - Each GPU processes FAILURE_BATCH_SIZE images independently
+#   - Total throughput = FAILURE_BATCH_SIZE * 8 GPUs = 800 images/batch
+#   - Auto-optimization adjusts concurrency per GPU based on batch_size
+#   - PARQUET_SAMPLE_SIZE=16 allows loading more data files in parallel across GPUs
+#
+# Step 3 (QA_Generator):
+#   - Currently uses single GPU mode (num_gpus=1 hardcoded)
+#   - CONCURRENCY=20 leverages available compute resources
+#   - Can be further optimized if code supports multi-GPU mode
 
 # Prepare paths
 PROJECT_ROOT="$(cd "${PROJECT_ROOT}" && pwd)"
@@ -103,6 +125,7 @@ if [[ "${INCLUDE_SOURCE_METADATA}" == "true" ]]; then
   STEP1_ARGS+=(--include_source_metadata)
 fi
 
+# Step 1 uses auto-optimization internally (request_delay=0.0, auto-concurrency)
 OPENAI_API_KEY="${OPENAI_API_KEY}" \
 OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
 MODEL_NAME="${MODEL_NAME}" \
