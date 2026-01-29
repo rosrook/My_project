@@ -680,7 +680,11 @@ Please respond in JSON format:
             
             # Extract baseline / schema info from claim_template
             slots_info = claim_template.get("slots", {})
-            not_related_conditions = claim_template.get("not_related_conditions")
+            # not_related_conditions is stored in metadata by TemplateClaimGenerator
+            not_related_conditions = (
+                claim_template.get("not_related_conditions")
+                or claim_template.get("metadata", {}).get("not_related_conditions")
+            )
             
             # Step 1: Precheck template answerability (lightweight judgment)
             precheck_result = await self._precheck_template_answerability_async(
