@@ -28,6 +28,7 @@
       "object_category": "A semantic category name for countable or recognizable objects",
       "abstract_concept": "A non-visual, category-level or system-level concept inferred from visual elements",
       "categorical_value": "A value from a predefined set of options",
+      "percentage_value": "A numeric percentage value in the range 0–100%, e.g. '35%' (optionally with one decimal place)",
       "integer_value": "An exact integer count or numeric value",
       "spatial_descriptor": "A description of a spatial region or position in the image",
       "natural_language_text": "Free-form natural language description generated from visual content",
@@ -264,15 +265,14 @@
             "selection_criteria": "Select the most salient object with discernible boundaries suitable for proportion estimation"
           },
           "PROPORTION": {
-            "type": "categorical_value",
-            "values": ["less than 10%", "10-25%", "25-50%", "50-75%", "more than 75%"],
-            "selection_criteria": "Estimate the proportion of total image area occupied by the object"
+            "type": "percentage_value",
+            "selection_criteria": "Estimate the proportion of total image area occupied by the object. Return a numeric percentage like '12%' or '37.5%' (0–100%). Do not choose from fixed buckets."
           }
         },
         "prefill_slots": ["TARGET_OBJECT"],
         "baseline_instructions": [
           "Identify the most salient object with clear, discernible boundaries.",
-          "Estimate the approximate proportion of image area it occupies.",
+          "Estimate the approximate proportion of image area it occupies as a numeric percentage (0–100%), e.g., '12%'.",
           "If no object has clear boundaries, the object spans the entire image uniformly, or boundaries are indiscernible, return NOT_RELATED."
         ],
         "not_related_conditions": [
@@ -519,6 +519,7 @@
       "slot_instantiation_principle": "The baseline model independently selects the most appropriate and salient elements from the image for each slot based on the selection_criteria. The goal is to maximize claim relevance and testability.",
       "not_related_usage": "Return NOT_RELATED only when the image fundamentally lacks the necessary visual properties to instantiate a meaningful claim for the given schema. This ensures claims are only generated when they can be meaningfully evaluated.",
       "integer_values": "All COUNT or numeric slots must return exact integer values, not ranges or approximations.",
+      "percentage_values": "All percentage_value slots should return a numeric percentage in 0–100% (optionally with one decimal place), e.g., '37%'. Do not use bucketed categories.",
       "evaluation_principle": "Claims should be evaluable as TRUE or FALSE based solely on visual content, without requiring external context beyond common knowledge."
     }
   }
