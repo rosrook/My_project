@@ -29,7 +29,9 @@ INCLUDE_SOURCE_METADATA=false
 
 # Failure mapping (step 2)
 PIPELINE_CONFIG="${PROJECT_ROOT}/FactorFilterAgent/failure_key_sampler/configs/pipeline_config.example.json"
+FAILURE_CONFIG="${PROJECT_ROOT}/ProbingFactorGeneration/configs/failure_config.example.json"
 ERROR_OUTPUT="${BASE_OUTPUT_DIR}/failure_key_sampler/jpg_debug_error_cases.json"
+SAMPLER_OUTPUT="${BASE_OUTPUT_DIR}/failure_key_sampler/sampled_failures.jsonl"
 SEED=42
 START_INDEX=0
 
@@ -151,14 +153,25 @@ torchrun --nproc_per_node=1 \
 # =========================
 # Step 2: FactorFilterAgent failure_key_sampler
 # =========================
-if [[ -d "${OUTPUT_DIR}/rank_0" ]]; then
-  FAILURE_ROOT="${OUTPUT_DIR}/rank_0"
+# Determine probing_results.json path (check rank_0 first, then root)
+PROBING_RESULTS="${OUTPUT_DIR}/probing_results.json"
+if [[ -f "${OUTPUT_DIR}/rank_0/probing_results.json" ]]; then
+  PROBING_RESULTS="${OUTPUT_DIR}/rank_0/probing_results.json"
+fi
+
+if [[ ! -f "${PROBING_RESULTS}" ]]; then
+  echo "[ERROR] probing_results.json not found at: ${PROBING_RESULTS}"
+  echo "        Please check Step 1 output."
+  exit 1
 fi
 
 python -m FactorFilterAgent.failure_key_sampler.main \
-  --failure_root "${FAILURE_ROOT}" \
+  --input "${PROBING_RESULTS}" \
+  --output "${SAMPLER_OUTPUT}" \
+  --failure_config "${FAILURE_CONFIG}" \
   --pipeline_config "${PIPELINE_CONFIG}" \
   --error_output "${ERROR_OUTPUT}" \
+  --image_dir "${PARQUET_DIR}" \
   --seed "${SEED}" \
   --start_index "${START_INDEX}"
 
