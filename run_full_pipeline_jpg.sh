@@ -25,7 +25,8 @@ USE_LOCAL_BASELINE=true
 SAMPLE_SIZE=1
 PARQUET_SAMPLE_SIZE=1
 RANDOM_SEED=42
-INCLUDE_SOURCE_METADATA=false
+# Recommended: include image_path in probing_results.json (helps Step 2 locate images)
+INCLUDE_SOURCE_METADATA=true
 
 # Failure mapping (step 2)
 PIPELINE_CONFIG="${PROJECT_ROOT}/FactorFilterAgent/failure_key_sampler/configs/pipeline_config.example.json"
@@ -165,13 +166,17 @@ if [[ ! -f "${PROBING_RESULTS}" ]]; then
   exit 1
 fi
 
+# Prefer looking for images alongside probing_results.json (run_complete_pipeline.py
+# often saves `${image_id}.jpg` into the same output directory).
+IMAGE_DIR="$(dirname "${PROBING_RESULTS}")"
+
 python -m FactorFilterAgent.failure_key_sampler.main \
   --input "${PROBING_RESULTS}" \
   --output "${SAMPLER_OUTPUT}" \
   --failure_config "${FAILURE_CONFIG}" \
   --pipeline_config "${PIPELINE_CONFIG}" \
   --error_output "${ERROR_OUTPUT}" \
-  --image_dir "${PARQUET_DIR}" \
+  --image_dir "${IMAGE_DIR}" \
   --seed "${SEED}" \
   --start_index "${START_INDEX}"
 
