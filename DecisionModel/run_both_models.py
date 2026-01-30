@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 
 # 训练/测试数据
 # - 训练+测试共用一份标注时：只填 ANNOTATIONS_PATH，脚本会按 TRAIN_RATIO 划分
-ANNOTATIONS_PATH: Optional[Path] = None  # 例如 Path("DecisionModel/demo_data/annotations.jsonl")
+ANNOTATIONS_PATH: Optional[Path] = Path("DecisionModel/demo_real_data/annotations.jsonl")  # 转换工具输出；None 则用 demo_data/annotations.jsonl
 # - 若有单独测试集，可后续在代码里支持 TEST_ANNOTATIONS_PATH（当前版本用划分）
 
 # 筛选要素列表（用于无 ANNOTATIONS_PATH 时生成合成数据）
