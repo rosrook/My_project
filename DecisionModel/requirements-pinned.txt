@@ -1,0 +1,13 @@
+# DecisionModel 依赖（版本固定，避免 numpy/pandas/sklearn 二进制不兼容 + 满足 redeuler numpy<2.0）
+# 使用：pip install -r DecisionModel/requirements-pinned.txt
+
+# 核心：精确版本，保证不触发 numpy 升级，且三者二进制兼容
+numpy==1.26.4
+pandas==2.1.4
+scikit-learn==1.3.2
+
+# DecisionModel 原有依赖
+torch>=1.12.0
+torchvision>=0.13.0
+sentence-transformers>=2.2.0
+Pillow>=9.0.0
