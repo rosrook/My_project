@@ -1,0 +1,29 @@
+# Script arguments
+dataset_name: "your/dataset"
+dataset_config: null
+dataset_train_split: "train"
+dataset_test_split: "test"
+reward_funcs:
+  - "combined"
+  - "format"
+agent_selection_weight: 0.5
+filtering_quality_weight: 0.5
+available_agents:
+  - "quality_filter"
+  - "deduplication_filter"
+  - "length_filter"
+  - "relevance_filter"
+
+# Training arguments (GRPOConfig)
+output_dir: "./output"
+num_train_epochs: 3
+per_device_train_batch_size: 4
+learning_rate: 1e-5
+
+# Model arguments - 使用 Qwen2-VL 模型
+model_name_or_path: "Qwen/Qwen2-VL-7B-Instruct"  # Qwen2-VL 7B 模型（从 HuggingFace 获取）
+
+# 注意：以下参数需要通过 GRPOConfig 的 model_init_kwargs 传递
+# 如果 TrlParser 支持，可以通过命令行参数传递：
+# --model_init_kwargs '{"torch_dtype": "bfloat16", "attn_implementation": "flash_attention_2"}'
+# 或者修改代码在 GRPOConfig 中添加 model_init_kwargs 字段

@@ -1,0 +1,3 @@
+{"image_path": "demo_data/images/sample_001.jpg", "image_id": "img_1", "filter_factor_texts": ["clear and identifiable concept", "at least one visually salient object"]}
+{"image_path": "demo_data/images/sample_002.jpg", "image_id": "img_2", "filter_factor_texts": ["multiple objects of different semantic types", "foreground-background distinction"]}
+{"image_path": "demo_data/images/sample_003.jpg", "image_id": "img_3", "filter_factor_texts": ["challenging visual conditions (low light, blur, reflections)", "visually salient object category"]}

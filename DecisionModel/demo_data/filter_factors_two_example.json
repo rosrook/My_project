@@ -1,0 +1,8 @@
+{
+    "filter_factors_schema_version": "v1.0",
+    "description": "示例：仅包含两条筛选要素，用于与 annotations_one_example.jsonl 对应。",
+    "filter_factors": [
+        "clear and identifiable concept",
+        "at least one visually salient object"
+    ]
+}

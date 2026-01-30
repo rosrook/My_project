@@ -1,0 +1,3 @@
+# DecisionModel + Qwen2-VL 训练额外依赖（在 requirements.txt 基础上安装）
+transformers>=4.45.0
+accelerate>=0.30.0

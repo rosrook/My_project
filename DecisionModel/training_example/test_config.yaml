@@ -1,0 +1,43 @@
+# Script arguments - 测试配置
+dataset_name: "./test_training_data"
+dataset_config: null
+dataset_train_split: "train"
+dataset_test_split: "test"
+reward_funcs:
+  - "format"  # 只使用 format reward，因为 agent_executor 还未实现
+  - "agent_selection"  # Agent 选择奖励
+agent_selection_weight: 0.5
+filtering_quality_weight: 0.5
+available_agents:
+  - "quality_filter_agent"
+  - "deduplication_filter"
+  - "length_filter"
+
+# Training arguments (GRPOConfig) - 测试用的小参数
+output_dir: "./test_output"
+num_train_epochs: 1  # 测试时只用 1 个 epoch
+per_device_train_batch_size: 1  # 小批次，避免内存问题
+gradient_accumulation_steps: 1
+learning_rate: 1e-5
+logging_steps: 1
+save_steps: 10
+eval_strategy: "no"  # 测试时跳过验证
+
+# GRPO 特定参数 - 测试用的小参数
+max_prompt_length: 512  # Qwen2-VL 支持更长的输入
+max_completion_length: 512
+num_generations: 2  # 每个 prompt 只生成 2 个样本（减少计算量）
+temperature: 0.7
+beta: 0.1
+
+# Qwen2-VL 特定参数（如果 grpo_trainer.py 支持）
+max_pixels: 12845056  # 最大像素数（默认值）
+min_pixels: 3136      # 最小像素数（默认值）
+
+# Model arguments - 使用 Qwen2-VL 模型
+model_name_or_path: "Qwen/Qwen2-VL-7B-Instruct"  # Qwen2-VL 7B 模型（从 HuggingFace 获取）
+
+# 注意：torch_dtype 和 attn_implementation 等参数需要通过 GRPOConfig 的 model_init_kwargs 传递
+# grpo_trainer.py 中 attn_implementation 默认是 "flash_attention_2"
+# 如果需要指定 torch_dtype，可能需要修改代码或通过命令行参数传递
+
