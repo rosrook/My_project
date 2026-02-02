@@ -21,6 +21,63 @@ from FactorFilterAgent.failure_key_sampler.pipeline_output_builder import (
     write_error_output_from_failure_root,
 )
 
+# 错误原因优先级（从低到高，索引越大优先级越高）
+FAILURE_PRIORITY_ORDER = [
+    "FR_SCALE_PROPORTION_ERROR",
+    "FR_OBJECT_ORIENTATION_ERROR",
+    "FR_OBJECT_COUNTING_CONFUSION",
+    "FR_ABSOLUTE_POSITION_ERROR",
+    "FR_RELATIVE_POSITION_ERROR",
+    "FR_ABSENCE_REASONING_FAILURE",
+    "FR_INTRA_CLASS_INSTANCE_POSITIONING_FAILURE",
+    "FR_BASIC_VISUAL_ENTITY_GROUNDING_FAILURE",
+]
+
+
+def _get_failure_priority(failure_key: str) -> int:
+    """
+    获取错误原因的优先级（索引），不在列表中的返回 -1（最低优先级）。
+    
+    Returns:
+        优先级索引（0=最低，越大越高），不在列表中的返回 -1
+    """
+    try:
+        return FAILURE_PRIORITY_ORDER.index(failure_key)
+    except ValueError:
+        return -1
+
+
+def _weighted_choice_by_priority(keys: List[str], rng: Optional[random.Random] = None) -> str:
+    """
+    根据优先级进行加权随机选择。
+    
+    优先级越高（在 FAILURE_PRIORITY_ORDER 中索引越大），被选中的概率越大。
+    使用平方权重放大优先级差距：权重 = (优先级索引 + 2)^2
+    不在优先级列表中的错误原因权重为 1（最低）。
+    
+    Args:
+        keys: 候选错误原因列表
+        rng: 随机数生成器（None 则使用全局 random）
+    
+    Returns:
+        选中的错误原因
+    """
+    if rng is None:
+        rng = random
+    
+    # 计算每个 key 的权重：使用平方权重放大优先级差距
+    weights = []
+    for key in keys:
+        priority = _get_failure_priority(key)
+        if priority >= 0:
+            weight = (priority + 2) ** 2  # 平方权重：优先级0→4, 1→9, 2→16, ..., 7→81
+        else:
+            weight = 1  # 不在列表中的错误原因权重最低
+        weights.append(weight)
+    
+    # 加权随机选择
+    return rng.choices(keys, weights=weights, k=1)[0]
+
 
 @dataclass
 class SampledFailure:
@@ -259,7 +316,7 @@ def sample_failure_keys(
         elif len(keys) == 1:
             sampled = keys[0]
         else:
-            sampled = random.choice(keys)
+            sampled = _weighted_choice_by_priority(keys)
 
         suggested_factors = failure_factor_map.get(sampled, []) if sampled else []
         prefill_claim = _extract_prefill_claim(item, sampled) if sampled else None

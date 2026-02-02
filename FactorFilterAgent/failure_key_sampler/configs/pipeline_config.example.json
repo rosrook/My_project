@@ -32,8 +32,8 @@
     },
     {
       "failure_id": "FR_RELATIVE_POSITION_ERROR",
-      "pipeline_type": "object_position",
-      "pipeline_name": "Object Position Pipeline"
+      "pipeline_type": "object_relative_position",
+      "pipeline_name": "Object Relative Position Pipeline"
     },
     {
       "failure_id": "FR_OBJECT_ORIENTATION_ERROR",

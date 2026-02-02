@@ -198,6 +198,32 @@
       "example_template": "Where is the [object] located in the picture?"
     },
 
+    "object_relative_position": {
+      "name": "Object Relative Position Pipeline",
+      "intent": "object_relative_position",
+      "description": "Identifying the relative position of a selected object within the image",
+      "question_intent": "locate_object_relative_to_other_objects",
+      "answer_type": "spatial_region",
+      "required_slots": ["object", "other_object"],
+      "optional_slots": ["spatial_granularity", "reference_frame"],
+      "object_grounding": {
+        "selection_required": true,
+        "selection_strategy": "relative_position",
+        "constraints": [
+          "object has a stable spatial extent",
+          "object is not trivial or purely background",
+          "object and other_object must be spatially distinct and have a meaningful relative position relationship"
+        ]
+      },
+      "question_constraints": [
+        "question must explicitly mention the selected object and the other object",
+        "no object counting or attribute reasoning",
+        "question must ask target object relative position",
+        "The question must instruct the respondent to answer based on the image"
+      ],
+      "example_template": "Where is the [object] located relative to the [other_object] in the picture?"
+    },
+
     "object_absence": {
       "name": "Object Absence Pipeline",
       "intent": "object_absence",

@@ -521,6 +521,8 @@ class VQAGeneratorPrefill:
             "object recognition": "question",
             "question": "question",
             "object position": "object_position",
+            "object relative position": "object_relative_position",
+            "relative position": "object_relative_position",
             "object proportion": "object_proportion",
             "object orientation": "object_orientation",
             "object absence": "object_absence",
