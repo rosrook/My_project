@@ -159,10 +159,17 @@ class VQAPipeline:
                 )
                 
                 if not answer_result or answer_result.get("answer") is None:
+                    error_msg = (
+                        answer_result.get("error", "答案生成失败")
+                        if isinstance(answer_result, dict)
+                        else "答案生成失败"
+                    )
                     errors.append({
                         "index": idx,
                         "id": record.get("id"),
-                        "error": "答案生成失败"
+                        "error": error_msg,
+                        "sample_index": record.get("sample_index"),
+                        "source_a_id": record.get("source_a_id"),
                     })
                     total_failed += 1
                     continue
@@ -334,8 +341,12 @@ class VQAPipeline:
                         log_debug_dict(f"[记录 {idx}] 答案生成结果 (answer_result)", answer_result if answer_result else {"error": "返回None"})
                         
                         if not answer_result or answer_result.get("answer") is None:
-                            last_error = "答案生成失败"
-                            log_error(f"[记录 {idx}] 答案生成失败: answer_result={answer_result}")
+                            last_error = (
+                                answer_result.get("error", "答案生成失败")
+                                if isinstance(answer_result, dict)
+                                else "答案生成失败"
+                            )
+                            log_error(f"[记录 {idx}] 答案生成失败: {last_error}, answer_result={answer_result}")
                             retry_count += 1
                             if retry_count <= max_retries:
                                 continue
@@ -394,7 +405,9 @@ class VQAPipeline:
                             "id": record.get("id"),
                             "error": last_error or "答案生成或验证失败",
                             "retry_count": retry_count,
-                            "validation_report": validation_report
+                            "validation_report": validation_report,
+                            "sample_index": record.get("sample_index"),
+                            "source_a_id": record.get("source_a_id"),
                         })
                     
                     # ========== 步骤4: 构建最终输出结果 ==========
@@ -453,7 +466,9 @@ class VQAPipeline:
                     return ("err", {
                         "index": idx,
                         "id": record.get("id"),
-                        "error": str(e)
+                        "error": str(e),
+                        "sample_index": record.get("sample_index"),
+                        "source_a_id": record.get("source_a_id"),
                     })
             
             # 创建所有任务
@@ -706,13 +721,14 @@ class VQAPipeline:
                             "answer_type": corresponding_question.get("answer_type") if corresponding_question else None,
                             "sample_index": corresponding_question.get("sample_index") if corresponding_question else error_item.get("sample_index"),
                             "id": error_id or (corresponding_question.get("id") if corresponding_question else None),
-                            "source_a_id": corresponding_question.get("source_a_id") if corresponding_question else None,
+                            "source_a_id": corresponding_question.get("source_a_id") if corresponding_question else error_item.get("source_a_id"),
                             "answer": None,  # 生成失败，没有答案
                             "explanation": None,
                             "full_question": corresponding_question.get("question") if corresponding_question else None,
                             "options": None,
                             "correct_option": None,
                             "error": error_item.get("error", "答案生成失败"),
+                            "error_stage": "generation",  # 生成阶段失败
                             "error_index": error_index,
                             "retry_count": error_item.get("retry_count", 0),
                             "batch": batch_num,
@@ -752,7 +768,16 @@ class VQAPipeline:
                             # 校验通过，加入成功数据
                             all_successful_vqa.append(answer)
                         else:
-                            # 校验不通过，加入校验失败数据
+                            # 校验不通过，加入校验失败数据；确保有 error 字段便于排查
+                            if "error" not in answer:
+                                reason = (
+                                    validation_report.get("regeneration_reason")
+                                    or validation_report.get("format_check", {}).get("issues", [])
+                                )
+                                if isinstance(reason, list):
+                                    reason = "; ".join(str(r) for r in reason[:3]) if reason else "校验失败"
+                                answer["error"] = reason or "答案校验未通过"
+                            answer["error_stage"] = "validation"
                             all_answer_validation_failed.append(answer)
                     
                     print(f"  - 校验通过: {len([a for a in batch_answers if a.get('validation_report', {}).get('validation_passed', False)])}")
@@ -772,7 +797,12 @@ class VQAPipeline:
                             "sample_index": question.get("sample_index"),
                             "id": question.get("id"),
                             "source_a_id": question.get("source_a_id"),
+                            "answer": None,
+                            "full_question": question.get("question"),
+                            "options": None,
+                            "correct_option": None,
                             "error": f"答案生成失败: {str(e)}",
+                            "error_stage": "generation",
                             "batch": batch_num,
                             "validation_passed": False,
                             "validation_report": {
@@ -1023,6 +1053,18 @@ class VQAPipeline:
                     item["error_index"] = answer.get("error_index")
                 if "retry_count" in answer:
                     item["retry_count"] = answer.get("retry_count")
+                if "error_stage" in answer:
+                    item["error_stage"] = answer.get("error_stage")
+            # 校验失败但无 error 时，从 validation_report 推导
+            elif answer.get("answer") is None or not answer.get("validation_passed", True):
+                vr = answer.get("validation_report") or {}
+                reason = vr.get("regeneration_reason") or vr.get("error")
+                if not reason and isinstance(vr.get("format_check"), dict):
+                    issues = vr.get("format_check", {}).get("issues", [])
+                    reason = "; ".join(str(i) for i in issues[:3]) if issues else None
+                item["error"] = reason or "答案生成或校验失败"
+                if "error_stage" in answer:
+                    item["error_stage"] = answer.get("error_stage")
             
             # 如果有批次信息，也包含进去
             if "batch" in answer:
