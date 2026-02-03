@@ -5,6 +5,11 @@ set -euo pipefail
 # 1) ProbingFactorGeneration -> expanded image data
 # 2) FactorFilterAgent failure_key_sampler -> pipeline-mapped samples
 # 3) QA_Generator pipeline -> VQA dataset
+#
+# Parameter fill status:
+# - All required and common parameters are filled.
+# - Optional (empty) parameters have defaults in downstream code:
+#   SAMPLE_SIZE, CLAIM_TEMPLATE_CONFIG, PIPELINES, MAX_SAMPLES, QUESTION_CONFIG, ANSWER_CONFIG.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -55,10 +60,12 @@ API_KEY="${OPENAI_API_KEY}"
 BASE_URL="${OPENAI_BASE_URL}"
 
 # =========================
-# Less-used parameters
+# Less-used parameters (optional - defaults below when empty)
 # =========================
 USE_LOCAL_BASELINE=true
+# SAMPLE_SIZE: empty = not used (Step 1 uses target_failure_count mode; default in Python=10 if fixed sampling)
 SAMPLE_SIZE=""
+# CLAIM_TEMPLATE_CONFIG: empty = Step 1 uses default "configs/claim_template.example_v1_1.json" (resolved under ProbingFactorGeneration/)
 CLAIM_TEMPLATE_CONFIG=""
 INCLUDE_SOURCE_METADATA=false
 
@@ -67,10 +74,16 @@ REQUEST_DELAY=0.05
 NO_ASYNC=false
 NO_INTERMEDIATE=false
 BATCH_SIZE=1000
+# PIPELINES: empty = Step 3 uses all pipelines (default None in Python)
 PIPELINES=()
+# MAX_SAMPLES: empty = Step 3 processes all records (default None in Python)
 MAX_SAMPLES=""
+# QUESTION_CONFIG: empty = Step 3 uses QA_Generator/question/config/question_config.json (default None → code uses project path)
 QUESTION_CONFIG=""
+# ANSWER_CONFIG: empty = Step 3 uses QA_Generator/answer/answer_config.json (default None → code uses project path)
 ANSWER_CONFIG=""
+# QA_DEBUG: set to 1 or true to enable DEBUG output in QA_Generator (slot_filler, gemini_client, pipeline, validator)
+QA_DEBUG=""
 
 # =========================
 # Performance optimization notes for 8 GPUs
@@ -173,17 +186,17 @@ if [[ -n "${ANSWER_CONFIG}" ]]; then
   STEP3_ARGS+=(--answer-config "${ANSWER_CONFIG}")
 fi
 
+# Build Step 3 env (QA_DEBUG controls slot_filler/gemini_client/pipeline DEBUG output)
+STEP3_ENV="OPENAI_API_KEY=${OPENAI_API_KEY} OPENAI_BASE_URL=${OPENAI_BASE_URL} MODEL_NAME=${MODEL_NAME}"
+if [[ "${QA_DEBUG}" == "1" || "${QA_DEBUG}" == "true" || "${QA_DEBUG}" == "yes" ]]; then
+  STEP3_ENV="${STEP3_ENV} QA_DEBUG=1"
+fi
+
 if [[ -n "${LOG_FILE}" ]]; then
-  OPENAI_API_KEY="${OPENAI_API_KEY}" \
-  OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
-  MODEL_NAME="${MODEL_NAME}" \
-  python QA_Generator/pipeline/pipeline.py "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1
+  eval "${STEP3_ENV}" python QA_Generator/pipeline/pipeline.py "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1
   echo "VQA log saved to: ${LOG_FILE}"
 else
-  OPENAI_API_KEY="${OPENAI_API_KEY}" \
-  OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
-  MODEL_NAME="${MODEL_NAME}" \
-  python QA_Generator/pipeline/pipeline.py "${STEP3_ARGS[@]}"
+  eval "${STEP3_ENV}" python QA_Generator/pipeline/pipeline.py "${STEP3_ARGS[@]}"
 fi
 
 echo "✅ All steps completed."

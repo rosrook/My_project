@@ -50,6 +50,8 @@ BATCH_SIZE=1000
 MAX_SAMPLES=""
 QUESTION_CONFIG=""
 ANSWER_CONFIG=""
+# QA_DEBUG: set to 1 or true to enable DEBUG output in QA_Generator (slot_filler, gemini_client, pipeline, validator)
+QA_DEBUG=""
 QA_OUTPUT_DIR="${BASE_OUTPUT_DIR}/qa_generator"
 LOG_FILE="${QA_OUTPUT_DIR}/vqa_jpg_debug_$(date +%m%d_%H%M%S)_log.txt"
 
@@ -216,11 +218,13 @@ if [[ -n "${ANSWER_CONFIG}" ]]; then
   STEP3_ARGS+=(--answer-config "${ANSWER_CONFIG}")
 fi
 
-(cd "${QA_OUTPUT_DIR}" && \
-  OPENAI_API_KEY="${OPENAI_API_KEY}" \
-  OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
-  MODEL_NAME="${MODEL_NAME}" \
-  python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
+# Build Step 3 env (QA_DEBUG controls slot_filler/gemini_client/pipeline DEBUG output)
+STEP3_ENV="OPENAI_API_KEY=${OPENAI_API_KEY} OPENAI_BASE_URL=${OPENAI_BASE_URL} MODEL_NAME=${MODEL_NAME}"
+if [[ "${QA_DEBUG}" == "1" || "${QA_DEBUG}" == "true" || "${QA_DEBUG}" == "yes" ]]; then
+  STEP3_ENV="${STEP3_ENV} QA_DEBUG=1"
+fi
+
+(cd "${QA_OUTPUT_DIR}" && eval "${STEP3_ENV}" python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
 
 echo "✅ JPG full pipeline complete."
 echo "Log: ${LOG_FILE}"
