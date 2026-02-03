@@ -87,7 +87,7 @@ class SampledFailure:
     suggested_filtering_factors: List[str]
     image_path: Optional[str] = None
     prefill_claim: Optional[str] = None
-    prefill_target_object: Optional[str] = None
+    prefill_prefilled_values: Optional[Dict[str, str]] = None
 
 
 def load_failure_config(config_path: str) -> Dict[str, List[str]]:
@@ -194,37 +194,19 @@ def _extract_prefill_claim(
     return None
 
 
-def _extract_target_from_prefilled_values(
-    prefilled_values: Dict[str, object],
-) -> Optional[str]:
-    if not isinstance(prefilled_values, dict):
-        return None
-    priority_keys = [
-        "TARGET_OBJECT",
-        "OBJECT_INSTANCE",
-        "OBJECT",
-        "OBJECT_IDENTITY",
-        "OBJECT_TYPE",
-        "OBJECT_CATEGORY",
-    ]
-    normalized = {str(k).upper(): v for k, v in prefilled_values.items()}
-    for key in priority_keys:
-        value = normalized.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    for value in normalized.values():
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def _extract_prefill_target_object(
+def _extract_prefilled_values_from_data(
     data: Dict[str, object],
     failure_id: str,
-) -> Optional[str]:
+) -> Dict[str, str]:
+    """
+    Extract prefilled_values from claim template data.
+    
+    Returns:
+        Dictionary mapping placeholder names to their values (e.g., {"OBJECT_A": "dog", "OBJECT_B": "hurdle"})
+    """
     claim_templates = data.get("claim_templates", [])
     if not isinstance(claim_templates, list):
-        return None
+        return {}
 
     verif = _find_verification_for_failure(data, failure_id)
     claim_id = None
@@ -259,22 +241,21 @@ def _extract_prefill_target_object(
                 break
 
     if not matched_template:
-        return None
+        return {}
 
-    prefill = matched_template.get("prefill", {})
-    if isinstance(prefill, dict):
-        target_object = prefill.get("target_object")
-        if isinstance(target_object, str) and target_object.strip():
-            return target_object.strip()
-
+    # Extract prefilled_values from metadata
     metadata = matched_template.get("metadata", {})
     if isinstance(metadata, dict):
         prefilled_values = metadata.get("prefilled_values", {})
-        target_object = _extract_target_from_prefilled_values(prefilled_values)
-        if target_object:
-            return target_object
+        if isinstance(prefilled_values, dict) and len(prefilled_values) > 0:
+            # Filter to only string values and normalize keys to uppercase
+            result: Dict[str, str] = {}
+            for k, v in prefilled_values.items():
+                if isinstance(v, str) and v.strip():
+                    result[str(k).upper()] = v.strip()
+            return result
 
-    return None
+    return {}
 
 
 def sample_failure_keys(
@@ -320,9 +301,7 @@ def sample_failure_keys(
 
         suggested_factors = failure_factor_map.get(sampled, []) if sampled else []
         prefill_claim = _extract_prefill_claim(item, sampled) if sampled else None
-        prefill_target_object = (
-            _extract_prefill_target_object(item, sampled) if sampled else None
-        )
+        prefill_prefilled_values = _extract_prefilled_values_from_data(item, sampled) if sampled else {}
 
         results.append(
             SampledFailure(
@@ -332,7 +311,7 @@ def sample_failure_keys(
                 suggested_filtering_factors=suggested_factors,
                 image_path=image_path,
                 prefill_claim=prefill_claim,
-                prefill_target_object=prefill_target_object,
+                prefill_prefilled_values=prefill_prefilled_values,
             )
         )
 
@@ -347,7 +326,7 @@ def sample_failure_keys(
                         "failure_keys": r.failure_keys,
                         "suggested_filtering_factors": r.suggested_filtering_factors,
                         "prefill_claim": r.prefill_claim,
-                        "prefill_target_object": r.prefill_target_object,
+                        "prefill_prefilled_values": r.prefill_prefilled_values,
                     },
                     ensure_ascii=False,
                 )

@@ -25,6 +25,7 @@ from QA_Generator.clients.async_client import AsyncGeminiClient
 
 # 导入预填充专用模块
 from .object_prefill import PrefillProcessor
+from .prefill_processor_simplified import PrefillProcessorSimplified
 from .question_generator_prefill import QuestionGeneratorPrefill
 
 
@@ -57,7 +58,8 @@ class VQAGeneratorPrefill:
         self.gemini_client = gemini_client or GeminiClient()
         
         # 初始化各个模块
-        self.prefill_processor = PrefillProcessor(self.gemini_client)
+        self.prefill_processor = PrefillProcessor(self.gemini_client)  # 保留用于向后兼容
+        self.prefill_processor_simplified = PrefillProcessorSimplified()  # 新的简化版本
         self.slot_filler = SlotFiller(self.gemini_client)
         self.question_generator = QuestionGeneratorPrefill(self.gemini_client)
         self.validator = QuestionValidator(
@@ -128,47 +130,48 @@ class VQAGeneratorPrefill:
                     debug_record["error_reason"] = error_info["error_reason"]
                 return None, error_info
             
-            # STEP 2: 处理预填充对象（替代对象选择）
-            prefill_object = None
+            # STEP 2: 处理预填充输入（简化版本）
+            prefill_info = None
             try:
-                prefill_object = self.prefill_processor.process_prefill(
-                    prefill_input=prefill_input,
-                    image_input=image_input,
-                    pipeline_config=pipeline_config
-                )
+                # 检查是否使用新的简化格式（包含 prefilled_values）
+                if "prefilled_values" in prefill_input:
+                    prefill_info = self.prefill_processor_simplified.process_prefill(
+                        prefill_input=prefill_input,
+                        image_input=image_input,
+                        pipeline_config=pipeline_config
+                    )
+                else:
+                    # 向后兼容：处理旧格式（仅用于兼容可能存在的旧数据文件）
+                    # 注意：新流程统一使用 claim + prefilled_values，不再使用 target_object
+                    prefill_object = self.prefill_processor.process_prefill(
+                        prefill_input=prefill_input,
+                        image_input=image_input,
+                        pipeline_config=pipeline_config
+                    )
+                    if prefill_object:
+                        # 转换为新格式：PrefillProcessor 已经处理了优先级，直接使用 name
+                        prefill_info = {
+                            "claim": prefill_object.get("claim", ""),
+                            "prefilled_values": {}
+                        }
+                        # PrefillProcessor 返回的 name 字段已经包含了正确的值（优先来自 target_object）
+                        if prefill_object.get("name"):
+                            prefill_info["prefilled_values"]["OBJECT_A"] = prefill_object["name"]
+                        if prefill_object.get("other_object"):
+                            prefill_info["prefilled_values"]["OBJECT_B"] = prefill_object["other_object"]
                 
-                if not prefill_object:
+                if not prefill_info or not prefill_info.get("claim"):
                     error_info["error_stage"] = "prefill_processing"
-                    error_info["error_reason"] = "预填充对象处理失败或无效"
+                    error_info["error_reason"] = "预填充处理失败或缺少 claim"
                     print(f"[ERROR] {error_info['error_reason']}")
                     if debug_record is not None:
                         debug_record["error_stage"] = error_info["error_stage"]
                         debug_record["error_reason"] = error_info["error_reason"]
                     return None, error_info
-                
-                # 验证：claim方式必须有claim，target_object方式必须有name
-                if prefill_object.get("source") == "claim":
-                    if not prefill_object.get("claim"):
-                        error_info["error_stage"] = "prefill_processing"
-                        error_info["error_reason"] = "预填充对象为claim类型但claim为空"
-                        print(f"[ERROR] {error_info['error_reason']}")
-                        if debug_record is not None:
-                            debug_record["error_stage"] = error_info["error_stage"]
-                            debug_record["error_reason"] = error_info["error_reason"]
-                        return None, error_info
-                else:
-                    if not prefill_object.get("name"):
-                        error_info["error_stage"] = "prefill_processing"
-                        error_info["error_reason"] = "预填充对象为target_object类型但name为空"
-                        print(f"[ERROR] {error_info['error_reason']}")
-                        if debug_record is not None:
-                            debug_record["error_stage"] = error_info["error_stage"]
-                            debug_record["error_reason"] = error_info["error_reason"]
-                        return None, error_info
                     
             except Exception as e:
                 error_info["error_stage"] = "prefill_processing"
-                error_info["error_reason"] = f"预填充对象处理过程出错: {str(e)}"
+                error_info["error_reason"] = f"预填充处理过程出错: {str(e)}"
                 print(f"[ERROR] {error_info['error_reason']}")
                 if debug_record is not None:
                     debug_record["error_stage"] = error_info["error_stage"]
@@ -176,11 +179,21 @@ class VQAGeneratorPrefill:
                 return None, error_info
             
             # STEP 3: 槽位填充
+            # 注意：同步版本暂不支持简化流程（需要异步），这里使用旧的流程
+            # 如果使用简化格式，需要转换为旧格式供 fill_slots 使用
             try:
+                # 构建 selected_object 用于向后兼容（如果需要）
+                selected_object = None
+                if prefill_info and prefill_info.get("prefilled_values"):
+                    # 尝试从 prefilled_values 构建 selected_object
+                    prefilled = prefill_info["prefilled_values"]
+                    if "OBJECT_A" in prefilled:
+                        selected_object = {"name": prefilled["OBJECT_A"]}
+                
                 slots = self.slot_filler.fill_slots(
                     image_input=image_input,
                     pipeline_config=pipeline_config,
-                    selected_object=prefill_object  # 使用预填充对象
+                    selected_object=selected_object
                 )
                 
                 if slots is None:
@@ -202,12 +215,19 @@ class VQAGeneratorPrefill:
             # STEP 4: 问题生成（使用预填充对象）
             question_type = self._select_question_type()
             
+            # 构建 prefill_object 用于问题生成
+            prefill_object = {
+                "claim": prefill_info.get("claim", ""),
+                "prefilled_values": prefill_info.get("prefilled_values", {}),
+                "source": "simplified" if "prefilled_values" in prefill_input else "legacy"
+            }
+            
             try:
                 question = self.question_generator.generate_question(
                     image_input=image_input,
                     pipeline_config=pipeline_config,
                     slots=slots,
-                    prefill_object=prefill_object,  # 使用预填充对象
+                    prefill_object=prefill_object,
                     question_type=question_type
                 )
                 
@@ -668,83 +688,116 @@ class VQAGeneratorPrefill:
                     "timestamp": datetime.now().isoformat()
                 }, fallback_events, record, pipeline_name, debug_record)
 
-            # STEP 2: 处理预填充对象
+            # STEP 2: 处理预填充输入（简化版本）
+            prefill_info = None
             try:
-                prefill_object = await self.prefill_processor.process_prefill_async(
-                    prefill_input=prefill_input,
-                    image_base64=image_base64,
-                    pipeline_config=pipeline_config,
-                    async_client=async_client
-                )
-            except Exception as e:
-                debug_record["error_stage"] = "prefill_processing"
-                debug_record["error_reason"] = f"预填充对象处理过程出错: {str(e)}"
-                return ("err", {
-                    "record_index": idx,
-                    "id": record.get("id"),
-                    "error_stage": "prefill_processing",
-                    "error_reason": f"预填充对象处理过程出错: {str(e)}",
-                    "timestamp": datetime.now().isoformat()
-                }, fallback_events, record, pipeline_name, debug_record)
-
-            if not prefill_object:
-                debug_record["error_stage"] = "prefill_processing"
-                debug_record["error_reason"] = "预填充对象处理失败或无效"
-                return ("err", {
-                    "record_index": idx,
-                    "id": record.get("id"),
-                    "error_stage": "prefill_processing",
-                    "error_reason": "预填充对象处理失败或无效",
-                    "timestamp": datetime.now().isoformat()
-                }, fallback_events, record, pipeline_name, debug_record)
-
-            debug_record["prefill_object"] = prefill_object
-            if prefill_object.get("source") == "claim":
-                if not prefill_object.get("claim"):
+                # 检查是否使用新的简化格式（包含 prefilled_values）
+                if "prefilled_values" in prefill_input:
+                    prefill_info = await self.prefill_processor_simplified.process_prefill_async(
+                        prefill_input=prefill_input,
+                        image_base64=image_base64,
+                        pipeline_config=pipeline_config,
+                        async_client=async_client
+                    )
+                else:
+                    # 向后兼容：处理旧格式（仅用于兼容可能存在的旧数据文件）
+                    # 注意：新流程统一使用 claim + prefilled_values，不再使用 target_object
+                    prefill_object = await self.prefill_processor.process_prefill_async(
+                        prefill_input=prefill_input,
+                        image_base64=image_base64,
+                        pipeline_config=pipeline_config,
+                        async_client=async_client
+                    )
+                    if prefill_object:
+                        # 转换为新格式：PrefillProcessor 已经处理了优先级，直接使用 name
+                        prefill_info = {
+                            "claim": prefill_object.get("claim", ""),
+                            "prefilled_values": {}
+                        }
+                        # PrefillProcessor 返回的 name 字段已经包含了正确的值（优先来自 target_object）
+                        if prefill_object.get("name"):
+                            prefill_info["prefilled_values"]["OBJECT_A"] = prefill_object["name"]
+                        if prefill_object.get("other_object"):
+                            prefill_info["prefilled_values"]["OBJECT_B"] = prefill_object["other_object"]
+                
+                if not prefill_info or not prefill_info.get("claim"):
                     debug_record["error_stage"] = "prefill_processing"
-                    debug_record["error_reason"] = "预填充对象为claim类型但claim为空"
+                    debug_record["error_reason"] = "预填充处理失败或缺少 claim"
                     return ("err", {
                         "record_index": idx,
                         "id": record.get("id"),
                         "error_stage": "prefill_processing",
-                        "error_reason": "预填充对象为claim类型但claim为空",
+                        "error_reason": "预填充处理失败或缺少 claim",
+                        "timestamp": datetime.now().isoformat()
+                    }, fallback_events, record, pipeline_name, debug_record)
+                    
+            except Exception as e:
+                debug_record["error_stage"] = "prefill_processing"
+                debug_record["error_reason"] = f"预填充处理过程出错: {str(e)}"
+                return ("err", {
+                    "record_index": idx,
+                    "id": record.get("id"),
+                    "error_stage": "prefill_processing",
+                    "error_reason": f"预填充处理过程出错: {str(e)}",
+                    "timestamp": datetime.now().isoformat()
+                }, fallback_events, record, pipeline_name, debug_record)
+
+            debug_record["prefill_info"] = prefill_info
+
+            # STEP 3: 槽位填充（简化版本：使用 LLM 一次性填充所有 required_slots）
+            claim = prefill_info.get("claim", "")
+            prefilled_values = prefill_info.get("prefilled_values", {})
+            required_slots = pipeline_config.get("required_slots", [])
+            
+            if required_slots:
+                # 使用新的简化方法：LLM 一次性填充所有 required_slots
+                slots = await self.slot_filler.fill_required_slots_with_llm_async(
+                    image_base64=image_base64,
+                    pipeline_config=pipeline_config,
+                    claim=claim,
+                    prefilled_values=prefilled_values,
+                    async_client=async_client
+                )
+                if slots is None:
+                    debug_record["error_stage"] = "slot_filling"
+                    debug_record["error_reason"] = "槽位填充失败（LLM无法填充必需槽位）"
+                    return ("err", {
+                        "record_index": idx,
+                        "id": record.get("id"),
+                        "error_stage": "slot_filling",
+                        "error_reason": "槽位填充失败（LLM无法填充必需槽位）",
                         "timestamp": datetime.now().isoformat()
                     }, fallback_events, record, pipeline_name, debug_record)
             else:
-                if not prefill_object.get("name"):
-                    debug_record["error_stage"] = "prefill_processing"
-                    debug_record["error_reason"] = "预填充对象为target_object类型但name为空"
-                    return ("err", {
-                        "record_index": idx,
-                        "id": record.get("id"),
-                        "error_stage": "prefill_processing",
-                        "error_reason": "预填充对象为target_object类型但name为空",
-                        "timestamp": datetime.now().isoformat()
-                    }, fallback_events, record, pipeline_name, debug_record)
-
-            # STEP 3: 槽位填充
-            slots = await self.slot_filler.fill_slots_async(
-                image_base64=image_base64,
-                pipeline_config=pipeline_config,
-                selected_object=prefill_object,
-                async_client=async_client,
-                fallback_events=fallback_events
-            )
-            if slots is None:
-                debug_record["error_stage"] = "slot_filling"
-                debug_record["error_reason"] = "槽位填充失败（必需槽位无法解析）"
-                return ("err", {
-                    "record_index": idx,
-                    "id": record.get("id"),
-                    "error_stage": "slot_filling",
-                    "error_reason": "槽位填充失败（必需槽位无法解析）",
-                    "timestamp": datetime.now().isoformat()
-                }, fallback_events, record, pipeline_name, debug_record)
+                slots = {}
+            
+            # 填充可选槽位（使用原有逻辑）
+            optional_slots = pipeline_config.get("optional_slots", [])
+            for slot in optional_slots:
+                rand_val = random.random()
+                if rand_val < 0.5:  # 50%概率填充可选槽位
+                    value = await self.slot_filler._resolve_slot_async(
+                        slot=slot,
+                        image_base64=image_base64,
+                        pipeline_config=pipeline_config,
+                        selected_object=None,
+                        is_optional=True,
+                        async_client=async_client,
+                        fallback_events=fallback_events
+                    )
+                    if value is not None:
+                        slots[slot] = value
 
             debug_record["slots"] = slots
             # STEP 4: 问题生成
             question_type = self._select_question_type()
             debug_record["question_type"] = question_type
+            # 构建 prefill_object 用于问题生成（向后兼容）
+            prefill_object = {
+                "claim": claim,
+                "prefilled_values": prefilled_values,
+                "source": "simplified"
+            }
             question = await self.question_generator.generate_question_async(
                 image_base64=image_base64,
                 pipeline_config=pipeline_config,

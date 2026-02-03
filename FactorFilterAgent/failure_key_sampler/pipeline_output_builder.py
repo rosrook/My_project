@@ -185,12 +185,12 @@ def build_error_output(
                 record_id = sample_index
 
         prefill_claim = getattr(sample, "prefill_claim", None)
-        prefill_target_object = getattr(sample, "prefill_target_object", None)
+        prefill_prefilled_values = getattr(sample, "prefill_prefilled_values", None)
         prefill_payload: Dict[str, object] = {}
         if isinstance(prefill_claim, str) and prefill_claim.strip():
             prefill_payload["claim"] = prefill_claim
-        if isinstance(prefill_target_object, str) and prefill_target_object.strip():
-            prefill_payload["target_object"] = prefill_target_object
+        if isinstance(prefill_prefilled_values, dict) and len(prefill_prefilled_values) > 0:
+            prefill_payload["prefilled_values"] = prefill_prefilled_values
         error_records.append(
             {
                 "sample_index": sample_index,
@@ -260,37 +260,19 @@ def _extract_prefill_claim(
     return None
 
 
-def _extract_target_from_prefilled_values(
-    prefilled_values: Dict[str, object],
-) -> Optional[str]:
-    if not isinstance(prefilled_values, dict):
-        return None
-    priority_keys = [
-        "TARGET_OBJECT",
-        "OBJECT_INSTANCE",
-        "OBJECT",
-        "OBJECT_IDENTITY",
-        "OBJECT_TYPE",
-        "OBJECT_CATEGORY",
-    ]
-    normalized = {str(k).upper(): v for k, v in prefilled_values.items()}
-    for key in priority_keys:
-        value = normalized.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    for value in normalized.values():
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return None
-
-
-def _extract_prefill_target_object(
+def _extract_prefilled_values_from_data(
     data: Dict[str, object],
     failure_id: str,
-) -> Optional[str]:
+) -> Dict[str, str]:
+    """
+    Extract prefilled_values from claim template data.
+    
+    Returns:
+        Dictionary mapping placeholder names to their values (e.g., {"OBJECT_A": "dog", "OBJECT_B": "hurdle"})
+    """
     claim_templates = data.get("claim_templates", [])
     if not isinstance(claim_templates, list):
-        return None
+        return {}
 
     verif = None
     verifications = data.get("verifications", [])
@@ -337,22 +319,21 @@ def _extract_prefill_target_object(
                 break
 
     if not matched_template:
-        return None
+        return {}
 
-    prefill = matched_template.get("prefill", {})
-    if isinstance(prefill, dict):
-        target_object = prefill.get("target_object")
-        if isinstance(target_object, str) and target_object.strip():
-            return target_object.strip()
-
+    # Extract prefilled_values from metadata
     metadata = matched_template.get("metadata", {})
     if isinstance(metadata, dict):
         prefilled_values = metadata.get("prefilled_values", {})
-        target_object = _extract_target_from_prefilled_values(prefilled_values)
-        if target_object:
-            return target_object
+        if isinstance(prefilled_values, dict) and len(prefilled_values) > 0:
+            # Filter to only string values and normalize keys to uppercase
+            result: Dict[str, str] = {}
+            for k, v in prefilled_values.items():
+                if isinstance(v, str) and v.strip():
+                    result[str(k).upper()] = v.strip()
+            return result
 
-    return None
+    return {}
 
 
 def _resolve_failure_image_path(json_path: Path) -> Optional[str]:
@@ -418,7 +399,7 @@ def build_error_output_from_failure_root(
 
         pipeline_info = pipeline_map.get(str(sampled_failure), defaults)
         prefill_claim = _extract_prefill_claim(data, str(sampled_failure))
-        prefill_target_object = _extract_prefill_target_object(
+        prefilled_values = _extract_prefilled_values_from_data(
             data,
             str(sampled_failure),
         )
@@ -434,8 +415,8 @@ def build_error_output_from_failure_root(
         prefill_payload: Dict[str, object] = {}
         if isinstance(prefill_claim, str) and prefill_claim.strip():
             prefill_payload["claim"] = prefill_claim
-        if isinstance(prefill_target_object, str) and prefill_target_object.strip():
-            prefill_payload["target_object"] = prefill_target_object
+        if isinstance(prefilled_values, dict) and len(prefilled_values) > 0:
+            prefill_payload["prefilled_values"] = prefilled_values
 
         error_records.append(
             {

@@ -611,22 +611,30 @@ class AnswerGenerator:
         Returns:
             {"answer": "答案文本", "explanation": "解释"} 或 None
         """
-        target_object = None
+        # 提取 claim 和 prefilled_values（与问题生成阶段一致）
         prefill_claim = None
+        prefilled_values = {}
         if isinstance(pipeline_info, dict):
-            target_object = pipeline_info.get("target_object")
             prefill_claim = pipeline_info.get("prefill_claim")
-            if not target_object:
+            prefilled_values = pipeline_info.get("prefilled_values", {})
+            # 如果没有直接提供，尝试从 prefill_object 提取
+            if not prefill_claim or not prefilled_values:
                 prefill_object = pipeline_info.get("prefill_object")
                 if isinstance(prefill_object, dict):
-                    target_object = prefill_object.get("name")
+                    if not prefill_claim:
+                        prefill_claim = prefill_object.get("claim")
+                    if not prefilled_values:
+                        prefilled_values = prefill_object.get("prefilled_values", {})
+        
+        # 构建 hint（使用 claim + prefilled_values，不再强制使用 target_object）
         target_hint = ""
-        if target_object or prefill_claim:
+        if prefill_claim or prefilled_values:
             hint_lines = ["Additional context (do not change the question):"]
             if prefill_claim:
-                hint_lines.append(f"- Claim: {prefill_claim}")
-            if target_object:
-                hint_lines.append(f"- Target object (use as the answer): {target_object}")
+                hint_lines.append(f"- Claim template: {prefill_claim}")
+            if prefilled_values:
+                prefilled_str = ", ".join([f"{k}={v}" for k, v in prefilled_values.items()])
+                hint_lines.append(f"- Prefilled values: {prefilled_str}")
             target_hint = "\n" + "\n".join(hint_lines) + "\n"
 
         prompt = f"""Based on the image and the question, provide a concise and accurate answer.
@@ -679,22 +687,30 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
         """
         异步生成正确答案（使用OpenAI兼容接口，与vlmtool/generate_vqa完全对齐）
         """
-        target_object = None
+        # 提取 claim 和 prefilled_values（与问题生成阶段一致）
         prefill_claim = None
+        prefilled_values = {}
         if isinstance(pipeline_info, dict):
-            target_object = pipeline_info.get("target_object")
             prefill_claim = pipeline_info.get("prefill_claim")
-            if not target_object:
+            prefilled_values = pipeline_info.get("prefilled_values", {})
+            # 如果没有直接提供，尝试从 prefill_object 提取
+            if not prefill_claim or not prefilled_values:
                 prefill_object = pipeline_info.get("prefill_object")
                 if isinstance(prefill_object, dict):
-                    target_object = prefill_object.get("name")
+                    if not prefill_claim:
+                        prefill_claim = prefill_object.get("claim")
+                    if not prefilled_values:
+                        prefilled_values = prefill_object.get("prefilled_values", {})
+        
+        # 构建 hint（使用 claim + prefilled_values，不再强制使用 target_object）
         target_hint = ""
-        if target_object or prefill_claim:
+        if prefill_claim or prefilled_values:
             hint_lines = ["Additional context (do not change the question):"]
             if prefill_claim:
-                hint_lines.append(f"- Claim: {prefill_claim}")
-            if target_object:
-                hint_lines.append(f"- Target object (use as the answer): {target_object}")
+                hint_lines.append(f"- Claim template: {prefill_claim}")
+            if prefilled_values:
+                prefilled_str = ", ".join([f"{k}={v}" for k, v in prefilled_values.items()])
+                hint_lines.append(f"- Prefilled values: {prefilled_str}")
             target_hint = "\n" + "\n".join(hint_lines) + "\n"
 
         prompt = f"""Based on the image and the question, provide a concise and accurate answer.

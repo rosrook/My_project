@@ -456,4 +456,104 @@ value: <string>
         # 对于复杂槽位，可以使用LLM分析
         # 这里简化处理，返回None表示无法解析
         return None
+    
+    async def fill_required_slots_with_llm_async(
+        self,
+        image_base64: str,
+        pipeline_config: Dict[str, Any],
+        claim: str,
+        prefilled_values: Dict[str, str],
+        async_client: Optional[AsyncGeminiClient] = None
+    ) -> Optional[Dict[str, str]]:
+        """
+        使用 LLM 一次性填充所有必需槽位（简化版本）
+        
+        Args:
+            image_base64: 图片的base64编码
+            pipeline_config: Pipeline配置
+            claim: Claim template（包含占位符，如 "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B]."）
+            prefilled_values: 预填充的值（如 {"OBJECT_A": "dog", "OBJECT_B": "hurdle"}）
+            async_client: 异步客户端实例（可选）
+        
+        Returns:
+            填充后的槽位字典（如 {"object": "dog", "other_object": "hurdle"}），如果失败返回None
+        """
+        intent = pipeline_config.get("intent", "")
+        description = pipeline_config.get("description", "")
+        required_slots = pipeline_config.get("required_slots", [])
+        
+        if not required_slots:
+            return {}
+        
+        # 构建 prompt，让 LLM 一次性填充所有 required_slots
+        prefilled_str = ", ".join([f"{k}={v}" for k, v in prefilled_values.items()])
+        
+        prompt = f"""You are a VQA slot filler. Fill all required slots based on the claim template and prefilled values.
+
+Pipeline Intent: {intent}
+Pipeline Description: {description}
+Claim Template: {claim}
+Prefilled Values: {prefilled_str}
+Required Slots: {required_slots}
+
+Your task:
+1. Map the prefilled placeholder values (like OBJECT_A, OBJECT_B) to the required slot names (like object, other_object)
+2. Fill all required slots with appropriate values from the prefilled_values or infer from the claim template
+3. Return a JSON object with slot names as keys and values as strings
+
+Example:
+- Claim: "The [OBJECT_A] is [RELATIVE_DIRECTION] the [OBJECT_B]."
+- Prefilled Values: OBJECT_A=dog, OBJECT_B=hurdle
+- Required Slots: ["object", "other_object"]
+- Output: {{"object": "dog", "other_object": "hurdle"}}
+
+Return your response as a JSON object:
+{{
+  "object": "...",
+  "other_object": "...",
+  ...
+}}
+"""
+        try:
+            if async_client is None:
+                async with AsyncGeminiClient(use_lb_client=False) as client:
+                    response = await client.analyze_image_async(
+                        image_input=image_base64,
+                        prompt=prompt,
+                        temperature=0.3
+                    )
+            else:
+                response = await async_client.analyze_image_async(
+                    image_input=image_base64,
+                    prompt=prompt,
+                    temperature=0.3
+                )
+            
+            # 尝试解析 JSON
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                try:
+                    parsed = json.loads(json_match.group())
+                    if isinstance(parsed, dict):
+                        # 验证所有 required_slots 都有值
+                        result = {}
+                        for slot in required_slots:
+                            value = parsed.get(slot)
+                            if isinstance(value, str) and value.strip():
+                                result[slot] = value.strip()
+                            else:
+                                # 缺少必需槽位，返回 None
+                                log_debug(f"LLM response missing required slot '{slot}'")
+                                return None
+                        return result
+                except json.JSONDecodeError:
+                    pass
+            
+            # 如果 JSON 解析失败，尝试其他格式
+            log_debug(f"Failed to parse LLM response as JSON: {response[:200]}")
+            return None
+            
+        except Exception as e:
+            log_debug(f"Error in fill_required_slots_with_llm_async: {str(e)}")
+            return None
 

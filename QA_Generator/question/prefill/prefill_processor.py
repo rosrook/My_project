@@ -54,18 +54,27 @@ class PrefillProcessor:
             如果处理失败返回None
         """
         # 检查输入类型
-        if "claim" in prefill_input and prefill_input["claim"]:
+        # 优先处理：如果同时有 claim 和 target_object，优先使用 target_object（因为它提供了明确的 name）
+        # 但保留 claim 信息用于问题生成
+        has_claim = "claim" in prefill_input and prefill_input["claim"]
+        has_target_object = "target_object" in prefill_input and prefill_input["target_object"]
+        
+        if has_target_object:
+            # 方式2: 直接使用target object（优先）
+            result = self._process_target_object(
+                target_object=prefill_input["target_object"],
+                target_object_info=prefill_input.get("target_object_info")
+            )
+            # 如果同时有 claim，将其添加到结果中（用于问题生成）
+            if has_claim:
+                result["claim"] = prefill_input["claim"]
+            return result
+        elif has_claim:
             # 方式1: 从claim中提取目标对象
             return self._extract_object_from_claim(
                 claim=prefill_input["claim"],
                 image_input=image_input,
                 pipeline_config=pipeline_config
-            )
-        elif "target_object" in prefill_input and prefill_input["target_object"]:
-            # 方式2: 直接使用target object
-            return self._process_target_object(
-                target_object=prefill_input["target_object"],
-                target_object_info=prefill_input.get("target_object_info")
             )
         else:
             print(f"[WARNING] 预填充输入格式不正确，需要包含'claim'或'target_object'字段")
@@ -154,18 +163,27 @@ class PrefillProcessor:
             目标对象信息字典
         """
         # 检查输入类型
-        if "claim" in prefill_input and prefill_input["claim"]:
-            # 直接返回claim信息，不进行异步提取（同步处理即可）
+        # 优先处理：如果同时有 claim 和 target_object，优先使用 target_object（因为它提供了明确的 name）
+        # 但保留 claim 信息用于问题生成
+        has_claim = "claim" in prefill_input and prefill_input["claim"]
+        has_target_object = "target_object" in prefill_input and prefill_input["target_object"]
+        
+        if has_target_object:
+            # 方式2: 直接使用target object（优先）
+            result = self._process_target_object(
+                target_object=prefill_input["target_object"],
+                target_object_info=prefill_input.get("target_object_info")
+            )
+            # 如果同时有 claim，将其添加到结果中（用于问题生成）
+            if has_claim:
+                result["claim"] = prefill_input["claim"]
+            return result
+        elif has_claim:
+            # 方式1: 从claim中提取目标对象
             return self._extract_object_from_claim(
                 claim=prefill_input["claim"],
                 image_input=None,  # 不需要图片输入
                 pipeline_config=pipeline_config
-            )
-        elif "target_object" in prefill_input and prefill_input["target_object"]:
-            # 同步处理即可
-            return self._process_target_object(
-                target_object=prefill_input["target_object"],
-                target_object_info=prefill_input.get("target_object_info")
             )
         else:
             print(f"[WARNING] 预填充输入格式不正确")

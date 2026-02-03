@@ -240,19 +240,29 @@ class VQAPipeline:
                 # 生成答案（移除重试和验证逻辑以提高效率）
                 prefill_object = record.get("prefill_object")
                 prefill = record.get("prefill") if isinstance(record.get("prefill"), dict) else {}
-                target_object = None
+                
+                # 提取 claim 和 prefilled_values（与问题生成阶段一致）
+                prefill_claim = None
+                prefilled_values = {}
+                
+                # 优先从 prefill_object 提取（新格式）
                 if isinstance(prefill_object, dict):
-                    target_object = prefill_object.get("name")
-                if not target_object and isinstance(prefill, dict):
-                    target_object = prefill.get("target_object")
-                prefill_claim = prefill.get("claim") if isinstance(prefill, dict) else None
+                    prefill_claim = prefill_object.get("claim")
+                    prefilled_values = prefill_object.get("prefilled_values", {})
+                
+                # 如果没有，尝试从 prefill 提取（向后兼容）
+                if not prefill_claim and isinstance(prefill, dict):
+                    prefill_claim = prefill.get("claim")
+                if not prefilled_values and isinstance(prefill, dict):
+                    prefilled_values = prefill.get("prefilled_values", {})
+                
                 pipeline_info = {
                     "pipeline_name": record.get("pipeline_name"),
                     "pipeline_intent": record.get("pipeline_intent"),
                     "answer_type": record.get("answer_type"),
                     "prefill_object": prefill_object,
-                    "target_object": target_object,
                     "prefill_claim": prefill_claim,
+                    "prefilled_values": prefilled_values,
                 }
                 
                 answer_result = self.answer_generator.generate_answer(
@@ -424,19 +434,29 @@ class VQAPipeline:
                     
                     prefill_object = record.get("prefill_object")
                     prefill = record.get("prefill") if isinstance(record.get("prefill"), dict) else {}
-                    target_object = None
+                    
+                    # 提取 claim 和 prefilled_values（与问题生成阶段一致）
+                    prefill_claim = None
+                    prefilled_values = {}
+                    
+                    # 优先从 prefill_object 提取（新格式）
                     if isinstance(prefill_object, dict):
-                        target_object = prefill_object.get("name")
-                    if not target_object and isinstance(prefill, dict):
-                        target_object = prefill.get("target_object")
-                    prefill_claim = prefill.get("claim") if isinstance(prefill, dict) else None
+                        prefill_claim = prefill_object.get("claim")
+                        prefilled_values = prefill_object.get("prefilled_values", {})
+                    
+                    # 如果没有，尝试从 prefill 提取（向后兼容）
+                    if not prefill_claim and isinstance(prefill, dict):
+                        prefill_claim = prefill.get("claim")
+                    if not prefilled_values and isinstance(prefill, dict):
+                        prefilled_values = prefill.get("prefilled_values", {})
+                    
                     pipeline_info = {
                         "pipeline_name": record.get("pipeline_name"),
                         "pipeline_intent": record.get("pipeline_intent"),
                         "answer_type": record.get("answer_type"),
                         "prefill_object": prefill_object,
-                        "target_object": target_object,
                         "prefill_claim": prefill_claim,
+                        "prefilled_values": prefilled_values,
                     }
                     
                     max_retries = 3
