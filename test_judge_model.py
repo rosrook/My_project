@@ -16,9 +16,20 @@ from PIL import Image
 
 # 设置环境变量（如果需要）
 import os
-# os.environ["OPENAI_API_KEY"] = "your_api_key"
-# os.environ["OPENAI_BASE_URL"] = "http://your-api-url/v1"
-# os.environ["MODEL_NAME"] = "your-model-name"
+
+# ========== 配置环境变量 ==========
+# 方式1: 直接在这里设置（取消注释并修改）
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "EMPTY")
+os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL", "http://10.158.159.139:8000/v1")
+os.environ["MODEL_NAME"] = os.getenv("MODEL_NAME", "Qwen3-VL-235B-A22B-Instruct")
+
+# ProbingFactorGeneration 使用的环境变量（与 run_full_pipeline.sh 一致）
+os.environ["API_KEY"] = os.environ["OPENAI_API_KEY"]  # API_KEY 是 OPENAI_API_KEY 的别名
+os.environ["BASE_URL"] = os.environ["OPENAI_BASE_URL"]  # BASE_URL 是 OPENAI_BASE_URL 的别名
+os.environ["USE_LB_CLIENT"] = "false"  # 使用 AsyncOpenAI 而不是 LBOpenAIAsyncClient
+
+# 方式2: 从命令行设置环境变量（优先级更高）
+# 例如: OPENAI_API_KEY="EMPTY" OPENAI_BASE_URL="http://10.158.159.139:8000/v1" MODEL_NAME="Qwen3-VL-235B-A22B-Instruct" python test_judge_model.py
 
 from ProbingFactorGeneration.models import JudgeModel
 
@@ -247,17 +258,34 @@ async def test_batch_verify(
 async def main():
     """
     主测试函数
-    请根据实际情况修改以下参数
+    
+    使用方式（与 run_full_pipeline.sh 中的调用方式一致）:
+        方式1: 在命令行设置环境变量:
+            OPENAI_API_KEY="EMPTY" \
+            OPENAI_BASE_URL="http://10.158.159.139:8000/v1" \
+            MODEL_NAME="Qwen3-VL-235B-A22B-Instruct" \
+            python test_judge_model.py
+        
+        方式2: 直接运行（使用代码中的默认值）:
+            python test_judge_model.py
     """
     # ========== 配置参数 ==========
     # 图片路径（请修改为实际路径）
     IMAGE_PATH = "/path/to/your/test_image.jpg"
     
-    # 模型名称（None 表示使用默认配置）
-    MODEL_NAME = None  # 例如: "Qwen3-VL-235B-A22B-Instruct" 或从环境变量读取
+    # 从环境变量读取配置（已在文件开头设置，这里只是显示）
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "EMPTY")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://10.158.159.139:8000/v1")
+    MODEL_NAME = os.getenv("MODEL_NAME", "Qwen3-VL-235B-A22B-Instruct")
     
-    # 如果环境变量已设置，可以从环境变量读取
-    MODEL_NAME = os.getenv("MODEL_NAME") or MODEL_NAME
+    print(f"\n{'=' * 80}")
+    print("Judge 模型测试")
+    print(f"{'=' * 80}")
+    print(f"配置信息:")
+    print(f"  OPENAI_API_KEY: {OPENAI_API_KEY}")
+    print(f"  OPENAI_BASE_URL: {OPENAI_BASE_URL}")
+    print(f"  MODEL_NAME: {MODEL_NAME}")
+    print(f"  USE_LB_CLIENT: {os.getenv('USE_LB_CLIENT', 'false')}")
     
     # ========== 测试1: 基本问答 ==========
     print("\n开始测试 Judge 模型...")
