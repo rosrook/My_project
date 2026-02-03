@@ -237,7 +237,7 @@ class VQAPipeline:
                     total_failed += 1
                     continue
                 
-                # 生成答案（带重试机制）
+                # 生成答案（移除重试和验证逻辑以提高效率）
                 prefill_object = record.get("prefill_object")
                 prefill = record.get("prefill") if isinstance(record.get("prefill"), dict) else {}
                 target_object = None
@@ -255,7 +255,6 @@ class VQAPipeline:
                     "prefill_claim": prefill_claim,
                 }
                 
-                # 生成答案（移除重试和验证逻辑以提高效率）
                 answer_result = self.answer_generator.generate_answer(
                     question=question,
                     image_base64=image_base64,
@@ -323,21 +322,21 @@ class VQAPipeline:
                 # 进度报告（优化：减少输出频率，提高速度）
                 if total_processed % 50 == 0:
                     print(f"[进度] 已处理: {total_processed}/{len(questions_data)}, 成功: {total_success}, 失败: {total_failed}")
-                    
-                except Exception as e:
-                    import traceback
-                    exc_details = self._extract_error_details("exception", str(e))
-                    exc_details["exception_type"] = type(e).__name__
-                    exc_details["traceback"] = traceback.format_exc()[-_ERROR_TRACEBACK_MAX:]
-                    errors.append({
-                        "index": idx,
-                        "id": record.get("id"),
-                        "error": str(e),
-                        "error_stage": "exception",
-                        "error_details": exc_details,
-                        "sample_index": record.get("sample_index"),
-                        "source_a_id": record.get("source_a_id"),
-                    })
+            
+            except Exception as e:
+                import traceback
+                exc_details = self._extract_error_details("exception", str(e))
+                exc_details["exception_type"] = type(e).__name__
+                exc_details["traceback"] = traceback.format_exc()[-_ERROR_TRACEBACK_MAX:]
+                errors.append({
+                    "index": idx,
+                    "id": record.get("id"),
+                    "error": str(e),
+                    "error_stage": "exception",
+                    "error_details": exc_details,
+                    "sample_index": record.get("sample_index"),
+                    "source_a_id": record.get("source_a_id"),
+                })
                 total_failed += 1
                 # 优化：只在每10个错误时输出一次，减少日志开销
                 if total_failed % 10 == 0:
