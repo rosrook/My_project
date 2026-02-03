@@ -72,10 +72,11 @@ class JudgeModel:
         self.request_delay = request_delay or MODEL_CONFIG.get("REQUEST_DELAY", 0.0)
         self.use_lb_client = use_lb_client if use_lb_client is not None else MODEL_CONFIG.get("USE_LB_CLIENT", True)
         
-        # Store service_name, env, api_key for LBOpenAIAsyncClient
+        # Store service_name, env, api_key, base_url for AsyncGeminiClient
         self.service_name = MODEL_CONFIG.get("SERVICE_NAME") or os.getenv("SERVICE_NAME")
         self.env = MODEL_CONFIG.get("ENV", "prod") or os.getenv("ENV", "prod")
-        self.api_key = MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY", "1")
+        self.api_key = MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY", "1")
+        self.base_url = MODEL_CONFIG.get("BASE_URL") or os.getenv("BASE_URL") or os.getenv("OPENAI_BASE_URL")
         
         # Model parameters
         self.max_tokens = self.model_config.get("max_tokens", MODEL_CONFIG.get("MAX_TOKENS", 1000))
@@ -152,7 +153,7 @@ class JudgeModel:
             )
         
         if self._async_client is None:
-            # Pass service_name, env, api_key for LBOpenAIAsyncClient
+            # Pass service_name, env, api_key, base_url for AsyncGeminiClient
             self._async_client = AsyncGeminiClient(
                 model_name=self.model_name,
                 gpu_id=self.gpu_id,
@@ -161,7 +162,8 @@ class JudgeModel:
                 use_lb_client=self.use_lb_client,
                 service_name=self.service_name,
                 env=self.env,
-                api_key=self.api_key
+                api_key=self.api_key,
+                base_url=self.base_url
             )
             await self._async_client.__aenter__()
         
@@ -341,12 +343,29 @@ Please respond in JSON format:
             }
             
         except Exception as e:
-            # Return default answerable=True on error (fail open)
-            return {
-                "template_is_answerable": True,
-                "confidence": "low",
-                "reason": f"Error during precheck: {str(e)}"
-            }
+            # Check if this is a connection/network error (model disconnected)
+            error_str = str(e).lower()
+            is_connection_error = any(keyword in error_str for keyword in [
+                "connection", "connect", "network", "timeout", "unreachable",
+                "refused", "disconnected", "broken pipe", "reset", "failed to establish"
+            ])
+            
+            if is_connection_error:
+                # Model disconnected - return answerable=False to skip this claim
+                return {
+                    "template_is_answerable": False,
+                    "confidence": "low",
+                    "reason": f"Model connection error during precheck: {str(e)}",
+                    "is_connection_error": True
+                }
+            else:
+                # Other errors - return default answerable=True on error (fail open)
+                return {
+                    "template_is_answerable": True,
+                    "confidence": "low",
+                    "reason": f"Error during precheck: {str(e)}",
+                    "is_connection_error": False
+                }
     
     def _build_verification_prompt(
         self, 
@@ -566,13 +585,22 @@ Please respond in JSON format:
 
             return result
         except Exception as e:
+            # Check if this is a connection/network error (model disconnected)
+            error_str = str(e).lower()
+            is_connection_error = any(keyword in error_str for keyword in [
+                "connection", "connect", "network", "timeout", "unreachable",
+                "refused", "disconnected", "broken pipe", "reset", "failed to establish"
+            ])
+            
             return {
                 "filled_values": {},
                 "is_relevant": False,
                 "metadata": {
                     "error": str(e),
                     "error_type": type(e).__name__,
-                    "source": "prefill_slots"
+                    "source": "prefill_slots",
+                    "is_connection_error": is_connection_error,
+                    "skip_reason": "model_connection_error" if is_connection_error else None
                 }
             }
 
@@ -882,22 +910,51 @@ Please respond in JSON format:
             return verification
             
         except Exception as e:
-            # Return error in metadata
-            return {
-                "is_correct": False,
-                "claim_is_valid": False,
-                "explanation_is_reasonable": False,
-                "not_related_judgment_correct": None,
-                "failure_reason": "model_limitation",
-                "judge_explanation": f"Error during verification: {str(e)}",
-                "suggested_correction": None,
-                "claim_id": completion.get("claim_id", ""),
-                "content_type": completion.get("content_type", "relation"),
-                "metadata": {
-                    "error": str(e),
-                    "error_type": type(e).__name__
+            # Check if this is a connection/network error (model disconnected)
+            error_str = str(e).lower()
+            is_connection_error = any(keyword in error_str for keyword in [
+                "connection", "connect", "network", "timeout", "unreachable",
+                "refused", "disconnected", "broken pipe", "reset", "failed to establish"
+            ])
+            
+            if is_connection_error:
+                # Model disconnected - skip this claim instead of marking as error
+                return {
+                    "is_correct": None,  # Not an error, just skipped
+                    "claim_is_valid": None,
+                    "explanation_is_reasonable": None,
+                    "not_related_judgment_correct": None,
+                    "failure_reason": None,  # Not a failure, just skipped
+                    "judge_explanation": f"Model connection error, skipping claim: {str(e)}",
+                    "suggested_correction": None,
+                    "claim_id": completion.get("claim_id", ""),
+                    "content_type": completion.get("content_type", "relation"),
+                    "skipped": True,  # Mark as skipped
+                    "skip_reason": "model_connection_error",
+                    "metadata": {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "is_connection_error": True
+                    }
                 }
-            }
+            else:
+                # Other errors - return error in metadata
+                return {
+                    "is_correct": False,
+                    "claim_is_valid": False,
+                    "explanation_is_reasonable": False,
+                    "not_related_judgment_correct": None,
+                    "failure_reason": "model_limitation",
+                    "judge_explanation": f"Error during verification: {str(e)}",
+                    "suggested_correction": None,
+                    "claim_id": completion.get("claim_id", ""),
+                    "content_type": completion.get("content_type", "relation"),
+                    "metadata": {
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "is_connection_error": False
+                    }
+                }
     
     def verify_completion(
         self,
@@ -979,22 +1036,53 @@ Please respond in JSON format:
             verifications = []
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    verifications.append({
-                        "is_correct": False,
-                        "claim_is_valid": False,
-                        "explanation_is_reasonable": False,
-                        "not_related_judgment_correct": None,
-                        "failure_reason": "model_limitation",
-                        "judge_explanation": f"Error: {str(result)}",
-                        "suggested_correction": None,
-                        "claim_id": completions[i].get("claim_id", ""),
-                        "content_type": completions[i].get("content_type", "relation"),
-                        "metadata": {
-                            "error": str(result),
-                            "error_type": type(result).__name__,
-                            "index": i
-                        }
-                    })
+                    # Check if this is a connection/network error (model disconnected)
+                    error_str = str(result).lower()
+                    is_connection_error = any(keyword in error_str for keyword in [
+                        "connection", "connect", "network", "timeout", "unreachable",
+                        "refused", "disconnected", "broken pipe", "reset", "failed to establish"
+                    ])
+                    
+                    if is_connection_error:
+                        # Model disconnected - skip this claim instead of marking as error
+                        verifications.append({
+                            "is_correct": None,  # Not an error, just skipped
+                            "claim_is_valid": None,
+                            "explanation_is_reasonable": None,
+                            "not_related_judgment_correct": None,
+                            "failure_reason": None,  # Not a failure, just skipped
+                            "judge_explanation": f"Model connection error, skipping claim: {str(result)}",
+                            "suggested_correction": None,
+                            "claim_id": completions[i].get("claim_id", ""),
+                            "content_type": completions[i].get("content_type", "relation"),
+                            "skipped": True,  # Mark as skipped
+                            "skip_reason": "model_connection_error",
+                            "metadata": {
+                                "error": str(result),
+                                "error_type": type(result).__name__,
+                                "index": i,
+                                "is_connection_error": True
+                            }
+                        })
+                    else:
+                        # Other errors - mark as failure
+                        verifications.append({
+                            "is_correct": False,
+                            "claim_is_valid": False,
+                            "explanation_is_reasonable": False,
+                            "not_related_judgment_correct": None,
+                            "failure_reason": "model_limitation",
+                            "judge_explanation": f"Error: {str(result)}",
+                            "suggested_correction": None,
+                            "claim_id": completions[i].get("claim_id", ""),
+                            "content_type": completions[i].get("content_type", "relation"),
+                            "metadata": {
+                                "error": str(result),
+                                "error_type": type(result).__name__,
+                                "index": i,
+                                "is_connection_error": False
+                            }
+                        })
                 else:
                     verifications.append(result)
             
