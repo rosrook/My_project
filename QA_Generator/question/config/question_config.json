@@ -51,7 +51,6 @@
       "question_constraints": [
         "Questions must target the concept, property, or process conveyed by the image, not only object recognition",
         "If external knowledge is needed to identify the correct answer, a concise guiding hint must be provided",
-        "Fill-in-the-blank questions should provide sufficient guidance so the concept can be inferred",
         "The question must instruct the respondent to answer based on the image"
       ],
       "example_template": "Which term best matches the picture?"
@@ -71,7 +70,6 @@
         "the question must explicitly mention one or more distinctive feature(s) that uniquely identify the target instance among the same-class objects",
         "the question must require reasoning about the target object's position relative to other instances of the same class (e.g., ordering, comparison, or relative placement)",
         "the question must ask for the spatial location of the target object",
-        "the question must instruct the respondent to answer based solely on visual evidence from the image",
         "the question must avoid using object indices or labels that are not visually inferable from the image"
       ],
       "example_templates": [
@@ -91,9 +89,7 @@
       "optional_slots": ["object_category_granularity"],
       "question_constraints": [
         "Questions must ask about the main object in the image without including its name or synonyms in the question itself",
-        "Questions should encourage reasoning from visual features, context, or function rather than directly stating the object",
         "If external knowledge is necessary to infer the correct answer, a brief, neutral hint may be included without revealing the object",
-        "Questions must instruct the respondent to answer based solely on the image",
         "Avoid leading questions or providing cues that make the answer trivial"
       ],
       "example_template": "Which object appears as the primary focus in the picture?"
@@ -166,8 +162,7 @@
       },
       "question_constraints": [
         "question must focus on relative size or proportion in the image",
-        "question must explicitly mention the selected object or category",
-        "The question must instruct the respondent to answer based on the image"
+        "question must explicitly mention the selected object or category"
       ],
       "example_template": "Approximately what proportion of the picture is occupied by [object]?"
     },
@@ -191,9 +186,8 @@
       },
       "question_constraints": [
         "question must explicitly mention the selected object",
-        "no object counting or attribute reasoning",
-        "question must ask target object position",
-        "The question must instruct the respondent to answer based on the image"
+        "no object counting",
+        "question must ask target object position"
       ],
       "example_template": "Where is the [object] located in the picture?"
     },
@@ -217,9 +211,8 @@
       },
       "question_constraints": [
         "question must explicitly mention the selected object and the other object",
-        "no object counting or attribute reasoning",
-        "question must ask target object relative position",
-        "The question must instruct the respondent to answer based on the image"
+        "no object counting",
+        "question must ask target object relative position"
       ],
       "example_template": "Where is the [object] located relative to the [other_object] in the picture?"
     },
@@ -241,9 +234,7 @@
         ]
       },
       "question_constraints": [
-        "question must focus on absence, not presence",
-        "if the question is a fill-in-the-blank type, the question must roughly describe the expected answer format, e.g., how to indicate positions in the image or how many regions are involved",
-        "The question must instruct the respondent to answer based on the image"
+        "question must focus on absence, not presence"
       ],
       "example_template": "Which corner doesn't have any [objects]?"
     },
@@ -266,8 +257,7 @@
         ]
       },
       "question_constraints": [
-        "The question must ask exclusively about the facing direction of the target object, and must explicitly specify the reference frame used for direction judgment (either the image/frame coordinate system or the object-centric coordinate system)",
-        "The question must instruct the respondent to answer based on the image"
+        "The question must ask exclusively about the facing direction of the target object, and must explicitly specify the reference frame used for direction judgment (either the image/frame coordinate system or the object-centric coordinate system)"
       ],
       "example_template": "In the picture, which direction is the [object] facing?"
     },
@@ -291,7 +281,7 @@
       },
       "question_constraints": [
         "question must ask for a numeric count",
-        "no estimation or comparison"
+        "no comparison"
       ],
       "example_template": "How many [objects] are in the picture?"
     }
