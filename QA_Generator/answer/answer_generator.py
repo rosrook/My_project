@@ -12,6 +12,9 @@ from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 from QA_Generator.logging.logger import get_logger, log_warning, log_error, log_debug
 
+# 错误记录中模型原始响应的最大保留长度
+_RAW_RESPONSE_MAX = 500
+
 
 class AnswerGenerator:
     """答案生成器"""
@@ -148,7 +151,10 @@ class AnswerGenerator:
                 "answer": None,
                 "explanation": "无法生成正确答案",
                 "full_question": question,
-                "options": None
+                "options": None,
+                "error": "无法生成正确答案",
+                "error_type": "generation",
+                "error_step": "correct_answer",
             }
         
         correct_answer_text = correct_answer["answer"]
@@ -167,7 +173,10 @@ class AnswerGenerator:
                 "answer": None,
                 "explanation": explanation,
                 "full_question": question,
-                "options": None
+                "options": None,
+                "error": "错误选项生成失败",
+                "error_type": "generation",
+                "error_step": "wrong_options",
             }
         
         # Step 3: 组合所有选项并打乱顺序
@@ -210,12 +219,18 @@ class AnswerGenerator:
         )
         
         if not correct_answer or not correct_answer.get("answer"):
-            return {
+            err = {
                 "answer": None,
-                "explanation": "无法生成正确答案",
+                "explanation": (correct_answer.get("explanation") if isinstance(correct_answer, dict) else None) or "无法生成正确答案",
                 "full_question": question,
-                "options": None
+                "options": None,
+                "error": (correct_answer.get("error") if isinstance(correct_answer, dict) else None) or "无法生成正确答案",
+                "error_type": "generation",
+                "error_step": "correct_answer",
             }
+            if isinstance(correct_answer, dict) and correct_answer.get("raw_response_truncated"):
+                err["raw_response_truncated"] = correct_answer["raw_response_truncated"]
+            return err
         
         correct_answer_raw = correct_answer.get("answer", "")
         explanation = correct_answer.get("explanation", "")
@@ -243,7 +258,9 @@ class AnswerGenerator:
                     "explanation": explanation,
                     "full_question": question,
                     "options": None,
-                    "error": f"正确答案格式不正确: '{correct_answer_text}'"
+                    "error": f"正确答案格式不正确: '{correct_answer_text}'",
+                    "error_type": "format",
+                    "error_step": "correct_answer",
                 }
             
             # 检查是否是单个标点符号
@@ -254,7 +271,9 @@ class AnswerGenerator:
                     "explanation": explanation,
                     "full_question": question,
                     "options": None,
-                    "error": f"正确答案格式不正确: '{correct_answer_text}'"
+                    "error": f"正确答案格式不正确: '{correct_answer_text}'",
+                    "error_type": "format",
+                    "error_step": "correct_answer",
                 }
             
             # 如果看起来像不完整的JSON，尝试提取
@@ -283,7 +302,9 @@ class AnswerGenerator:
                                     "explanation": explanation,
                                     "full_question": question,
                                     "options": None,
-                                    "error": f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'"
+                                    "error": f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'",
+                                    "error_type": "format",
+                                    "error_step": "correct_answer",
                                 }
                         else:
                             log_error(f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'")
@@ -292,7 +313,9 @@ class AnswerGenerator:
                                 "explanation": explanation,
                                 "full_question": question,
                                 "options": None,
-                                "error": f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'"
+                                "error": f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'",
+                                "error_type": "format",
+                                "error_step": "correct_answer",
                             }
                 except (json.JSONDecodeError, ValueError) as e:
                     # JSON解析失败，尝试使用正则表达式提取
@@ -310,7 +333,9 @@ class AnswerGenerator:
                                 "explanation": explanation,
                                 "full_question": question,
                                 "options": None,
-                                "error": f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'"
+                                "error": f"无法从JSON字符串中提取有效答案: '{correct_answer_text}'",
+                                "error_type": "format",
+                                "error_step": "correct_answer",
                             }
                     else:
                         log_error(f"JSON解析失败且无法提取文本: '{correct_answer_text}' (错误: {str(e)})")
@@ -319,7 +344,9 @@ class AnswerGenerator:
                             "explanation": explanation,
                             "full_question": question,
                             "options": None,
-                            "error": f"JSON解析失败: '{correct_answer_text}'"
+                            "error": f"JSON解析失败: '{correct_answer_text}'",
+                            "error_type": "format",
+                            "error_step": "correct_answer",
                         }
         else:
             correct_answer_text = str(correct_answer_raw).strip() if correct_answer_raw else ""
@@ -332,7 +359,9 @@ class AnswerGenerator:
                 "explanation": explanation,
                 "full_question": question,
                 "options": None,
-                "error": f"正确答案格式不正确: '{correct_answer_text}'"
+                "error": f"正确答案格式不正确: '{correct_answer_text}'",
+                "error_type": "format",
+                "error_step": "correct_answer",
             }
         
         # 再次检查是否是无效的标点符号
@@ -343,10 +372,12 @@ class AnswerGenerator:
                 "explanation": explanation,
                 "full_question": question,
                 "options": None,
-                "error": f"正确答案格式不正确: '{correct_answer_text}'"
+                "error": f"正确答案格式不正确: '{correct_answer_text}'",
+                "error_type": "format",
+                "error_step": "correct_answer",
             }
         
-        wrong_options = await self._generate_wrong_options_async(
+        wrong_options_result = await self._generate_wrong_options_async(
             question=question,
             image_base64=image_base64,
             correct_answer=correct_answer_text,
@@ -354,16 +385,25 @@ class AnswerGenerator:
             async_client=async_client,
             model=model
         )
-        
+        wrong_options = (
+            wrong_options_result.get("options", [])
+            if isinstance(wrong_options_result, dict)
+            else wrong_options_result
+        )
         if not wrong_options:
             log_warning(f"错误选项生成失败，返回空列表。正确答案: {correct_answer_text}")
-            return {
+            err = {
                 "answer": None,
                 "explanation": explanation,
                 "full_question": question,
                 "options": None,
-                "error": "错误选项生成失败"
+                "error": (wrong_options_result.get("error") if isinstance(wrong_options_result, dict) else None) or "错误选项生成失败",
+                "error_type": "generation",
+                "error_step": "wrong_options",
             }
+            if isinstance(wrong_options_result, dict) and wrong_options_result.get("raw_response_truncated"):
+                err["raw_response_truncated"] = wrong_options_result["raw_response_truncated"]
+            return err
         
         import random as _random
         
@@ -447,7 +487,9 @@ class AnswerGenerator:
                 "explanation": explanation,
                 "full_question": question,
                 "options": None,
-                "error": f"正确答案格式无效: '{cleaned_correct_answer}'"
+                "error": f"正确答案格式无效: '{cleaned_correct_answer}'",
+                "error_type": "format",
+                "error_step": "correct_answer",
             }
         
         invalid_wrong_options = []
@@ -466,7 +508,9 @@ class AnswerGenerator:
                     "explanation": explanation,
                     "full_question": question,
                     "options": None,
-                    "error": "所有错误选项格式无效"
+                    "error": "所有错误选项格式无效",
+                    "error_type": "format",
+                    "error_step": "wrong_options",
                 }
         
         all_options = [cleaned_correct_answer] + cleaned_wrong_options
@@ -508,7 +552,10 @@ class AnswerGenerator:
             return {
                 "answer": None,
                 "explanation": "无法生成答案",
-                "full_question": question
+                "full_question": question,
+                "error": "无法生成答案",
+                "error_type": "generation",
+                "error_step": "correct_answer",
             }
         
         return {
@@ -540,7 +587,10 @@ class AnswerGenerator:
             return {
                 "answer": None,
                 "explanation": "无法生成答案",
-                "full_question": question
+                "full_question": question,
+                "error": "无法生成答案",
+                "error_type": "generation",
+                "error_step": "correct_answer",
             }
         
         return {
@@ -548,7 +598,7 @@ class AnswerGenerator:
             "explanation": result.get("explanation", ""),
             "full_question": question
         }
-    
+
     def _generate_correct_answer(
         self,
         question: str,
@@ -737,12 +787,18 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
 
             # 最终校验：答案必须有效
             if not answer or len(answer.strip()) < 2 or answer.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]:
-                            return None
+                return {
+                    "answer": None,
+                    "explanation": explanation or "",
+                    "error": "答案无效或格式不符合要求",
+                    "error_type": "generation",
+                    "error_step": "correct_answer",
+                    "raw_response_truncated": (response_text or "")[:_RAW_RESPONSE_MAX] if response_text else None,
+                }
                 
             return {"answer": answer, "explanation": explanation}
         except Exception as e:
             error_msg = str(e)
-            # 如果是 400 错误，添加更详细的诊断信息
             if "400" in error_msg or "Bad Request" in error_msg:
                 error_detail = f"异步生成正确答案失败 (400 Bad Request): {error_msg}\n"
                 error_detail += f"  问题: {question[:100]}...\n"
@@ -754,7 +810,13 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                 log_error(error_detail)
             else:
                 log_error(f"异步生成正确答案失败: {error_msg}")
-            return None
+            return {
+                "answer": None,
+                "explanation": "",
+                "error": f"API异常: {error_msg[:200]}",
+                "error_type": "generation",
+                "error_step": "correct_answer",
+            }
     
     def _generate_wrong_options(
         self,
@@ -1136,10 +1198,15 @@ Option {wrong_count}: [option text]"""
             wrong_options = self._parse_wrong_options_response(response_text, wrong_count)
             if not wrong_options:
                 log_error(f"错误选项解析失败，返回空列表。原始响应: {response_text[:300]}...")
+                return {
+                    "options": [],
+                    "error": "错误选项解析失败",
+                    "raw_response_truncated": (response_text or "")[:_RAW_RESPONSE_MAX] if response_text else None,
+                }
             # 进行去重和与正确答案的模糊冲突过滤
             wrong_options = self._postprocess_wrong_options(wrong_options, correct_answer)
             return wrong_options
         except Exception as e:
             log_error(f"异步生成错误选项失败: {e}")
-            return []
+            return {"options": [], "error": f"API异常: {str(e)[:200]}"}
 

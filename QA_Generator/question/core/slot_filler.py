@@ -5,9 +5,10 @@
 from typing import Dict, Any, Optional, List, Tuple
 import json
 import re
+import random
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
-import random
+from QA_Generator.logging.logger import log_debug
 
 
 class SlotFiller:
@@ -42,13 +43,13 @@ class SlotFiller:
         slots = {}
         
         # 填充必需槽位
-        print("[DEBUG] SlotFiller.fill_slots: start")
-        print(f"[DEBUG] required_slots: {pipeline_config.get('required_slots', [])}")
-        print(f"[DEBUG] optional_slots: {pipeline_config.get('optional_slots', [])}")
+        log_debug("SlotFiller.fill_slots: start")
+        log_debug(f"required_slots: {pipeline_config.get('required_slots', [])}")
+        log_debug(f"optional_slots: {pipeline_config.get('optional_slots', [])}")
         if selected_object:
-            print(f"[DEBUG] selected_object: {selected_object}")
+            log_debug(f"selected_object: {selected_object}")
         else:
-            print("[DEBUG] selected_object: None")
+            log_debug("selected_object: None")
         required_slots = pipeline_config.get("required_slots", [])
         for slot in required_slots:
             value = self._resolve_slot(
@@ -60,7 +61,7 @@ class SlotFiller:
             
             if value is None:
                 # 必需槽位无法解析，丢弃
-                print(f"[DEBUG] required slot '{slot}' unresolved -> discard")
+                log_debug(f"required slot '{slot}' unresolved -> discard")
                 print(f"[WARNING] 必需槽位 '{slot}' 无法解析，丢弃样本")
                 return None
             
@@ -71,7 +72,7 @@ class SlotFiller:
         for slot in optional_slots:
             # 随机决定是否填充（增加多样性）
             rand_val = random.random()
-            print(f"[DEBUG] optional slot '{slot}' random={rand_val:.3f}")
+            log_debug(f"optional slot '{slot}' random={rand_val:.3f}")
             if rand_val < 0.5:  # 50%概率填充可选槽位
                 value = self._resolve_slot(
                     slot=slot,
@@ -82,13 +83,13 @@ class SlotFiller:
                 )
                 if value is not None:
                     slots[slot] = value
-                    print(f"[DEBUG] optional slot '{slot}' resolved='{value}'")
+                    log_debug(f"optional slot '{slot}' resolved='{value}'")
                 else:
-                    print(f"[DEBUG] optional slot '{slot}' unresolved")
+                    log_debug(f"optional slot '{slot}' unresolved")
             else:
-                print(f"[DEBUG] optional slot '{slot}' skipped")
+                log_debug(f"optional slot '{slot}' skipped")
         
-        print(f"[DEBUG] SlotFiller.fill_slots: result={slots}")
+        log_debug(f"SlotFiller.fill_slots: result={slots}")
         return slots
     
     def _resolve_slot(
@@ -113,20 +114,20 @@ class SlotFiller:
             槽位值，如果无法解析返回None
         """
         # 从选中对象中解析
-        print(
-            f"[DEBUG] _resolve_slot: slot='{slot}', "
+        log_debug(
+            f"_resolve_slot: slot='{slot}', "
             f"is_optional={is_optional}, "
             f"has_selected_object={bool(selected_object)}"
         )
         if slot in ["object", "objects"] and selected_object:
             if slot == "object":
                 value = selected_object.get("name", "")
-                print(f"[DEBUG] _resolve_slot: from selected_object.name -> '{value}'")
+                log_debug(f"_resolve_slot: from selected_object.name -> '{value}'")
                 return value
             elif slot == "objects":
                 # 对于复数形式，可能需要返回对象类别
                 value = selected_object.get("name", "")
-                print(f"[DEBUG] _resolve_slot: from selected_object.name -> '{value}'")
+                log_debug(f"_resolve_slot: from selected_object.name -> '{value}'")
                 return value
         
         # 从图像信息中解析
@@ -136,7 +137,7 @@ class SlotFiller:
                 image_input=image_input,
                 pipeline_config=pipeline_config
             )
-            print(f"[DEBUG] _resolve_slot: from image -> '{value}'")
+            log_debug(f"_resolve_slot: from image -> '{value}'")
             return value
         
         # 其他槽位的默认值
@@ -155,23 +156,23 @@ class SlotFiller:
         
         if slot in slot_defaults:
             value = slot_defaults[slot]
-            print(f"[DEBUG] _resolve_slot: from defaults -> '{value}'")
+            log_debug(f"_resolve_slot: from defaults -> '{value}'")
             return value
         
         # 如果无法解析且是可选槽位，返回None
         if is_optional:
-            print("[DEBUG] _resolve_slot: optional unresolved -> None")
+            log_debug("_resolve_slot: optional unresolved -> None")
             return None
         
         # 必需槽位无法解析，尝试使用LLM
-        print("[DEBUG] _resolve_slot: calling LLM fallback")
+        log_debug("_resolve_slot: calling LLM fallback")
         value = self._resolve_with_llm(
             slot=slot,
             image_input=image_input,
             pipeline_config=pipeline_config,
             selected_object=selected_object
         )
-        print(f"[DEBUG] _resolve_slot: from llm -> '{value}'")
+        log_debug(f"_resolve_slot: from llm -> '{value}'")
         return value
     
     async def fill_slots_async(
@@ -196,13 +197,13 @@ class SlotFiller:
         slots = {}
         
         # 填充必需槽位
-        print("[DEBUG] SlotFiller.fill_slots_async: start")
-        print(f"[DEBUG] required_slots: {pipeline_config.get('required_slots', [])}")
-        print(f"[DEBUG] optional_slots: {pipeline_config.get('optional_slots', [])}")
+        log_debug("SlotFiller.fill_slots_async: start")
+        log_debug(f"required_slots: {pipeline_config.get('required_slots', [])}")
+        log_debug(f"optional_slots: {pipeline_config.get('optional_slots', [])}")
         if selected_object:
-            print(f"[DEBUG] selected_object: {selected_object}")
+            log_debug(f"selected_object: {selected_object}")
         else:
-            print("[DEBUG] selected_object: None")
+            log_debug("selected_object: None")
         required_slots = pipeline_config.get("required_slots", [])
         for slot in required_slots:
             value = await self._resolve_slot_async(
@@ -216,7 +217,7 @@ class SlotFiller:
             
             if value is None:
                 # 必需槽位无法解析，丢弃
-                print(f"[DEBUG] required slot '{slot}' unresolved -> discard")
+                log_debug(f"required slot '{slot}' unresolved -> discard")
                 print(f"[WARNING] 必需槽位 '{slot}' 无法解析，丢弃样本")
                 return None
             
@@ -227,7 +228,7 @@ class SlotFiller:
         for slot in optional_slots:
             # 随机决定是否填充（增加多样性）
             rand_val = random.random()
-            print(f"[DEBUG] optional slot '{slot}' random={rand_val:.3f}")
+            log_debug(f"optional slot '{slot}' random={rand_val:.3f}")
             if rand_val < 0.5:  # 50%概率填充可选槽位
                 value = await self._resolve_slot_async(
                     slot=slot,
@@ -240,13 +241,13 @@ class SlotFiller:
                 )
                 if value is not None:
                     slots[slot] = value
-                    print(f"[DEBUG] optional slot '{slot}' resolved='{value}'")
+                    log_debug(f"optional slot '{slot}' resolved='{value}'")
                 else:
-                    print(f"[DEBUG] optional slot '{slot}' unresolved")
+                    log_debug(f"optional slot '{slot}' unresolved")
             else:
-                print(f"[DEBUG] optional slot '{slot}' skipped")
+                log_debug(f"optional slot '{slot}' skipped")
         
-        print(f"[DEBUG] SlotFiller.fill_slots_async: result={slots}")
+        log_debug(f"SlotFiller.fill_slots_async: result={slots}")
         return slots
     
     async def _resolve_slot_async(
@@ -273,20 +274,20 @@ class SlotFiller:
             槽位值，如果无法解析返回None
         """
         # 从选中对象中解析
-        print(
-            f"[DEBUG] _resolve_slot_async: slot='{slot}', "
+        log_debug(
+            f"_resolve_slot_async: slot='{slot}', "
             f"is_optional={is_optional}, "
             f"has_selected_object={bool(selected_object)}"
         )
         if slot in ["object", "objects"] and selected_object:
             if slot == "object":
                 value = selected_object.get("name", "")
-                print(f"[DEBUG] _resolve_slot_async: from selected_object.name -> '{value}'")
+                log_debug(f"_resolve_slot_async: from selected_object.name -> '{value}'")
                 return value
             elif slot == "objects":
                 # 对于复数形式，可能需要返回对象类别
                 value = selected_object.get("name", "")
-                print(f"[DEBUG] _resolve_slot_async: from selected_object.name -> '{value}'")
+                log_debug(f"_resolve_slot_async: from selected_object.name -> '{value}'")
                 return value
         
         # 从图像信息中解析
@@ -295,7 +296,7 @@ class SlotFiller:
                 slot=slot,
                 pipeline_config=pipeline_config
             )
-            print(f"[DEBUG] _resolve_slot_async: from image -> '{value}'")
+            log_debug(f"_resolve_slot_async: from image -> '{value}'")
             return value
         
         # 其他槽位的默认值
@@ -314,12 +315,12 @@ class SlotFiller:
         
         if slot in slot_defaults:
             value = slot_defaults[slot]
-            print(f"[DEBUG] _resolve_slot_async: from defaults -> '{value}'")
+            log_debug(f"_resolve_slot_async: from defaults -> '{value}'")
             return value
         
         # 如果无法解析且是可选槽位，返回None
         if is_optional:
-            print("[DEBUG] _resolve_slot_async: optional unresolved -> None")
+            log_debug("_resolve_slot_async: optional unresolved -> None")
             return None
         
         # 必需槽位无法解析，启用LLM兜底
@@ -340,7 +341,7 @@ class SlotFiller:
                 })
             return fallback_value
 
-        print("[DEBUG] _resolve_slot_async: LLM fallback failed -> None")
+        log_debug("_resolve_slot_async: LLM fallback failed -> None")
         return None
 
     async def _resolve_with_llm_async(

@@ -288,6 +288,13 @@ async def run_pipeline_with_failure_sampling(
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     rank = int(os.environ.get("RANK", "0"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+
+    # 分布式模式下，每个 rank 分配 target_failure_count 的一部分，使全局总量约为 target_failure_count
+    per_rank_target = target_failure_count
+    if world_size > 1:
+        base_per_rank = target_failure_count // world_size
+        remainder = target_failure_count % world_size
+        per_rank_target = base_per_rank + (1 if rank < remainder else 0)
     
     # Manually bind GPU if torchrun is used and torch is available
     if world_size > 1:
@@ -506,7 +513,7 @@ async def run_pipeline_with_failure_sampling(
     print(f"\n{'='*80}")
     print(f"Failure-based Sampling Pipeline")
     print(f"{'='*80}")
-    print(f"Target failure count: {target_failure_count}")
+    print(f"Target failure count: {target_failure_count} (global)" + (f", per rank: {per_rank_target}" if world_size > 1 else ""))
     print(f"Batch size: {batch_size}")
     if max_empty_batches is not None:
         print(f"Max empty batches: {max_empty_batches}")
@@ -522,7 +529,7 @@ async def run_pipeline_with_failure_sampling(
             if HAS_TQDM:
                 from tqdm import tqdm
                 failure_pbar = tqdm(
-                    total=target_failure_count,
+                    total=per_rank_target,
                     desc="Collecting failures",
                     unit="failure",
                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} failures [{elapsed}<{remaining}, {rate_fmt}]'
@@ -531,7 +538,7 @@ async def run_pipeline_with_failure_sampling(
                 failure_pbar = None
             
             try:
-                while len(failure_results) < target_failure_count:
+                while len(failure_results) < per_rank_target:
                     batch_num += 1
                     
                     # Sample a batch of images without replacement (from shuffled shard)
@@ -558,7 +565,7 @@ async def run_pipeline_with_failure_sampling(
                     if not batch_paths:
                         if failure_pbar:
                             failure_pbar.close()
-                        print(f"\nNo more images available. Collected {len(failure_results)}/{target_failure_count} failure images.")
+                        print(f"\nNo more images available. Collected {len(failure_results)}/{per_rank_target} failure images.")
                         print(f"Total processed: {total_processed} images")
                         print(f"Processed paths count: {len(processed_paths)}")
                         break
@@ -573,7 +580,7 @@ async def run_pipeline_with_failure_sampling(
                         })
                     else:
                         print(f"\nBatch {batch_num}: Processing {len(batch_paths)} images...")
-                        print(f"  Already collected: {len(failure_results)}/{target_failure_count} failure images")
+                        print(f"  Already collected: {len(failure_results)}/{per_rank_target} failure images")
                         print(f"  Total processed: {total_processed}")
                     
                     # Process batch (with progress bar)
@@ -662,7 +669,7 @@ async def run_pipeline_with_failure_sampling(
                     
                     if not failure_pbar:
                         print(f"  Found {len(batch_failures)} images with failures in this batch")
-                        print(f"  Progress: {len(failure_results)}/{target_failure_count} failure images collected")
+                        print(f"  Progress: {len(failure_results)}/{per_rank_target} failure images collected")
                         if max_empty_batches is not None:
                             print(f"  Consecutive empty batches: {consecutive_empty_batches}/{max_empty_batches}")
                     
@@ -672,7 +679,7 @@ async def run_pipeline_with_failure_sampling(
                         if failure_pbar:
                             failure_pbar.close()
                         print(f"\n⚠️  Crash protection triggered: {consecutive_empty_batches} consecutive batches without failures.")
-                        print(f"   Terminating program. Collected {len(failure_results)}/{target_failure_count} failure images.")
+                        print(f"   Terminating program. Collected {len(failure_results)}/{per_rank_target} failure images.")
                         
                         # First result should already be saved (if it was processed)
                         if first_result_saved:
@@ -696,7 +703,7 @@ async def run_pipeline_with_failure_sampling(
                         break
                     
                     # Check if we've reached the target
-                    if len(failure_results) >= target_failure_count:
+                    if len(failure_results) >= per_rank_target:
                         if failure_pbar:
                             failure_pbar.close()
                         print(f"\n✓ Reached target! Collected {len(failure_results)} failure images.")

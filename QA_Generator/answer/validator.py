@@ -5,6 +5,9 @@
 import json
 import re
 from typing import Dict, Any, List, Optional, Tuple
+
+# 错误记录中模型原始响应的最大保留长度
+_RAW_RESPONSE_MAX = 500
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.logging.logger import log_warning, log_debug, log_debug_dict
 from QA_Generator.answer.answer_repair import AnswerRepairer
@@ -714,6 +717,7 @@ Return a JSON object:
             )
             
             # 解析JSON响应
+            raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
@@ -725,14 +729,16 @@ Return a JSON object:
                     "is_correct": is_correct,
                     "confidence": confidence,
                     "correctness_reason": result.get("correctness_reason", ""),
-                    "alternative_options": result.get("alternative_options", [])
+                    "alternative_options": result.get("alternative_options", []),
+                    "raw_response_truncated": raw_trunc if raw_trunc else None,
                 }
             
             return {
                 "passed": False,
                 "is_correct": False,
                 "confidence": 0.5,
-                "correctness_reason": "无法解析置信度评估结果"
+                "correctness_reason": "无法解析置信度评估结果",
+                "raw_response_truncated": raw_trunc if raw_trunc else None,
             }
             
         except Exception as e:
@@ -741,7 +747,7 @@ Return a JSON object:
                 "passed": False,
                 "is_correct": False,
                 "confidence": 0.5,
-                "correctness_reason": f"评估过程出错: {str(e)}"
+                "correctness_reason": f"评估过程出错: {str(e)}",
             }
     
     def _validate_answer(
@@ -879,6 +885,7 @@ Return a JSON object:
             )
             
             # 解析JSON响应
+            raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
                 result = json.loads(json_match.group())
@@ -889,14 +896,16 @@ Return a JSON object:
                     "passed": is_valid and len(issues) == 0,
                     "is_valid": is_valid,
                     "validation_reason": result.get("validation_reason", ""),
-                    "issues": issues
+                    "issues": issues,
+                    "raw_response_truncated": raw_trunc if raw_trunc else None,
                 }
             
             return {
                 "passed": False,
                 "is_valid": False,
                 "validation_reason": "无法解析答案验证结果",
-                "issues": ["解析失败"]
+                "issues": ["解析失败"],
+                "raw_response_truncated": raw_trunc if raw_trunc else None,
             }
             
         except Exception as e:
@@ -905,6 +914,6 @@ Return a JSON object:
                 "passed": False,
                 "is_valid": False,
                 "validation_reason": f"验证过程出错: {str(e)}",
-                "issues": [f"验证错误: {str(e)}"]
+                "issues": [f"验证错误: {str(e)}"],
             }
 

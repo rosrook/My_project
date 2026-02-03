@@ -267,6 +267,7 @@ class VQAGeneratorPrefill:
         max_samples: Optional[int] = None,
         failed_selection_dir: Optional[Path] = None,
         debug_output_dir: Optional[Path] = None,
+        suppress_progress: bool = False,
     ) -> None:
         """
         处理数据文件，为每张图片生成VQA问题（使用预填充对象）
@@ -395,7 +396,7 @@ class VQAGeneratorPrefill:
                     debug_records.append(debug_record)
                 
                 # 进度报告
-                if total_processed % 10 == 0:
+                if not suppress_progress and total_processed % 10 == 0:
                     print(f"[进度] 已处理: {total_processed}, 成功: {len(results)}, 丢弃: {total_discarded}")
         
         # 保存成功结果
@@ -420,10 +421,11 @@ class VQAGeneratorPrefill:
                     f.write(json.dumps(item, ensure_ascii=False) + "\n")
             print(f"  问题生成调试记录已保存到: {debug_file}")
         
-        print(f"\n[完成] 处理完成！")
-        print(f"  总处理: {total_processed}")
-        print(f"  成功生成: {len(results)}")
-        print(f"  丢弃/错误: {total_discarded}")
+        if not suppress_progress:
+            print(f"\n[完成] 处理完成！")
+            print(f"  总处理: {total_processed}")
+            print(f"  成功生成: {len(results)}")
+            print(f"  丢弃/错误: {total_discarded}")
         print(f"  结果已保存到: {output_file}")
     
     def _extract_image_input(self, source_a: Dict[str, Any]) -> Optional[Any]:
@@ -559,6 +561,7 @@ class VQAGeneratorPrefill:
         request_delay: float = 0.1,
         failed_selection_dir: Optional[Path] = None,
         debug_output_dir: Optional[Path] = None,
+        suppress_progress: bool = False,
     ) -> None:
         """
         异步处理数据文件（使用预填充对象）
@@ -850,7 +853,7 @@ class VQAGeneratorPrefill:
                     errors.append(payload)
                     total_discarded += 1
                 completed += 1
-                if completed % 10 == 0 or completed == total:
+                if not suppress_progress and (completed % 10 == 0 or completed == total):
                     print(f"[进度] 已处理: {completed}/{total}, 成功: {len(results)}, 丢弃: {total_discarded}")
 
         # 保存成功结果
@@ -882,8 +885,9 @@ class VQAGeneratorPrefill:
                     f.write(json.dumps(item, ensure_ascii=False) + "\n")
             print(f"  问题生成调试记录已保存到: {debug_file}")
 
-        print(f"\n[完成] 处理完成！")
-        print(f"  总处理: {total_processed}")
-        print(f"  成功生成: {len(results)}")
-        print(f"  丢弃/错误: {total_discarded}")
+        if not suppress_progress:
+            print(f"\n[完成] 处理完成！")
+            print(f"  总处理: {total_processed}")
+            print(f"  成功生成: {len(results)}")
+            print(f"  丢弃/错误: {total_discarded}")
         print(f"  结果已保存到: {output_file}")

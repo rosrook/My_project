@@ -7,6 +7,7 @@ from typing import Union, Optional, Dict, Any
 from datetime import datetime
 from PIL import Image
 from QA_Generator.config import config
+from QA_Generator.logging.logger import log_debug
 
 try:
     from openai import OpenAI
@@ -177,7 +178,7 @@ class GeminiClient:
                 self.client.session.close()
         except Exception as e:
             # 静默处理，避免影响正常流程
-            print(f"[DEBUG] 关闭客户端时出错（可忽略）: {e}")
+            log_debug(f"关闭客户端时出错（可忽略）: {e}")
         finally:
             self._closed = True
 
@@ -229,10 +230,10 @@ class GeminiClient:
             # 转换为RGB并保存
             rgb_image = self._convert_to_rgb(image)
             rgb_image.save(filepath, format='JPEG', quality=95)
-            print(f"[DEBUG] 图片已保存: {filepath}")
+            log_debug(f"图片已保存: {filepath}")
             return str(filepath)
         except Exception as e:
-            print(f"[DEBUG] 保存图片失败: {e}")
+            log_debug(f"保存图片失败: {e}")
             return ""
 
     def _encode_image(self, image_input: Union[str, Path, bytes, Image.Image], context: str = "") -> str:
@@ -307,15 +308,12 @@ class GeminiClient:
             }
             messages[0]['content'].append(img_cont)
 
-            print(f"[DEBUG] 调用API - model: {self.model_name}")
-            print(f"[DEBUG] prompt长度: {len(prompt)}, image_base64长度: {len(image_base64)}")
-            print(f"[DEBUG] messages 数量: {len(messages)}")
-            print(f"[DEBUG] messages[0]['content'] 数量: {len(messages[0]['content'])}")
-
-            # 打印实际发送的 messages 结构（用于调试）
-            print(f"[DEBUG] 完整 messages 结构（前500字符）:")
+            log_debug(f"调用API - model: {self.model_name}")
+            log_debug(f"prompt长度: {len(prompt)}, image_base64长度: {len(image_base64)}")
+            log_debug(f"messages 数量: {len(messages)}")
+            log_debug(f"messages[0]['content'] 数量: {len(messages[0]['content'])}")
             messages_str = json.dumps(messages, ensure_ascii=False)[:500]
-            print(messages_str)
+            log_debug(f"完整 messages 结构（前500字符）: {messages_str}")
 
             # 调用API（OpenAI兼容接口）
             completion = self.client.chat.completions.create(
@@ -325,7 +323,7 @@ class GeminiClient:
                 max_completion_tokens=max_tokens,
             )
 
-            print(f"[DEBUG] API调用成功")
+            log_debug("API调用成功")
 
             # 检查是否有错误响应（自定义错误格式）
             if hasattr(completion, 'success') and completion.success is False:
@@ -340,9 +338,9 @@ class GeminiClient:
             # 尝试打印 completion 对象
             try:
                 completion_dump = completion.model_dump() if hasattr(completion, 'model_dump') else str(completion)
-                print(f"[DEBUG] completion 对象: {completion_dump}")
+                log_debug(f"completion 对象: {completion_dump}")
             except Exception as e:
-                print(f"[DEBUG] 无法打印 completion 对象: {e}")
+                log_debug(f"无法打印 completion 对象: {e}")
             # ========== 调试信息结束 ==========
 
             # 验证响应
@@ -365,15 +363,15 @@ class GeminiClient:
             if len(completion.choices) == 0:
                 raise ValueError("choices 列表长度为 0")
 
-            print(f"[DEBUG] choices 长度: {len(completion.choices)}")
-            print(f"[DEBUG] choices[0]: {completion.choices[0]}")
+            log_debug(f"choices 长度: {len(completion.choices)}")
+            log_debug(f"choices[0]: {completion.choices[0]}")
 
             if not hasattr(completion.choices[0], 'message'):
                 print(f"[ERROR] choices[0] 没有 message 属性")
-                print(f"[DEBUG] choices[0] 的所有属性: {dir(completion.choices[0])}")
+                log_debug(f"choices[0] 的所有属性: {dir(completion.choices[0])}")
                 raise ValueError("API 响应中没有 message 字段")
 
-            print(f"[DEBUG] message: {completion.choices[0].message}")
+            log_debug(f"message: {completion.choices[0].message}")
 
             content = completion.choices[0].message.content
 
@@ -383,7 +381,7 @@ class GeminiClient:
             if content == "":
                 print(f"[WARNING] API 返回的内容为空字符串")
 
-            print(f"[DEBUG] 响应内容长度: {len(content)}")
+            log_debug(f"响应内容长度: {len(content)}")
 
             return content
 
@@ -391,17 +389,17 @@ class GeminiClient:
             error_msg = f"API 响应格式错误: {e}"
             print(f"[ERROR] {error_msg}")
             try:
-                print(f"[DEBUG] completion 对象类型: {type(completion)}")
-                print(f"[DEBUG] completion 对象: {completion}")
+                log_debug(f"completion 对象类型: {type(completion)}")
+                log_debug(f"completion 对象: {completion}")
             except:
-                print(f"[DEBUG] 无法打印 completion 对象")
+                log_debug("无法打印 completion 对象")
             raise ValueError(error_msg)
 
         except Exception as e:
             print(f"[ERROR] analyze_image 失败: {type(e).__name__}: {e}")
-            print(f"[DEBUG] model: {self.model_name}, service_name: {self.service_name}, env: {self.env}")
+            log_debug(f"model: {self.model_name}, service_name: {self.service_name}, env: {self.env}")
             import traceback
-            print(f"[DEBUG] 完整错误堆栈:\n{traceback.format_exc()}")
+            log_debug(f"完整错误堆栈:\n{traceback.format_exc()}")
             raise
 
     def _extract_json_from_response(self, response_text: str) -> Dict[str, Any]:
@@ -516,11 +514,11 @@ Return the result in JSON format ONLY, with no extra text:
                 max_tokens=max_tokens
             )
 
-            print(f"[DEBUG] API 返回内容长度: {len(response_text) if response_text else 0}")
+            log_debug(f"API 返回内容长度: {len(response_text) if response_text else 0}")
             if response_text:
-                print(f"[DEBUG] API 返回内容前200字符: {response_text[:200]}")
+                log_debug(f"API 返回内容前200字符: {response_text[:200]}")
             else:
-                print(f"[DEBUG] API 返回内容为 None 或空")
+                log_debug("API 返回内容为 None 或空")
 
             # 解析JSON响应
             result = self._extract_json_from_response(response_text)
@@ -555,7 +553,7 @@ Return the result in JSON format ONLY, with no extra text:
             error_msg = f"未预期错误: {type(e).__name__}: {str(e)}"
             print(f"[ERROR] {error_msg}")
             import traceback
-            print(f"[DEBUG] 完整错误堆栈:\n{traceback.format_exc()}")
+            log_debug(f"完整错误堆栈:\n{traceback.format_exc()}")
             return {
                 "passed": False,
                 "basic_score": 0.0,

@@ -1,11 +1,19 @@
 """
 日志工具模块
 支持同时输出到控制台和文件
+
+通过环境变量 QA_DEBUG 控制 DEBUG 输出：
+  QA_DEBUG=1 或 QA_DEBUG=true 时输出 DEBUG
+  未设置或为 0/false 时不输出 DEBUG（默认）
 """
+import os
 import sys
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+
+# 默认关闭 DEBUG，设置 QA_DEBUG=1 或 true 可开启
+DEBUG_ENABLED = os.environ.get("QA_DEBUG", "").lower() in ("1", "true", "yes")
 
 
 class Logger:
@@ -67,7 +75,9 @@ class Logger:
         self.log(message, "ERROR")
 
     def debug(self, message: str):
-        """记录调试日志（详细的多行信息）"""
+        """记录调试日志（详细的多行信息），仅在 DEBUG_ENABLED 时输出"""
+        if not DEBUG_ENABLED:
+            return
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         # 调试日志使用特殊格式，便于识别
         separator = "-" * 80
@@ -82,7 +92,9 @@ class Logger:
         self._write_to_file(log_message)
 
     def debug_dict(self, title: str, data: dict, max_length: int = 1000):
-        """记录字典类型的调试信息"""
+        """记录字典类型的调试信息，仅在 DEBUG_ENABLED 时输出"""
+        if not DEBUG_ENABLED:
+            return
         import json
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         separator = "-" * 80
@@ -169,7 +181,9 @@ def log_error(message: str):
 
 
 def log_debug(message: str):
-    """记录调试日志（使用全局日志器）"""
+    """记录调试日志（使用全局日志器），仅在 DEBUG_ENABLED 时输出"""
+    if not DEBUG_ENABLED:
+        return
     if _global_logger:
         _global_logger.debug(message)
     else:
@@ -177,7 +191,9 @@ def log_debug(message: str):
 
 
 def log_debug_dict(title: str, data: dict, max_length: int = 1000):
-    """记录字典类型的调试信息（使用全局日志器）"""
+    """记录字典类型的调试信息（使用全局日志器），仅在 DEBUG_ENABLED 时输出"""
+    if not DEBUG_ENABLED:
+        return
     if _global_logger:
         _global_logger.debug_dict(title, data, max_length)
     else:

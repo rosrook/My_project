@@ -12,6 +12,13 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import asyncio
 
+try:
+    from tqdm import tqdm
+    HAS_TQDM = True
+except ImportError:
+    tqdm = None
+    HAS_TQDM = False
+
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -28,6 +35,14 @@ from QA_Generator.logging.logger import (
     log_debug,
     log_debug_dict,
 )
+
+
+# 错误详情字段最大长度（避免记录过大导致IO/内存问题）
+_ERROR_RAW_RESPONSE_MAX = 500
+_ERROR_REASON_MAX = 200
+_ERROR_SUMMARY_MAX = 300
+_ERROR_ISSUES_MAX = 3  # 最多保留几条 issues
+_ERROR_TRACEBACK_MAX = 400
 
 
 class VQAPipeline:
@@ -74,6 +89,84 @@ class VQAPipeline:
             "errors": []
         }
     
+    def _extract_error_details(
+        self,
+        error_stage: str,
+        error_msg: str,
+        validation_report: Optional[Dict[str, Any]] = None,
+        answer_result: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        从校验报告和答案生成结果中提取结构化错误详情，便于排查。
+        所有字符串均截断，避免记录过大导致IO/内存问题。
+        """
+        def _trunc(s: str, n: int) -> str:
+            if not s:
+                return ""
+            return str(s)[:n]
+
+        def _compact_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+            """移除空值，减少记录体积"""
+            return {k: v for k, v in (d or {}).items() if v is not None and v != "" and v != []}
+
+        details: Dict[str, Any] = {
+            "error_stage": error_stage,
+            "error_summary": _trunc(error_msg, _ERROR_SUMMARY_MAX),
+        }
+        if validation_report:
+            fc = validation_report.get("format_check") or {}
+            if isinstance(fc, dict):
+                issues = fc.get("issues", []) or []
+                details["format_check"] = {
+                    "passed": fc.get("passed", True),
+                    "issues": [str(i)[:150] for i in issues[:_ERROR_ISSUES_MAX]],
+                    "fixes_applied": (fc.get("fixes_applied") or [])[:3],
+                }
+            vqa = validation_report.get("vqa_validation") or {}
+            if isinstance(vqa, dict):
+                conf = vqa.get("confidence_assessment") or {}
+                ans_val = vqa.get("answer_validation") or {}
+                ans_issues = (ans_val.get("issues", []) or [])[:3]
+                details["vqa_validation"] = {
+                    "passed": vqa.get("passed", True),
+                    "confidence_assessment": _compact_dict({
+                        "passed": conf.get("passed", True),
+                        "confidence": conf.get("confidence"),
+                        "correctness_reason": _trunc(conf.get("correctness_reason"), _ERROR_REASON_MAX),
+                        "raw_response_truncated": _trunc(conf.get("raw_response_truncated"), _ERROR_RAW_RESPONSE_MAX),
+                    }) if isinstance(conf, dict) else {},
+                    "answer_validation": _compact_dict({
+                        "passed": ans_val.get("passed", True),
+                        "is_valid": ans_val.get("is_valid"),
+                        "validation_reason": _trunc(ans_val.get("validation_reason"), _ERROR_REASON_MAX),
+                        "issues": [str(i)[:150] for i in ans_issues],
+                        "raw_response_truncated": _trunc(ans_val.get("raw_response_truncated"), _ERROR_RAW_RESPONSE_MAX),
+                    }) if isinstance(ans_val, dict) else {},
+                    "rescue_attempted": vqa.get("rescue_attempted"),
+                    "rescue_successful": vqa.get("rescue_successful"),
+                    "rescue_reason": _trunc(vqa.get("rescue_reason"), _ERROR_REASON_MAX),
+                }
+            details["regeneration_reason"] = _trunc(validation_report.get("regeneration_reason"), _ERROR_SUMMARY_MAX)
+            repair = validation_report.get("repair") or {}
+            if isinstance(repair, dict) and repair:
+                details["repair"] = {
+                    "repair_successful": repair.get("repair_successful"),
+                    "repair_reason": _trunc(repair.get("repair_reason"), _ERROR_REASON_MAX),
+                }
+        if answer_result and isinstance(answer_result, dict):
+            gen_detail: Dict[str, Any] = {
+                "error_type": answer_result.get("error_type"),
+                "error_step": answer_result.get("error_step"),
+            }
+            if answer_result.get("error"):
+                gen_detail["error"] = _trunc(str(answer_result.get("error")), _ERROR_SUMMARY_MAX)
+            raw = answer_result.get("raw_response") or answer_result.get("raw_response_truncated")
+            if raw:
+                gen_detail["raw_response_truncated"] = _trunc(str(raw), _ERROR_RAW_RESPONSE_MAX)
+            if gen_detail:
+                details["generation"] = gen_detail
+        return details
+    
     def _generate_answers_from_data(
         self,
         questions_data: List[Dict[str, Any]]
@@ -109,7 +202,11 @@ class VQAPipeline:
                     errors.append({
                         "index": idx,
                         "id": record.get("id"),
-                        "error": "缺少question字段"
+                        "error": "缺少question字段",
+                        "error_stage": "input_validation",
+                        "error_details": self._extract_error_details("input_validation", "缺少question字段"),
+                        "sample_index": record.get("sample_index"),
+                        "source_a_id": record.get("source_a_id"),
                     })
                     total_failed += 1
                     continue
@@ -118,7 +215,11 @@ class VQAPipeline:
                     errors.append({
                         "index": idx,
                         "id": record.get("id"),
-                        "error": "缺少question_type字段"
+                        "error": "缺少question_type字段",
+                        "error_stage": "input_validation",
+                        "error_details": self._extract_error_details("input_validation", "缺少question_type字段"),
+                        "sample_index": record.get("sample_index"),
+                        "source_a_id": record.get("source_a_id"),
                     })
                     total_failed += 1
                     continue
@@ -127,7 +228,11 @@ class VQAPipeline:
                     errors.append({
                         "index": idx,
                         "id": record.get("id"),
-                        "error": "缺少image_base64字段"
+                        "error": "缺少image_base64字段",
+                        "error_stage": "input_validation",
+                        "error_details": self._extract_error_details("input_validation", "缺少image_base64字段"),
+                        "sample_index": record.get("sample_index"),
+                        "source_a_id": record.get("source_a_id"),
                     })
                     total_failed += 1
                     continue
@@ -164,10 +269,16 @@ class VQAPipeline:
                         if isinstance(answer_result, dict)
                         else "答案生成失败"
                     )
+                    err_details = self._extract_error_details(
+                        "generation", error_msg,
+                        answer_result=answer_result if isinstance(answer_result, dict) else None,
+                    )
                     errors.append({
                         "index": idx,
                         "id": record.get("id"),
                         "error": error_msg,
+                        "error_stage": "generation",
+                        "error_details": err_details,
                         "sample_index": record.get("sample_index"),
                         "source_a_id": record.get("source_a_id"),
                     })
@@ -213,12 +324,20 @@ class VQAPipeline:
                 if total_processed % 50 == 0:
                     print(f"[进度] 已处理: {total_processed}/{len(questions_data)}, 成功: {total_success}, 失败: {total_failed}")
                     
-            except Exception as e:
-                errors.append({
-                    "index": idx,
-                    "id": record.get("id"),
-                    "error": str(e)
-                })
+                except Exception as e:
+                    import traceback
+                    exc_details = self._extract_error_details("exception", str(e))
+                    exc_details["exception_type"] = type(e).__name__
+                    exc_details["traceback"] = traceback.format_exc()[-_ERROR_TRACEBACK_MAX:]
+                    errors.append({
+                        "index": idx,
+                        "id": record.get("id"),
+                        "error": str(e),
+                        "error_stage": "exception",
+                        "error_details": exc_details,
+                        "sample_index": record.get("sample_index"),
+                        "source_a_id": record.get("source_a_id"),
+                    })
                 total_failed += 1
                 # 优化：只在每10个错误时输出一次，减少日志开销
                 if total_failed % 10 == 0:
@@ -232,6 +351,7 @@ class VQAPipeline:
         questions_data: List[Dict[str, Any]],
         concurrency: int = 5,
         request_delay: float = 0.1,
+        suppress_progress: bool = False,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         异步从问题数据生成答案（并发调用，参考vlmtool/generate_vqa的实现）
@@ -276,19 +396,31 @@ class VQAPipeline:
                         return ("err", {
                             "index": idx,
                             "id": record.get("id"),
-                            "error": "缺少question字段"
+                            "error": "缺少question字段",
+                            "error_stage": "input_validation",
+                            "error_details": self._extract_error_details("input_validation", "缺少question字段"),
+                            "sample_index": record.get("sample_index"),
+                            "source_a_id": record.get("source_a_id"),
                         })
                     if not question_type:
                         return ("err", {
                             "index": idx,
                             "id": record.get("id"),
-                            "error": "缺少question_type字段"
+                            "error": "缺少question_type字段",
+                            "error_stage": "input_validation",
+                            "error_details": self._extract_error_details("input_validation", "缺少question_type字段"),
+                            "sample_index": record.get("sample_index"),
+                            "source_a_id": record.get("source_a_id"),
                         })
                     if not image_base64:
                         return ("err", {
                             "index": idx,
                             "id": record.get("id"),
-                            "error": "缺少image_base64字段"
+                            "error": "缺少image_base64字段",
+                            "error_stage": "input_validation",
+                            "error_details": self._extract_error_details("input_validation", "缺少image_base64字段"),
+                            "sample_index": record.get("sample_index"),
+                            "source_a_id": record.get("source_a_id"),
                         })
                     
                     prefill_object = record.get("prefill_object")
@@ -311,6 +443,7 @@ class VQAPipeline:
                     max_retries = 3
                     retry_count = 0
                     last_error = None
+                    last_answer_result = None  # 用于错误详情（生成失败时）
                     validated_result = None
                     validation_report = None
                     
@@ -346,12 +479,27 @@ class VQAPipeline:
                                 if isinstance(answer_result, dict)
                                 else "答案生成失败"
                             )
+                            last_answer_result = answer_result if isinstance(answer_result, dict) else None
                             log_error(f"[记录 {idx}] 答案生成失败: {last_error}, answer_result={answer_result}")
                             retry_count += 1
                             if retry_count <= max_retries:
                                 continue
                             else:
-                                break
+                                # 最后一次重试仍失败，记录生成阶段的错误详情
+                                err_details = self._extract_error_details(
+                                    "generation", last_error,
+                                    answer_result=last_answer_result,
+                                )
+                                return ("err", {
+                                    "index": idx,
+                                    "id": record.get("id"),
+                                    "error": last_error,
+                                    "error_stage": "generation",
+                                    "error_details": err_details,
+                                    "retry_count": retry_count,
+                                    "sample_index": record.get("sample_index"),
+                                    "source_a_id": record.get("source_a_id"),
+                                })
                         
                         # ========== 步骤3: 校验和修复 ==========
                         log_debug(f"[记录 {idx}] ========== 步骤3: 校验和修复 ==========")
@@ -398,12 +546,21 @@ class VQAPipeline:
                             print(f"[重试] 记录 {idx} 验证失败 ({reason})，正在重新生成 ({retry_count}/{max_retries})...")
                         else:
                             last_error = f"经过 {max_retries} 次重试后仍验证失败: {validation_report.get('regeneration_reason', '验证失败')}"
+                            last_answer_result = answer_result  # 保存最后一次生成结果，用于错误详情
                     
                     if validated_result is None or not validation_report.get("validation_passed", False):
+                        err_details = self._extract_error_details(
+                            "validation" if validation_report else "generation",
+                            last_error or "答案生成或验证失败",
+                            validation_report=validation_report,
+                            answer_result=last_answer_result if validation_report is None else None,
+                        )
                         return ("err", {
                             "index": idx,
                             "id": record.get("id"),
                             "error": last_error or "答案生成或验证失败",
+                            "error_stage": "validation" if validation_report else "generation",
+                            "error_details": err_details,
                             "retry_count": retry_count,
                             "validation_report": validation_report,
                             "sample_index": record.get("sample_index"),
@@ -463,10 +620,16 @@ class VQAPipeline:
                     log_debug(f"[记录 {idx}] ========== 处理完成 ==========\n")
                     return ("ok", result)
                 except Exception as e:
+                    import traceback
+                    exc_details = self._extract_error_details("exception", str(e))
+                    exc_details["exception_type"] = type(e).__name__
+                    exc_details["traceback"] = traceback.format_exc()[-_ERROR_TRACEBACK_MAX:]
                     return ("err", {
                         "index": idx,
                         "id": record.get("id"),
                         "error": str(e),
+                        "error_stage": "exception",
+                        "error_details": exc_details,
                         "sample_index": record.get("sample_index"),
                         "source_a_id": record.get("source_a_id"),
                     })
@@ -489,19 +652,26 @@ class VQAPipeline:
                     else:
                         errors.append(payload)
                 except Exception as e:
+                    import traceback
+                    exc_details = self._extract_error_details("exception", str(e))
+                    exc_details["exception_type"] = type(e).__name__
+                    exc_details["traceback"] = traceback.format_exc()[-_ERROR_TRACEBACK_MAX:]
                     errors.append({
-                        "error": f"任务执行异常: {str(e)}"
+                        "error": f"任务执行异常: {str(e)}",
+                        "error_stage": "exception",
+                        "error_details": exc_details,
                     })
                 
                 completed += 1
                 
-                # 每完成10个或完成全部时显示进度
-                if completed % 10 == 0 or completed == total:
+                # 每完成10个或完成全部时显示进度（使用全局进度条时抑制）
+                if not suppress_progress and (completed % 10 == 0 or completed == total):
                     success_count = len(results)
                     failed_count = len(errors)
                     print(f"[进度] 已处理: {completed}/{total}, 成功: {success_count}, 失败: {failed_count}")
             
-            print(f"[完成] 异步答案生成完成！成功: {len(results)}, 失败: {len(errors)}")
+            if not suppress_progress:
+                print(f"[完成] 异步答案生成完成！成功: {len(results)}, 失败: {len(errors)}")
             return results, errors
     
     async def run_async(
@@ -516,6 +686,7 @@ class VQAPipeline:
         request_delay: float = 0.1,  # 请求延迟（秒）
         use_async: bool = True,  # 是否使用异步并行处理
         debug_question_output_dir: Optional[Path] = None,
+        progress_bar: bool = True,  # 是否显示单一进度条
     ) -> Dict[str, Any]:
         """
         运行完整流程（支持大文件分流处理）
@@ -576,6 +747,10 @@ class VQAPipeline:
             all_input_data = all_input_data[:max_samples]
             total_records = len(all_input_data)
         
+        # 单一进度条（需要 tqdm）
+        pbar = None
+        if progress_bar and HAS_TQDM and tqdm:
+            pbar = tqdm(total=total_records, desc="VQA生成", unit="条", ncols=80, mininterval=1.0)
         
         # 分批处理
         for batch_idx in range(0, total_records, batch_size):
@@ -583,9 +758,10 @@ class VQAPipeline:
             total_batches = (total_records + batch_size - 1) // batch_size
             batch_data = all_input_data[batch_idx:batch_idx + batch_size]
             
-            print(f"\n{'=' * 80}")
-            print(f"处理批次 {batch_num}/{total_batches} (记录 {batch_idx + 1}-{min(batch_idx + batch_size, total_records)})")
-            print(f"{'=' * 80}")
+            if pbar is None:
+                print(f"\n{'=' * 80}")
+                print(f"处理批次 {batch_num}/{total_batches} (记录 {batch_idx + 1}-{min(batch_idx + batch_size, total_records)})")
+                print(f"{'=' * 80}")
             
             # 创建临时批次文件（优化：不使用indent以减少序列化时间）
             batch_input_file = output_dir / f"batch_{batch_num}_input_{timestamp}.json"
@@ -618,6 +794,7 @@ class VQAPipeline:
                             request_delay=request_delay,
                             failed_selection_dir=failed_selection_dir,
                             debug_output_dir=debug_question_output_dir,
+                            suppress_progress=(pbar is not None),
                         )
                     else:
                         # 使用同步方法（兼容模式）
@@ -630,6 +807,7 @@ class VQAPipeline:
                             max_samples=None,  # 批次文件已经限制大小
                             failed_selection_dir=failed_selection_dir,
                             debug_output_dir=debug_question_output_dir,
+                            suppress_progress=(pbar is not None),
                         )
                     
                     # 读取生成的问题
@@ -653,9 +831,10 @@ class VQAPipeline:
                             else:
                                 all_question_errors.append(batch_question_errors)
                     
-                    print(f"✓ 批次 {batch_num} 问题生成完成: {len(batch_questions)} 个问题")
-                    if batch_question_errors:
-                        print(f"  - 问题生成错误: {len(batch_question_errors)} 条")
+                    if pbar is None:
+                        print(f"✓ 批次 {batch_num} 问题生成完成: {len(batch_questions)} 个问题")
+                        if batch_question_errors:
+                            print(f"  - 问题生成错误: {len(batch_question_errors)} 条")
                     
                 except Exception as e:
                     print(f"✗ 批次 {batch_num} 问题生成失败: {e}")
@@ -682,7 +861,8 @@ class VQAPipeline:
                         batch_answers, answer_errors = await self._generate_answers_from_data_async(
                             batch_questions,
                             concurrency=concurrency,
-                            request_delay=request_delay
+                            request_delay=request_delay,
+                            suppress_progress=(pbar is not None),
                         )
                     else:
                         # 使用串行处理（兼容模式）
@@ -694,9 +874,10 @@ class VQAPipeline:
                         with open(batch_answers_file, 'w', encoding='utf-8') as f:
                             json.dump(batch_answers, f, ensure_ascii=False, separators=(',', ':'))
                     
-                    print(f"✓ 批次 {batch_num} 答案生成完成: {len(batch_answers)} 个答案")
-                    if answer_errors:
-                        print(f"  - 答案生成失败: {len(answer_errors)} 条")
+                    if pbar is None:
+                        print(f"✓ 批次 {batch_num} 答案生成完成: {len(batch_answers)} 个答案")
+                        if answer_errors:
+                            print(f"  - 答案生成失败: {len(answer_errors)} 条")
                     
                     # 处理生成失败的答案（answer_errors） - 无论异步还是同步方法返回的错误
                     for error_item in answer_errors:
@@ -711,7 +892,8 @@ class VQAPipeline:
                                 corresponding_question = q
                                 break
                         
-                        # 构建失败记录
+                        # 构建失败记录（含详细错误信息）
+                        vr = error_item.get("validation_report") or {}
                         failed_item = {
                             "question": corresponding_question.get("question") if corresponding_question else None,
                             "question_type": corresponding_question.get("question_type") if corresponding_question else None,
@@ -722,23 +904,28 @@ class VQAPipeline:
                             "sample_index": corresponding_question.get("sample_index") if corresponding_question else error_item.get("sample_index"),
                             "id": error_id or (corresponding_question.get("id") if corresponding_question else None),
                             "source_a_id": corresponding_question.get("source_a_id") if corresponding_question else error_item.get("source_a_id"),
-                            "answer": None,  # 生成失败，没有答案
+                            "answer": None,
                             "explanation": None,
                             "full_question": corresponding_question.get("question") if corresponding_question else None,
                             "options": None,
                             "correct_option": None,
                             "error": error_item.get("error", "答案生成失败"),
-                            "error_stage": "generation",  # 生成阶段失败
+                            "error_stage": error_item.get("error_stage", "generation"),
+                            "error_details": error_item.get("error_details") or self._extract_error_details(
+                                error_item.get("error_stage", "generation"),
+                                error_item.get("error", "答案生成失败"),
+                                validation_report=vr,
+                            ),
                             "error_index": error_index,
                             "retry_count": error_item.get("retry_count", 0),
                             "batch": batch_num,
                             "validation_passed": False,
-                            "validation_report": error_item.get("validation_report", {
+                            "validation_report": vr if vr else {
                                 "validation_passed": False,
                                 "error": error_item.get("error", "答案生成失败"),
                                 "format_check": {"passed": False, "issues": [error_item.get("error", "答案生成失败")]},
                                 "vqa_validation": {"passed": False}
-                            }),
+                            },
                             "timestamp": corresponding_question.get("timestamp") if corresponding_question else datetime.now().isoformat(),
                             "generated_at": datetime.now().isoformat()
                         }
@@ -768,7 +955,7 @@ class VQAPipeline:
                             # 校验通过，加入成功数据
                             all_successful_vqa.append(answer)
                         else:
-                            # 校验不通过，加入校验失败数据；确保有 error 字段便于排查
+                            # 校验不通过，加入校验失败数据；确保有 error 和 error_details 便于排查
                             if "error" not in answer:
                                 reason = (
                                     validation_report.get("regeneration_reason")
@@ -778,15 +965,26 @@ class VQAPipeline:
                                     reason = "; ".join(str(r) for r in reason[:3]) if reason else "校验失败"
                                 answer["error"] = reason or "答案校验未通过"
                             answer["error_stage"] = "validation"
+                            if "error_details" not in answer:
+                                answer["error_details"] = self._extract_error_details(
+                                    "validation",
+                                    answer.get("error", "答案校验未通过"),
+                                    validation_report=validation_report,
+                                )
                             all_answer_validation_failed.append(answer)
                     
-                    print(f"  - 校验通过: {len([a for a in batch_answers if a.get('validation_report', {}).get('validation_passed', False)])}")
-                    print(f"  - 校验未通过: {len([a for a in batch_answers if not a.get('validation_report', {}).get('validation_passed', False)])}")
-                    print(f"  - 生成失败: {len(answer_errors)}")
+                    if pbar is None:
+                        print(f"  - 校验通过: {len([a for a in batch_answers if a.get('validation_report', {}).get('validation_passed', False)])}")
+                        print(f"  - 校验未通过: {len([a for a in batch_answers if not a.get('validation_report', {}).get('validation_passed', False)])}")
+                        print(f"  - 生成失败: {len(answer_errors)}")
                     
                 except Exception as e:
                     print(f"✗ 批次 {batch_num} 答案生成失败: {e}")
                     # 将问题数据标记为答案生成失败（这些数据已经生成了问题，但答案生成失败）
+                    exc_details = self._extract_error_details("exception", str(e))
+                    exc_details["exception_type"] = type(e).__name__
+                    import traceback
+                    exc_details["traceback"] = traceback.format_exc()[-_ERROR_TRACEBACK_MAX:]
                     for question in batch_questions:
                         failed_item = {
                             "question": question.get("question"),
@@ -802,7 +1000,8 @@ class VQAPipeline:
                             "options": None,
                             "correct_option": None,
                             "error": f"答案生成失败: {str(e)}",
-                            "error_stage": "generation",
+                            "error_stage": "exception",
+                            "error_details": exc_details,
                             "batch": batch_num,
                             "validation_passed": False,
                             "validation_report": {
@@ -814,6 +1013,9 @@ class VQAPipeline:
                     continue
                 
             finally:
+                # 更新进度条
+                if pbar is not None:
+                    pbar.update(len(batch_data))
                 # 清理临时批次输入文件（总是清理，因为不需要保留）
                 try:
                     if batch_input_file.exists():
@@ -851,6 +1053,9 @@ class VQAPipeline:
                                 error_file.unlink()
                     except Exception as e:
                         print(f"[WARNING] 清理批次错误文件失败: {e}")
+        
+        if pbar is not None:
+            pbar.close()
         
         # Step 3: 生成最终输出文件
         print("\n" + "=" * 80)
@@ -946,6 +1151,7 @@ class VQAPipeline:
         request_delay: float = 0.1,  # 请求延迟（秒）
         use_async: bool = True,  # 是否使用异步并行处理
         debug_question_output_dir: Optional[Path] = None,
+        progress_bar: bool = True,  # 是否显示单一进度条
     ) -> Dict[str, Any]:
         """
         运行完整流程（同步包装器，内部调用异步版本）
@@ -975,6 +1181,7 @@ class VQAPipeline:
             request_delay=request_delay,
             use_async=use_async,
             debug_question_output_dir=debug_question_output_dir,
+            progress_bar=progress_bar,
         ))
     
     def _prepare_final_dataset(self, answers_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1048,13 +1255,14 @@ class VQAPipeline:
             # 如果有错误信息，也包含进去（生成失败或校验失败都会记录错误）
             if "error" in answer:
                 item["error"] = answer.get("error")
-                # 如果有错误索引或重试次数，也记录
                 if "error_index" in answer:
                     item["error_index"] = answer.get("error_index")
                 if "retry_count" in answer:
                     item["retry_count"] = answer.get("retry_count")
                 if "error_stage" in answer:
                     item["error_stage"] = answer.get("error_stage")
+                if "error_details" in answer and answer.get("error_details"):
+                    item["error_details"] = answer.get("error_details")
             # 校验失败但无 error 时，从 validation_report 推导
             elif answer.get("answer") is None or not answer.get("validation_passed", True):
                 vr = answer.get("validation_report") or {}
@@ -1303,6 +1511,11 @@ def main():
         help='开启指定pipeline的验证豁免（question/visual_recognition/caption/text_association）'
     )
     parser.add_argument(
+        '--no-progress-bar',
+        action='store_true',
+        help='禁用单一进度条（默认显示，需安装 tqdm）'
+    )
+    parser.add_argument(
         '--log-file',
         type=str,
         default=None,
@@ -1423,6 +1636,7 @@ def main():
             request_delay=args.request_delay,
             use_async=use_async,
             debug_question_output_dir=debug_question_output_dir,
+            progress_bar=not args.no_progress_bar,
         )
         
         success_msg = "流程执行成功！"
