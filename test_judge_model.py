@@ -18,20 +18,31 @@ from PIL import Image
 import os
 
 # ========== 配置环境变量 ==========
-# 方式1: 直接在这里设置（取消注释并修改）
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "EMPTY")
-os.environ["OPENAI_BASE_URL"] = os.getenv("OPENAI_BASE_URL", "http://10.158.159.139:8000/v1")
-os.environ["MODEL_NAME"] = os.getenv("MODEL_NAME", "Qwen3-VL-235B-A22B-Instruct")
+# 从环境变量或默认值读取（与 run_full_pipeline.sh 一致）
+_TEST_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "EMPTY")
+_TEST_OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://10.158.159.139:8000/v1")
+_TEST_MODEL_NAME = os.getenv("MODEL_NAME", "Qwen3-VL-235B-A22B-Instruct")
 
-# ProbingFactorGeneration 使用的环境变量（与 run_full_pipeline.sh 一致）
-os.environ["API_KEY"] = os.environ["OPENAI_API_KEY"]  # API_KEY 是 OPENAI_API_KEY 的别名
-os.environ["BASE_URL"] = os.environ["OPENAI_BASE_URL"]  # BASE_URL 是 OPENAI_BASE_URL 的别名
-os.environ["USE_LB_CLIENT"] = "false"  # 使用 AsyncOpenAI 而不是 LBOpenAIAsyncClient
-
-# 方式2: 从命令行设置环境变量（优先级更高）
-# 例如: OPENAI_API_KEY="EMPTY" OPENAI_BASE_URL="http://10.158.159.139:8000/v1" MODEL_NAME="Qwen3-VL-235B-A22B-Instruct" python test_judge_model.py
+# 同时设置到 os.environ，供 ProbingFactorGeneration 内部使用
+os.environ["OPENAI_API_KEY"] = _TEST_OPENAI_API_KEY
+os.environ["OPENAI_BASE_URL"] = _TEST_OPENAI_BASE_URL
+os.environ["MODEL_NAME"] = _TEST_MODEL_NAME
+os.environ["API_KEY"] = _TEST_OPENAI_API_KEY
+os.environ["BASE_URL"] = _TEST_OPENAI_BASE_URL
+os.environ["USE_LB_CLIENT"] = "false"
 
 from ProbingFactorGeneration.models import JudgeModel
+
+
+def _create_judge(model_name: Optional[str] = None, **kwargs):
+    """创建 JudgeModel，显式传入 api_key/base_url/use_lb_client，避免配置加载顺序问题"""
+    return JudgeModel(
+        model_name=model_name or _TEST_MODEL_NAME,
+        api_key=_TEST_OPENAI_API_KEY,
+        base_url=_TEST_OPENAI_BASE_URL,
+        use_lb_client=False,
+        **kwargs,
+    )
 
 
 async def test_basic_qa(image_path: str, question: str, model_name: Optional[str] = None):
@@ -48,7 +59,7 @@ async def test_basic_qa(image_path: str, question: str, model_name: Optional[str
         return
     
     image = Image.open(str(img_path)).convert("RGB")
-    judge = JudgeModel(model_name=model_name)
+    judge = _create_judge(model_name=model_name)
     
     async with judge:
         image_base64 = judge._image_to_base64(image)
@@ -102,7 +113,7 @@ async def test_prefill_slots(
         return
     
     image = Image.open(str(img_path)).convert("RGB")
-    judge = JudgeModel(model_name=model_name)
+    judge = _create_judge(model_name=model_name)
     
     async with judge:
         result = await judge.prefill_template_slots_async(
@@ -142,7 +153,7 @@ async def test_verify_completion(
         return
     
     image = Image.open(str(img_path)).convert("RGB")
-    judge = JudgeModel(model_name=model_name)
+    judge = _create_judge(model_name=model_name)
     
     async with judge:
         verification = await judge.verify_completion_async(
@@ -193,7 +204,7 @@ async def test_batch_prefill(
         print("❌ 没有有效的图片")
         return
     
-    judge = JudgeModel(model_name=model_name, max_concurrent=3)
+    judge = _create_judge(model_name=model_name, max_concurrent=3)
     
     async with judge:
         results = await judge.prefill_template_slots_batch_async(
@@ -236,7 +247,7 @@ async def test_batch_verify(
         print("❌ 没有有效的图片")
         return
     
-    judge = JudgeModel(model_name=model_name, max_concurrent=3)
+    judge = _create_judge(model_name=model_name, max_concurrent=3)
     
     async with judge:
         verifications = await judge.verify_completion_batch_async(

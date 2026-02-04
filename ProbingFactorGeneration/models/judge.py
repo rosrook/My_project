@@ -42,7 +42,7 @@ class JudgeModel:
     
     def __init__(self, model_name: str = None, model_config: Dict[str, Any] = None,
                  gpu_id: int = 0, max_concurrent: int = None, request_delay: float = None,
-                 use_lb_client: bool = None):
+                 use_lb_client: bool = None, api_key: str = None, base_url: str = None):
         """
         Initialize JudgeModel.
         
@@ -53,6 +53,8 @@ class JudgeModel:
             max_concurrent: Maximum concurrent requests
             request_delay: Delay between requests in seconds
             use_lb_client: Whether to use LBOpenAIAsyncClient
+            api_key: API key (overrides env/config if provided)
+            base_url: API base URL (overrides env/config if provided)
         """
         self.model_name = model_name or MODEL_CONFIG.get("MODEL_NAME", "gemini-pro-vision")
         self.model_config = model_config or {}
@@ -73,10 +75,11 @@ class JudgeModel:
         self.use_lb_client = use_lb_client if use_lb_client is not None else MODEL_CONFIG.get("USE_LB_CLIENT", True)
         
         # Store service_name, env, api_key, base_url for AsyncGeminiClient
+        # Explicit params override env/config (for test scripts and direct invocation)
         self.service_name = MODEL_CONFIG.get("SERVICE_NAME") or os.getenv("SERVICE_NAME")
         self.env = MODEL_CONFIG.get("ENV", "prod") or os.getenv("ENV", "prod")
-        self.api_key = MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY", "1")
-        self.base_url = MODEL_CONFIG.get("BASE_URL") or os.getenv("BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        self.api_key = api_key or MODEL_CONFIG.get("API_KEY") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY", "1")
+        self.base_url = base_url or MODEL_CONFIG.get("BASE_URL") or os.getenv("BASE_URL") or os.getenv("OPENAI_BASE_URL")
         
         # Model parameters
         self.max_tokens = self.model_config.get("max_tokens", MODEL_CONFIG.get("MAX_TOKENS", 1000))
