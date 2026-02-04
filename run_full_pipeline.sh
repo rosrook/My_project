@@ -44,6 +44,9 @@ START_INDEX=20000
 # Optimized for 8 GPUs: Increased concurrency for Step 3 (was 10)
 # With 8 GPUs available, we can support higher concurrency (adjust based on API limits)
 CONCURRENCY=20
+# Step 3 GPU configuration: Use multiple GPUs for parallel processing
+# Set to 8 to match Step 1's GPU count, or adjust based on your needs
+NUM_GPUS=8
 ENABLE_VALIDATION_EXEMPTIONS=true
 # QA Generator output directory (will contain pipeline-classified JSONs and merged JSON)
 # Note: QA_OUTPUT_DIR will be set after OUTPUT_DIR is converted to absolute path
@@ -98,9 +101,10 @@ QA_DEBUG=""
 #   - PARQUET_SAMPLE_SIZE=16 allows loading more data files in parallel across GPUs
 #
 # Step 3 (QA_Generator):
-#   - Currently uses single GPU mode (num_gpus=1 hardcoded)
-#   - CONCURRENCY=20 leverages available compute resources
-#   - Can be further optimized if code supports multi-GPU mode
+#   - Supports multi-GPU parallel processing (NUM_GPUS=8 matches Step 1)
+#   - Each GPU processes a portion of the data independently
+#   - Total throughput = CONCURRENCY * NUM_GPUS (e.g., 20 * 8 = 160 concurrent requests)
+#   - CONCURRENCY=20 per GPU, adjust based on API limits
 
 # Prepare paths
 PROJECT_ROOT="$(cd "${PROJECT_ROOT}" && pwd)"
@@ -169,6 +173,7 @@ echo "== Step 3: QA_Generator pipeline =="
 STEP3_ARGS=(
   "${ERROR_OUTPUT}"
   --concurrency "${CONCURRENCY}"
+  --num-gpus "${NUM_GPUS}"
   --request-delay "${REQUEST_DELAY}"
   --batch-size "${BATCH_SIZE}"
 )

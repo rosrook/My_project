@@ -42,6 +42,8 @@ START_INDEX=0
 
 # QA_Generator (step 3)
 CONCURRENCY=5
+# GPU configuration: Set to 1 for single image debug, or higher for multi-GPU processing
+NUM_GPUS=1
 ENABLE_VALIDATION_EXEMPTIONS=true
 REQUEST_DELAY=0.1
 NO_ASYNC=false
@@ -197,6 +199,7 @@ python -m FactorFilterAgent.failure_key_sampler.main \
 STEP3_ARGS=(
   "${ERROR_OUTPUT}"
   --concurrency "${CONCURRENCY}"
+  --num-gpus "${NUM_GPUS}"
   --request-delay "${REQUEST_DELAY}"
   --batch-size "${BATCH_SIZE}"
 )

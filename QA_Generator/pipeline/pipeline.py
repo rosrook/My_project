@@ -704,6 +704,7 @@ class VQAPipeline:
         concurrency: int = 5,  # 异步并发数（建议1-5）
         request_delay: float = 0.1,  # 请求延迟（秒）
         use_async: bool = True,  # 是否使用异步并行处理
+        num_gpus: int = 1,  # GPU数量（用于多GPU并行处理）
         debug_question_output_dir: Optional[Path] = None,
         progress_bar: bool = True,  # 是否显示单一进度条
     ) -> Dict[str, Any]:
@@ -867,7 +868,7 @@ class VQAPipeline:
                             output_file=batch_questions_file,
                             pipeline_names=pipeline_names,
                             max_samples=None,  # 批次文件已经限制大小
-                            num_gpus=1,  # 问题生成阶段使用单GPU组
+                            num_gpus=num_gpus,  # 使用配置的GPU数量
                             max_concurrent_per_gpu=concurrency,
                             request_delay=request_delay,
                             failed_selection_dir=failed_selection_dir,
@@ -1252,6 +1253,7 @@ class VQAPipeline:
         concurrency: int = 5,  # 异步并发数（建议1-5）
         request_delay: float = 0.1,  # 请求延迟（秒）
         use_async: bool = True,  # 是否使用异步并行处理
+        num_gpus: int = 1,  # GPU数量（用于多GPU并行处理）
         debug_question_output_dir: Optional[Path] = None,
         progress_bar: bool = True,  # 是否显示单一进度条
     ) -> Dict[str, Any]:
@@ -1282,6 +1284,7 @@ class VQAPipeline:
             concurrency=concurrency,
             request_delay=request_delay,
             use_async=use_async,
+            num_gpus=num_gpus,
             debug_question_output_dir=debug_question_output_dir,
             progress_bar=progress_bar,
         ))
@@ -1586,6 +1589,12 @@ def main():
         help='异步并发请求数（建议1-5，某些API不支持高并发，默认: 5）'
     )
     parser.add_argument(
+        '--num-gpus',
+        type=int,
+        default=1,
+        help='GPU数量（用于多GPU并行处理，默认: 1。设置为8可充分利用8卡GPU）'
+    )
+    parser.add_argument(
         '--request-delay',
         type=float,
         default=0.1,
@@ -1737,6 +1746,7 @@ def main():
             concurrency=args.concurrency,
             request_delay=args.request_delay,
             use_async=use_async,
+            num_gpus=args.num_gpus,
             debug_question_output_dir=debug_question_output_dir,
             progress_bar=not args.no_progress_bar,
         )
