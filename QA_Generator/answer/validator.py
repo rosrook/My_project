@@ -11,6 +11,7 @@ _RAW_RESPONSE_MAX = 500
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.logging.logger import log_warning, log_debug, log_debug_dict
 from QA_Generator.answer.answer_repair import AnswerRepairer
+from QA_Generator.utils.model_response_logger import log_model_response
 
 
 class AnswerValidator:
@@ -598,7 +599,12 @@ Return a JSON object:
                 temperature=0.3,
                 context="perplexity_analysis"
             )
-            
+            log_model_response(
+                stage="answer_validation",
+                prompt=prompt,
+                response=response,
+                context={"question": question, "sub_stage": "perplexity_analysis"},
+            )
             # 解析JSON响应
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
@@ -715,7 +721,12 @@ Return a JSON object:
                 temperature=0.3,
                 context="confidence_assessment"
             )
-            
+            log_model_response(
+                stage="answer_validation",
+                prompt=prompt,
+                response=response,
+                context={"question": question[:200], "answer": answer, "sub_stage": "confidence_assessment"},
+            )
             # 解析JSON响应
             raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
@@ -883,7 +894,12 @@ Return a JSON object:
                 temperature=0.3,
                 context="answer_validation"
             )
-            
+            log_model_response(
+                stage="answer_validation",
+                prompt=prompt,
+                response=response,
+                context={"question": question[:200], "answer": answer, "sub_stage": "answer_validation"},
+            )
             # 解析JSON响应
             raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
             json_match = re.search(r'\{.*\}', response, re.DOTALL)

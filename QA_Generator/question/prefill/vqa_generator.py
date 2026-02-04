@@ -61,7 +61,7 @@ class VQAGeneratorPrefill:
         self.prefill_processor = PrefillProcessor(self.gemini_client)  # 保留用于向后兼容
         self.prefill_processor_simplified = PrefillProcessorSimplified()  # 新的简化版本
         self.slot_filler = SlotFiller(self.gemini_client)
-        self.question_generator = QuestionGeneratorPrefill(self.gemini_client)
+        # question_generator 在 global_constraints 加载后初始化（见下方）
         self.validator = QuestionValidator(
             self.gemini_client,
             enable_validation_exemptions=enable_validation_exemptions,
@@ -71,6 +71,12 @@ class VQAGeneratorPrefill:
         self.global_constraints = self.config_loader.get_global_constraints()
         self.generation_policy = self.config_loader.get_generation_policy()
         self.question_type_ratio = self.config_loader.get_question_type_ratio()
+        
+        # 问题生成器需要全局约束（用于将validation_rules加入生成prompt）
+        self.question_generator = QuestionGeneratorPrefill(
+            self.gemini_client,
+            global_constraints=self.global_constraints,
+        )
         
         # 失败案例存储目录（预填充版本可能不需要，但保留接口）
         self.failed_selection_dir = failed_selection_dir

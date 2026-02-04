@@ -5,6 +5,7 @@
 from typing import Dict, Any, Optional
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
+from QA_Generator.utils.model_response_logger import log_model_response
 import re
 
 
@@ -17,14 +18,20 @@ class QuestionGeneratorPrefill:
     - prompt中强调使用指定的目标对象
     """
     
-    def __init__(self, gemini_client: Optional[GeminiClient] = None):
+    def __init__(
+        self,
+        gemini_client: Optional[GeminiClient] = None,
+        global_constraints: Optional[Dict[str, Any]] = None,
+    ):
         """
         初始化问题生成器
         
         Args:
             gemini_client: Gemini客户端实例
+            global_constraints: 全局约束（用于将validation_rules加入生成prompt）
         """
         self.gemini_client = gemini_client or GeminiClient()
+        self.global_constraints = global_constraints or {}
     
     def generate_question(
         self,
@@ -147,6 +154,7 @@ Example Template: "{example_template}"
 {question_type_instruction}
 Question Constraints:
 {chr(10).join(f"- {constraint}" for constraint in question_constraints)}
+{self._format_global_validation_rules()}
 
 **CRITICAL REQUIREMENT:**
 {self._build_critical_requirement(prefill_object, slots)}
@@ -161,6 +169,7 @@ Requirements:
    - Avoid copying the example template verbatim, but maintain the same semantic intent
 5. You must NOT introduce new objects not in the image
 6. You must NOT use external or commonsense-only knowledge
+7. You must NOT directly reveal the answer in the question, and the answer must NOT be directly inferable from the question text alone (without viewing the image)
 
 Generate a natural, fluent question that follows the template and constraints. Return ONLY the question text (question stem for multiple choice, NO options), no explanation or additional text."""
         
@@ -177,6 +186,13 @@ Generate a natural, fluent question that follows the template and constraints. R
         requirement += f"The question should be answerable from the image and reference the objects/relationships described in the claim."
         
         return requirement
+    
+    def _format_global_validation_rules(self) -> str:
+        """格式化全局校验规则，用于加入生成prompt"""
+        rules = self.global_constraints.get("validation_rules", [])
+        if not rules:
+            return ""
+        return "\nGlobal Validation Rules (must all be satisfied):\n" + "\n".join(f"- {r}" for r in rules) + "\n"
     
     def _build_requirement_1(self, prefill_object: Dict[str, Any], slots: Dict[str, str]) -> str:
         """构建第一个要求文本（新格式：基于 claim 和已填充的 slots）"""
@@ -278,9 +294,22 @@ Generate a natural, fluent question that follows the template and constraints. R
                     temperature=0.7
                 )
             
+            log_model_response(
+                stage="question_generation",
+                prompt=prompt,
+                response=response,
+                context={"slots": slots, "intent": pipeline_config.get("intent", "")},
+            )
             question = self._extract_question(response)
             return question
         
         except Exception as e:
             print(f"[WARNING] 问题生成失败(异步): {e}")
+            log_model_response(
+                stage="question_generation",
+                prompt=prompt,
+                response="",
+                context={"slots": slots, "intent": pipeline_config.get("intent", "")},
+                error=str(e),
+            )
             return None

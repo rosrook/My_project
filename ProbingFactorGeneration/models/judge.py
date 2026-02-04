@@ -98,6 +98,7 @@ class JudgeModel:
             or os.getenv("JUDGE_PROMPT_LOG")
             or None
         )
+        self._log_response: bool = os.getenv("JUDGE_LOG_RESPONSE", "").strip().lower() in ("1", "true", "yes")
         self._prompt_log_lock: asyncio.Lock = asyncio.Lock()
 
     async def _log_judge_prompt_async(self, record: Dict[str, Any]) -> None:
@@ -327,7 +328,13 @@ Please respond in JSON format:
             
             # Extract response text
             response_text = response.choices[0].message.content
-            
+            if self._log_response and self._prompt_log_path:
+                await self._log_judge_prompt_async({
+                    **log_context,
+                    "judge_call": "precheck",
+                    "prompt": prompt,
+                    "response": response_text,
+                })
             # Parse JSON response
             try:
                 parsed = json.loads(response_text)
@@ -562,7 +569,14 @@ Please respond in JSON format:
                 response_format={"type": "json_object"}
             )
             response_text = response.choices[0].message.content
-
+            if self._log_response and self._prompt_log_path:
+                await self._log_judge_prompt_async({
+                    "judge_call": "prefill",
+                    "claim_template": template_text,
+                    "prefill_slots": prefill_slots,
+                    "prompt": prompt,
+                    "response": response_text,
+                })
             try:
                 parsed = json.loads(response_text)
             except json.JSONDecodeError:
@@ -881,6 +895,21 @@ Please respond in JSON format:
             
             # Extract response text
             response_text = response.choices[0].message.content
+            if self._log_response and self._prompt_log_path:
+                await self._log_judge_prompt_async({
+                    "judge_call": "verification",
+                    "claim_id": completion.get("claim_id", ""),
+                    "content_type": completion.get("content_type", "relation"),
+                    "image_id": (
+                        completion.get("image_id")
+                        or completion.get("metadata", {}).get("image_id")
+                        or claim_template.get("image_id")
+                        or claim_template.get("metadata", {}).get("image_id")
+                        or ""
+                    ),
+                    "prompt": prompt,
+                    "response": response_text,
+                })
             
             # Parse JSON response
             try:

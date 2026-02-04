@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 from QA_Generator.logging.logger import get_logger, log_warning, log_error, log_debug
+from QA_Generator.utils.model_response_logger import log_model_response
 
 # 错误记录中模型原始响应的最大保留长度
 _RAW_RESPONSE_MAX = 500
@@ -663,7 +664,12 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                 context="generate_correct_answer",
                 max_tokens=self.gen_settings.get("max_tokens", 512)
             )
-            
+            log_model_response(
+                stage="answer_generation",
+                prompt=prompt,
+                response=response,
+                context={"question": question, "sub_stage": "correct_answer"},
+            )
             # 解析响应
             answer, explanation = self._parse_answer_response(response)
             
@@ -783,7 +789,12 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
             
             # 提取响应内容
             response_text = response.choices[0].message.content
-            
+            log_model_response(
+                stage="answer_generation",
+                prompt=prompt,
+                response=response_text,
+                context={"question": question, "sub_stage": "correct_answer"},
+            )
             # 解析响应（先文本格式，必要时兼容JSON）
             answer, explanation = self._parse_answer_response(response_text)
 
@@ -890,7 +901,12 @@ Important: Each option should be brief and similar in style to "{correct_answer}
                 context="generate_wrong_options",
                 max_tokens=self.gen_settings.get("max_tokens", 512)
             )
-            
+            log_model_response(
+                stage="answer_generation",
+                prompt=prompt,
+                response=response,
+                context={"question": question, "sub_stage": "wrong_options", "correct_answer": correct_answer},
+            )
             # 解析错误选项
             wrong_options = self._parse_wrong_options_response(response, wrong_count)
             # 进行去重和与正确答案的模糊冲突过滤
@@ -1209,7 +1225,12 @@ Option {wrong_count}: [option text]"""
             
             # 提取响应内容
             response_text = response.choices[0].message.content
-            
+            log_model_response(
+                stage="answer_generation",
+                prompt=prompt,
+                response=response_text,
+                context={"question": question, "sub_stage": "wrong_options", "correct_answer": correct_answer},
+            )
             # 记录原始响应（用于调试）
             log_debug(f"错误选项生成的原始响应: {response_text[:500]}...")
             

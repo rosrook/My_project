@@ -7,6 +7,7 @@ import re
 from typing import Dict, Any, Optional, Tuple
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
+from QA_Generator.utils.model_response_logger import log_model_response
 
 
 class QuestionValidator:
@@ -141,6 +142,7 @@ Check if the question:
 3. Would have a different answer if the image content changes
 4. Does NOT rely on external knowledge or commonsense only
 5. Follows the pipeline intent and constraints
+6. Does NOT directly reveal the answer, and the answer is NOT directly inferable from the question text alone (without the image)
 
 Return your response in plain text using this format:
 valid: true/false
@@ -261,6 +263,7 @@ Check if the question:
 3. Would have a different answer if the image content changes
 4. Does NOT rely on external knowledge or commonsense only
 5. Follows the pipeline intent and constraints
+6. Does NOT directly reveal the answer, and the answer is NOT directly inferable from the question text alone (without the image)
 
 Return your response in plain text using this format:
 valid: true/false
@@ -318,6 +321,13 @@ reason: <short explanation>"""
             # 提取响应内容
             response_text = response.choices[0].message.content
             
+            log_model_response(
+                stage="question_validation",
+                prompt=prompt,
+                response=response_text,
+                context={"question": question, "pipeline_intent": pipeline_config.get("intent", "")},
+            )
+            
             # 解析响应（优先JSON，其次文本格式）
             try:
                 result = json.loads(response_text)
@@ -343,5 +353,12 @@ reason: <short explanation>"""
             
         except Exception as e:
             print(f"[WARNING] 异步问题验证失败: {e}")
+            log_model_response(
+                stage="question_validation",
+                prompt=prompt,
+                response="",
+                context={"question": question, "pipeline_intent": pipeline_config.get("intent", "")},
+                error=str(e),
+            )
             return False, f"验证过程出错: {str(e)}"
 

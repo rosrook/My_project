@@ -9,6 +9,7 @@ import random
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 from QA_Generator.logging.logger import log_debug
+from QA_Generator.utils.model_response_logger import log_model_response
 
 
 class SlotFiller:
@@ -529,6 +530,13 @@ Return your response as a JSON object:
                     temperature=0.3
                 )
             
+            log_model_response(
+                stage="slot_filling",
+                prompt=prompt,
+                response=response,
+                context={"claim": claim, "prefilled_values": prefilled_values, "required_slots": required_slots},
+            )
+            
             # 尝试解析 JSON
             json_match = re.search(r'\{.*\}', response, re.DOTALL)
             if json_match:
@@ -555,5 +563,12 @@ Return your response as a JSON object:
             
         except Exception as e:
             log_debug(f"Error in fill_required_slots_with_llm_async: {str(e)}")
+            log_model_response(
+                stage="slot_filling",
+                prompt=prompt,
+                response="",
+                context={"claim": claim, "prefilled_values": prefilled_values, "required_slots": required_slots},
+                error=str(e),
+            )
             return None
 

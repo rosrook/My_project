@@ -53,6 +53,7 @@ Note: Requires utils.async_client.AsyncGeminiClient to be available.
 """
 
 from typing import Union, Dict, Any, List, Optional
+from pathlib import Path
 from PIL import Image
 import asyncio
 import base64
@@ -575,6 +576,22 @@ Important guidelines:
             
             # Extract response text
             response_text = response.choices[0].message.content
+            
+            # Optional: log baseline response for debugging (object selection / template completion)
+            _log_path = os.getenv("BASELINE_RESPONSE_LOG_PATH")
+            if _log_path:
+                try:
+                    Path(_log_path).parent.mkdir(parents=True, exist_ok=True)
+                    record = {
+                        "claim_id": claim_template.get("claim_id", ""),
+                        "claim_template": template_text,
+                        "prompt": prompt,
+                        "response": response_text,
+                    }
+                    with open(_log_path, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                except Exception:
+                    pass
             
             # Parse JSON response
             try:
