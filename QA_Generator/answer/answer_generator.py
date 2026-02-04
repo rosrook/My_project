@@ -872,6 +872,7 @@ Requirements:
 6. DO NOT include any analysis or explanation, only the options.
 7. Make sure each option is a single, concise phrase similar to the correct answer format.
 8. DO NOT output options that are synonyms, paraphrases, or slight variants of the correct answer (e.g. if the correct answer is "left", do NOT output "on the left", "left side", "to the left", etc.).
+9. For numeric or percentage answers (e.g., "5%", "10", "3"): wrong options must be sufficiently different from the CORRECT answer — avoid options that are too close to the correct value (e.g., if correct is "5%", do NOT use "4%", "6%", "7%"; use "25%", "50%", "80%" instead). Aim for at least 10–15 percentage points or a meaningful numeric gap between each wrong option and the correct answer.
 
 Provide your response in the following format (one option per line):
 Option 1: [option text]
@@ -1149,6 +1150,7 @@ Requirements:
 7. Make sure each option is a single, concise phrase similar to the correct answer format.
 8. Each option must be a plain text string, NOT a JSON object or JSON string.
 9. DO NOT output options that are synonyms, paraphrases, or slight variants of the correct answer (e.g. if the correct answer is "left", do NOT output "on the left", "left side", "to the left", etc.).
+10. For numeric or percentage answers (e.g., "5%", "10", "3"): wrong options must be sufficiently different from the CORRECT answer — avoid options that are too close to the correct value (e.g., if correct is "5%", do NOT use "4%", "6%", "7%"; use "25%", "50%", "80%" instead). Aim for at least 10–15 percentage points or a meaningful numeric gap between each wrong option and the correct answer.
 
 Provide your response in the following format (one option per line):
 Option 1: [option text]

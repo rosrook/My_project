@@ -472,12 +472,32 @@ Baseline marked as related: {is_related}
         slots_section = "\n".join(slot_lines) if slot_lines else "- None"
         claim_name_line = f"Claim Name: {claim_name}\n" if claim_name else ""
 
+        # Check if any prefill slot is noun-type (needs constraint disambiguation)
+        NOUN_SLOT_TYPES = {
+            "object_instance", "object_category", "abstract_concept",
+            "categorical_value", "relative_spatial_relation"
+        }
+        has_noun_slots = any(
+            (slots_info or {}).get(s, {}).get("type", "").lower() in NOUN_SLOT_TYPES
+            for s in prefill_slots
+        )
+
+        noun_constraint_instruction = ""
+        if has_noun_slots:
+            noun_constraint_instruction = """
+**For noun-type slots** (object_instance, object_category, abstract_concept, etc.): When the filled term could be ambiguous, add a brief parenthetical constraint after the noun to disambiguate. Format: `noun (brief constraint)`. Examples:
+- car → car (four-wheeled passenger vehicles only, not trains or tracks)
+- dog → dog (domestic canine, not wolf or fox)
+- tree → tree (woody plant with trunk, not bush or shrub)
+Keep the constraint brief (under 15 words). Only add when ambiguity exists; omit parentheses if the term is unambiguous.
+"""
+
         prompt = f"""You are selecting core objects or values for specific placeholders in a claim template.
 Choose suitable and moderately challenging objects when possible.
 If the image is not relevant or you cannot find any suitable object, mark it as not relevant.
 Fill ONLY the requested slots based on the image. Keep values concise.
 If a slot cannot be determined, return an empty string for that slot.
-
+{noun_constraint_instruction}
 {claim_name_line}Claim Template: {claim_template}
 Slots to prefill:
 {slots_section}
