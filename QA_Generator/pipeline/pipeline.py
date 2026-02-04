@@ -1140,12 +1140,34 @@ class VQAPipeline:
         print("Step 3: 生成最终输出文件")
         print("=" * 80)
         
-        # 输出文件1: 最终全部通过可用的vqa数据
-        successful_vqa_file = output_dir / f"vqa_dataset_successful_{timestamp}.json"
+        # 输出文件1: 最终全部通过可用的vqa数据（按pipeline分类）
         successful_vqa_data = self._prepare_final_dataset(all_successful_vqa)
+        
+        # 按pipeline_name分类数据
+        pipeline_groups = {}
+        for item in successful_vqa_data:
+            pipeline_name = item.get("pipeline_name", "unknown")
+            if pipeline_name not in pipeline_groups:
+                pipeline_groups[pipeline_name] = []
+            pipeline_groups[pipeline_name].append(item)
+        
+        # 保存分类后的文件
+        pipeline_output_files = {}
+        for pipeline_name, pipeline_data in pipeline_groups.items():
+            # 清理pipeline_name中的特殊字符，用于文件名
+            safe_pipeline_name = pipeline_name.replace("/", "_").replace("\\", "_").replace(" ", "_")
+            pipeline_file = output_dir / f"vqa_dataset_successful_{safe_pipeline_name}_{timestamp}.json"
+            with open(pipeline_file, 'w', encoding='utf-8') as f:
+                json.dump(pipeline_data, f, ensure_ascii=False, indent=2)
+            pipeline_output_files[pipeline_name] = pipeline_file
+            print(f"✓ Pipeline '{pipeline_name}' 数据已保存: {pipeline_file}")
+            print(f"  - 样本数: {len(pipeline_data)}")
+        
+        # 同时保存合并后的完整文件（向后兼容）
+        successful_vqa_file = output_dir / f"vqa_dataset_successful_all_{timestamp}.json"
         with open(successful_vqa_file, 'w', encoding='utf-8') as f:
             json.dump(successful_vqa_data, f, ensure_ascii=False, indent=2)
-        print(f"✓ 成功VQA数据已保存: {successful_vqa_file}")
+        print(f"✓ 成功VQA数据（全部合并）已保存: {successful_vqa_file}")
         print(f"  - 总样本数: {len(successful_vqa_data)}")
         
         # 输出文件2: 生成question步骤出错的数据
@@ -1197,6 +1219,8 @@ class VQAPipeline:
             "question_errors_count": len(all_question_errors),
             "answer_validation_failed_count": len(validation_failed_data),
             "pipeline_names": pipeline_names,
+            "pipeline_output_files": {k: str(v) for k, v in pipeline_output_files.items()},
+            "pipeline_counts": {k: len(v) for k, v in pipeline_groups.items()},
             "max_samples": max_samples,
             "batch_size": batch_size,
             "concurrency": concurrency,

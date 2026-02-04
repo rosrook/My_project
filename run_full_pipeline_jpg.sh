@@ -227,5 +227,78 @@ fi
 
 (cd "${QA_OUTPUT_DIR}" && eval "${STEP3_ENV}" python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
 
+echo ""
 echo "✅ JPG full pipeline complete."
-echo "Log: ${LOG_FILE}"
+echo ""
+echo "=========================================="
+echo "Output Summary"
+echo "=========================================="
+echo "Step 0 (JPG->Parquet): ${PARQUET_FILE}"
+echo "Step 1 output: ${OUTPUT_DIR}"
+echo "Step 2 output: ${ERROR_OUTPUT}"
+echo "Step 3 output: ${QA_OUTPUT_DIR}"
+echo "Log file: ${LOG_FILE}"
+echo ""
+
+# Display Step 3 output files (pipeline-classified JSONs)
+if [[ -d "${QA_OUTPUT_DIR}" ]]; then
+  echo "Step 3 VQA Dataset Files:"
+  echo "-------------------------"
+  
+  # Find pipeline-classified files
+  PIPELINE_FILES=$(find "${QA_OUTPUT_DIR}" -maxdepth 1 -name "vqa_dataset_successful_*_*.json" ! -name "*_all_*.json" -type f 2>/dev/null | sort)
+  
+  if [[ -n "${PIPELINE_FILES}" ]]; then
+    echo "Pipeline-classified files:"
+    for file in ${PIPELINE_FILES}; do
+      count=$(python3 -c "import json; data=json.load(open('${file}')); print(len(data) if isinstance(data, list) else 0)" 2>/dev/null || echo "?")
+      filename=$(basename "${file}")
+      echo "  - ${filename} (${count} samples)"
+    done
+    echo ""
+  fi
+  
+  # Find merged file
+  MERGED_FILE=$(find "${QA_OUTPUT_DIR}" -maxdepth 1 -name "vqa_dataset_successful_all_*.json" -type f 2>/dev/null | head -1)
+  if [[ -n "${MERGED_FILE}" ]]; then
+    count=$(python3 -c "import json; data=json.load(open('${MERGED_FILE}')); print(len(data) if isinstance(data, list) else 0)" 2>/dev/null || echo "?")
+    filename=$(basename "${MERGED_FILE}")
+    echo "Merged file (all pipelines):"
+    echo "  - ${filename} (${count} samples)"
+    echo ""
+  fi
+  
+  # Display meta.json info if exists
+  META_FILE="${QA_OUTPUT_DIR}/meta.json"
+  if [[ -f "${META_FILE}" ]]; then
+    echo "Metadata file:"
+    echo "  - meta.json (contains pipeline file paths and statistics)"
+    echo ""
+    echo "Pipeline statistics from meta.json:"
+    python3 << PYTHON_EOF
+import json
+import sys
+try:
+    with open('${META_FILE}', 'r', encoding='utf-8') as f:
+        meta = json.load(f)
+    pipeline_counts = meta.get('pipeline_counts', {})
+    if pipeline_counts:
+        for pipeline_name, count in sorted(pipeline_counts.items()):
+            print(f"  - {pipeline_name}: {count} samples")
+    else:
+        print("  (No pipeline statistics found)")
+except Exception as e:
+    print(f"  (Error reading meta.json: {e})")
+PYTHON_EOF
+    echo ""
+  fi
+  
+  echo "To mix pipelines with custom ratios, use:"
+  echo "  python QA_Generator/pipeline/mix_pipelines.py \\"
+  echo "    --meta ${QA_OUTPUT_DIR}/meta.json \\"
+  echo "    --ratios pipeline1:0.3 pipeline2:0.2 pipeline3:0.5 \\"
+  echo "    --output mixed_dataset.json"
+  echo ""
+fi
+
+echo "=========================================="

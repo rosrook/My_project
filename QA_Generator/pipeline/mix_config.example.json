@@ -1,0 +1,10 @@
+{
+  "input_dir": "./output",
+  "ratios": {
+    "object_absence": 0.3,
+    "object_counting": 0.2,
+    "question": 0.5
+  },
+  "total_samples": 1000,
+  "seed": 42
+}
