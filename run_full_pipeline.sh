@@ -151,12 +151,14 @@ if [[ "${INCLUDE_SOURCE_METADATA}" == "true" ]]; then
 fi
 
 # Step 1 uses auto-optimization internally (request_delay=0.0, auto-concurrency)
+# USE_SINGLE_DEVICE_MAP=1: avoid DTensor mixing error (device_map="auto" can trigger distributed tensor parallelism)
 OPENAI_API_KEY="${OPENAI_API_KEY}" \
 OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
 MODEL_NAME="${MODEL_NAME}" \
 USE_LB_CLIENT="${USE_LB_CLIENT}" \
 API_KEY="${API_KEY}" \
 BASE_URL="${BASE_URL}" \
+USE_SINGLE_DEVICE_MAP=1 \
 torchrun --nproc_per_node="${NPROC_PER_NODE}" \
   ProbingFactorGeneration/examples/run_complete_pipeline.py \
   "${STEP1_ARGS[@]}"
