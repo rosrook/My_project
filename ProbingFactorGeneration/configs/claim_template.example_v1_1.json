@@ -400,7 +400,7 @@
         "slots": {
           "OBJECT": {
             "type": "object_instance",
-            "selection_criteria": "Select the most salient object that has a clearly perceivable facing direction in the current view (e.g., people, animals, vehicles, arrows)."
+            "selection_criteria": "Select only one most salient object that has a clearly perceivable facing direction in the current view (e.g., people, animals, vehicles, arrows)."
           },
           "VIEW_DIRECTION": {
             "type": "categorical_value",
