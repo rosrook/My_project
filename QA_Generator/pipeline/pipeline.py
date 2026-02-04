@@ -477,16 +477,30 @@ class VQAPipeline:
                         })
                         
                         # 生成答案（异步，与vlmtool/generate_vqa对齐）
-                        # 获取模型名称（从config或使用默认值）
+                        # 重试时传入 retry_context，注入失败反馈以避免无效重复
                         from QA_Generator.config import config
                         model_name = config.MODEL_NAME
+                        retry_ctx = None
+                        if retry_count > 0:
+                            prev_ans = None
+                            if answer_result and answer_result.get("answer") is not None:
+                                prev_ans = answer_result.get("answer")
+                            elif last_answer_result:
+                                prev_ans = last_answer_result.get("answer")
+                            reason = (validation_report.get("regeneration_reason") if validation_report else None) or last_error or "验证失败"
+                            retry_ctx = {
+                                "previous_answer": prev_ans,
+                                "regeneration_reason": reason,
+                                "retry_count": retry_count,
+                            }
                         answer_result = await self.answer_generator.generate_answer_async(
                             question=question,
                             image_base64=image_base64,
                             question_type=question_type,
                             pipeline_info=pipeline_info,
                             async_client=client,
-                            model=model_name  # 传入模型名称，与vlmtool一致
+                            model=model_name,  # 传入模型名称，与vlmtool一致
+                            retry_context=retry_ctx,
                         )
                         
                         log_debug(f"[记录 {idx}] generate_answer_async 返回结果")

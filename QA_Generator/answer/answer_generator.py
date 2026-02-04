@@ -93,7 +93,8 @@ class AnswerGenerator:
         question_type: str,
         pipeline_info: Optional[Dict[str, Any]] = None,
         async_client: Optional[AsyncGeminiClient] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         异步生成答案（使用 AsyncGeminiClient，与vlmtool/generate_vqa对齐）
@@ -105,6 +106,8 @@ class AnswerGenerator:
             pipeline_info: 可选的pipeline信息（用于上下文）
             async_client: 异步客户端实例（可选）
             model: 模型名称（可选，如果为None则从async_client或config读取）
+            retry_context: 重试时的上下文，包含 previous_answer, regeneration_reason, retry_count，
+                          用于在 prompt 中注入失败反馈，避免无效重复
         """
         if question_type == "multiple_choice":
             return await self._generate_multiple_choice_answer_async(
@@ -112,7 +115,8 @@ class AnswerGenerator:
                 image_base64=image_base64,
                 pipeline_info=pipeline_info,
                 async_client=async_client,
-                model=model
+                model=model,
+                retry_context=retry_context,
             )
         elif question_type == "fill_in_blank":
             return await self._generate_fill_in_blank_answer_async(
@@ -120,7 +124,8 @@ class AnswerGenerator:
                 image_base64=image_base64,
                 pipeline_info=pipeline_info,
                 async_client=async_client,
-                model=model
+                model=model,
+                retry_context=retry_context,
             )
         else:
             raise ValueError(f"不支持的题型: {question_type}")
@@ -206,7 +211,8 @@ class AnswerGenerator:
         image_base64: str,
         pipeline_info: Optional[Dict[str, Any]] = None,
         async_client: Optional[AsyncGeminiClient] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         异步生成选择题答案
@@ -216,7 +222,8 @@ class AnswerGenerator:
             image_base64=image_base64,
             pipeline_info=pipeline_info,
             async_client=async_client,
-            model=model
+            model=model,
+            retry_context=retry_context,
         )
         
         if not correct_answer or not correct_answer.get("answer"):
@@ -251,22 +258,10 @@ class AnswerGenerator:
         elif isinstance(correct_answer_raw, str):
             correct_answer_text = correct_answer_raw.strip().strip('"\'')
             
-            # 如果字符串太短或只是单个标点符号，可能是解析错误
-            if len(correct_answer_text) < 2:
-                log_error(f"正确答案太短或无效: '{correct_answer_text}'，原始值: {correct_answer_raw}")
-                return {
-                    "answer": None,
-                    "explanation": explanation,
-                    "full_question": question,
-                    "options": None,
-                    "error": f"正确答案格式不正确: '{correct_answer_text}'",
-                    "error_type": "format",
-                    "error_step": "correct_answer",
-                }
-            
-            # 检查是否是单个标点符号
-            if correct_answer_text in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]:
-                log_error(f"正确答案是无效的标点符号: '{correct_answer_text}'，原始值: {correct_answer_raw}")
+            # 单数字（如计数题 "3"）是合法的；仅拒绝空或纯标点
+            invalid_tokens = ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]
+            if not correct_answer_text or correct_answer_text in invalid_tokens:
+                log_error(f"正确答案无效: '{correct_answer_text}'，原始值: {correct_answer_raw}")
                 return {
                     "answer": None,
                     "explanation": explanation,
@@ -571,7 +566,8 @@ class AnswerGenerator:
         image_base64: str,
         pipeline_info: Optional[Dict[str, Any]] = None,
         async_client: Optional[AsyncGeminiClient] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         异步生成填空题答案
@@ -581,7 +577,8 @@ class AnswerGenerator:
             image_base64=image_base64,
             pipeline_info=pipeline_info,
             async_client=async_client,
-            model=model
+            model=model,
+            retry_context=retry_context,
         )
         
         if not result or not result.get("answer"):
@@ -688,10 +685,12 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
         image_base64: str,
         pipeline_info: Optional[Dict[str, Any]] = None,
         async_client: Optional[AsyncGeminiClient] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, str]]:
         """
         异步生成正确答案（使用OpenAI兼容接口，与vlmtool/generate_vqa完全对齐）
+        retry_context: 重试时传入，包含 previous_answer, regeneration_reason，用于注入失败反馈
         """
         # 提取 claim 和 prefilled_values（与问题生成阶段一致）
         prefill_claim = None
@@ -719,8 +718,21 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                 hint_lines.append(f"- Prefilled values: {prefilled_str}")
             target_hint = "\n" + "\n".join(hint_lines) + "\n"
 
-        prompt = f"""Based on the image and the question, provide a concise and accurate answer.
+        retry_hint = ""
+        temperature = 0.3
+        if retry_context:
+            prev_ans = retry_context.get("previous_answer")
+            reason = retry_context.get("regeneration_reason", "验证失败")
+            retry_cnt = retry_context.get("retry_count", 0)
+            retry_hint = "\n[RETRY] A previous answer failed validation. "
+            if prev_ans is not None and str(prev_ans).strip():
+                retry_hint += f"Previous answer was: \"{str(prev_ans)[:100]}\". "
+            retry_hint += f"Failure reason: {reason[:200]}. "
+            retry_hint += "Please provide a different or corrected answer based on the image. Re-examine the image carefully.\n"
+            temperature = 0.5 + min(0.2 * retry_cnt, 0.2)  # 重试时提高 temperature (0.5~0.7) 增加多样性
 
+        prompt = f"""Based on the image and the question, provide a concise and accurate answer.
+{retry_hint}
 Question: {question}
 {target_hint}
 
@@ -760,7 +772,7 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                     from QA_Generator.config import config
                     model = config.MODEL_NAME
             
-            # 使用传入的模型名称（与vlmtool一致：model=self.model）
+            # 使用传入的模型名称（与vlmtool一致：model=self.model）；重试时 temperature 更高以增加多样性
             if async_client is None:
                 async with AsyncGeminiClient() as client:
                     response = await client.chat.completions.create(
@@ -772,7 +784,7 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                             }
                         ],
                         max_completion_tokens=1000,
-                        temperature=0.3
+                        temperature=temperature
                     )
             else:
                 response = await async_client.chat.completions.create(
@@ -784,7 +796,7 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                         }
                     ],
                     max_completion_tokens=1000,
-                    temperature=0.3
+                    temperature=temperature
                 )
             
             # 提取响应内容
@@ -812,8 +824,10 @@ Important: The Answer field should contain ONLY the answer itself, nothing else.
                 except Exception:
                     pass
 
-            # 最终校验：答案必须有效
-            if not answer or len(answer.strip()) < 2 or answer.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]:
+            # 最终校验：答案必须有效（单数字如 "3" 对计数题是合法的，不应因长度被拒绝）
+            ans_stripped = answer.strip()
+            invalid_tokens = ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]
+            if not ans_stripped or ans_stripped in invalid_tokens:
                 return {
                     "answer": None,
                     "explanation": explanation or "",
