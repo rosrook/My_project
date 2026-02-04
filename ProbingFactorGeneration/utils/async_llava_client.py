@@ -149,7 +149,21 @@ class AsyncLLaVAClient:
             )
         
         # Load model - use AutoModelForCausalLM + trust_remote_code=True (按照 eval_vqa_hardness 的方式)
-        use_device_map = "auto" if self.device == "cuda" else None
+        # Check environment variable to control device_map behavior
+        # If USE_SINGLE_DEVICE_MAP=1, use explicit single-device mapping to avoid DTensor issues
+        # Otherwise, use "auto" for distributed parallelism support (default behavior)
+        use_single_device_map = os.getenv("USE_SINGLE_DEVICE_MAP", "0").lower() in ("1", "true", "yes")
+        
+        if self.device == "cuda":
+            if use_single_device_map:
+                # Use explicit single-device mapping to avoid DTensor/distributed tensor parallelism issues
+                # This places the entire model on cuda:0 without distributed parallelism
+                use_device_map = {"": 0}
+            else:
+                # Use "auto" for distributed parallelism support (default)
+                use_device_map = "auto"
+        else:
+            use_device_map = None
         
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_path,

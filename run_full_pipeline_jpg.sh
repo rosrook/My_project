@@ -157,6 +157,7 @@ USE_LB_CLIENT="${USE_LB_CLIENT}" \
 API_KEY="${API_KEY}" \
 BASE_URL="${BASE_URL}" \
 JUDGE_PROMPT_LOG_PATH="${JUDGE_PROMPT_LOG_PATH}" \
+USE_SINGLE_DEVICE_MAP=1 \
 torchrun --nproc_per_node=1 \
   "${PROJECT_ROOT}/ProbingFactorGeneration/examples/run_complete_pipeline.py" \
   "${STEP1_ARGS[@]}"
