@@ -498,6 +498,21 @@ class VQAGeneratorPrefill:
                         return value
                     return value
         
+        # 如果 image_input 是本地路径，尝试读取并转 base64（支持 Step2 输出 image_path 而不内嵌 base64）
+        if isinstance(image_input, str) and image_input:
+            try:
+                from pathlib import Path
+                import base64
+
+                p = Path(image_input)
+                if p.is_file():
+                    data = p.read_bytes()
+                    if data:
+                        return base64.b64encode(data).decode("ascii")
+            except Exception:
+                # 路径读取失败时，不阻断后续逻辑，继续尝试 base64 提取
+                pass
+
         # 如果image_input是base64字符串，使用它
         if isinstance(image_input, str) and len(image_input) > 50:
             if image_input.startswith("data:image"):

@@ -45,6 +45,17 @@ def main() -> None:
         help="Optional output JSON file for error cases with base64 images",
     )
     parser.add_argument(
+        "--error_output_format",
+        choices=["json", "jsonl"],
+        default="json",
+        help="Format for --error_output (json array or jsonl). For very large outputs, prefer jsonl.",
+    )
+    parser.add_argument(
+        "--embed_images",
+        action="store_true",
+        help="Embed images as base64 in error_output. If not set, will store image_path only (recommended for large outputs).",
+    )
+    parser.add_argument(
         "--start_index",
         type=int,
         default=0,
@@ -64,6 +75,8 @@ def main() -> None:
             error_output_path=args.error_output,
             random_seed=args.seed,
             start_index=args.start_index,
+            output_format=args.error_output_format,
+            embed_images=args.embed_images,
         )
         return
 
@@ -84,6 +97,8 @@ def main() -> None:
             error_output_path=args.error_output,
             image_dir=args.image_dir,
             start_index=args.start_index,
+            output_format=args.error_output_format,
+            embed_images=args.embed_images,
         )
 
 

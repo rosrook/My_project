@@ -152,6 +152,37 @@ def encode_image_base64(image_path: str) -> str:
         return base64.b64encode(f.read()).decode("ascii")
 
 
+def _write_json_array_stream(
+    f,
+    items_iter,
+) -> int:
+    """
+    Stream-write a JSON array without holding all items in memory.
+
+    Returns number of items written.
+    """
+    count = 0
+    f.write("[\n")
+    first = True
+    for item in items_iter:
+        if not first:
+            f.write(",\n")
+        first = False
+        f.write(json.dumps(item, ensure_ascii=False))
+        count += 1
+    f.write("\n]\n")
+    return count
+
+
+def _write_jsonl_stream(f, items_iter) -> int:
+    """Stream-write JSONL, one JSON object per line. Returns count."""
+    count = 0
+    for item in items_iter:
+        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        count += 1
+    return count
+
+
 def build_error_output(
     samples: List[object],
     pipeline_config_path: str,
@@ -197,6 +228,8 @@ def build_error_output(
                 "id": record_id,
                 "source_a": {
                     "original_id": image_id,
+                    # NOTE: for large-scale runs, prefer storing image_path only and let QA_Generator load & base64 it on demand.
+                    "image_path": resolved_path,
                     "jpg": encode_image_base64(resolved_path),
                 },
                 "prefill": prefill_payload,
@@ -424,6 +457,7 @@ def build_error_output_from_failure_root(
                 "id": record_id,
                 "source_a": {
                     "original_id": str(image_id),
+                    "image_path": image_path,
                     "jpg": encode_image_base64(image_path),
                 },
                 "prefill": prefill_payload,
@@ -441,17 +475,92 @@ def write_error_output_from_failure_root(
     error_output_path: str,
     random_seed: Optional[int] = None,
     start_index: int = 0,
+    output_format: str = "json",
+    embed_images: bool = False,
 ) -> None:
-    error_records = build_error_output_from_failure_root(
-        failure_root=failure_root,
-        pipeline_config_path=pipeline_config_path,
-        random_seed=random_seed,
-        start_index=start_index,
-    )
     error_path = Path(error_output_path)
     error_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Stream generation to support very large failure roots (bounded memory).
+    base_dir = Path(failure_root)
+    if not base_dir.exists():
+        raise FileNotFoundError(f"Failure root not found: {failure_root}")
+
+    rank_dirs = sorted(
+        d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith("rank")
+    )
+    candidate_dirs = rank_dirs if rank_dirs else [base_dir]
+    failure_dirs = [d / "failures" for d in candidate_dirs if (d / "failures").exists()]
+    if not failure_dirs and (base_dir / "failures").exists():
+        failure_dirs = [base_dir / "failures"]
+
+    pipeline_map, defaults = load_pipeline_config(pipeline_config_path)
+    rng = random.Random(random_seed)
+
+    def _iter_records():
+        written = 0
+        for failure_dir in failure_dirs:
+            for json_path in sorted(failure_dir.glob("*.json")):
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if not isinstance(data, dict):
+                    continue
+
+                sampled_failure = _sample_failure_key(data, rng)
+                if not sampled_failure:
+                    continue
+
+                image_id = (
+                    data.get("image_id")
+                    or data.get("aggregated_failures", {}).get("image_id")
+                    or json_path.stem
+                )
+                image_path = _resolve_failure_image_path(json_path)
+                if not image_path:
+                    raise FileNotFoundError(
+                        f"Image not found for failure json: {json_path}"
+                    )
+
+                pipeline_info = pipeline_map.get(str(sampled_failure), defaults)
+                prefill_claim = _extract_prefill_claim(data, str(sampled_failure))
+                prefilled_values = _extract_prefilled_values_from_data(
+                    data,
+                    str(sampled_failure),
+                )
+
+                record_id = data.get("id", None)
+                if record_id is None:
+                    try:
+                        record_id = int(str(image_id))
+                    except (TypeError, ValueError):
+                        record_id = start_index + written
+
+                sample_index = start_index + written
+                prefill_payload: Dict[str, object] = {}
+                if isinstance(prefill_claim, str) and prefill_claim.strip():
+                    prefill_payload["claim"] = prefill_claim
+                if isinstance(prefilled_values, dict) and len(prefilled_values) > 0:
+                    prefill_payload["prefilled_values"] = prefilled_values
+
+                source_a: Dict[str, object] = {"original_id": str(image_id), "image_path": image_path}
+                if embed_images:
+                    source_a["jpg"] = encode_image_base64(image_path)
+
+                yield {
+                    "sample_index": sample_index,
+                    "id": record_id,
+                    "source_a": source_a,
+                    "prefill": prefill_payload,
+                    "pipeline_type": pipeline_info.get("pipeline_type", ""),
+                    "pipeline_name": pipeline_info.get("pipeline_name", ""),
+                }
+                written += 1
+
     with open(error_path, "w", encoding="utf-8") as f:
-        json.dump(error_records, f, ensure_ascii=False, indent=2)
+        if output_format == "jsonl":
+            _write_jsonl_stream(f, _iter_records())
+        else:
+            _write_json_array_stream(f, _iter_records())
 
 
 def write_error_output(
@@ -460,14 +569,60 @@ def write_error_output(
     error_output_path: str,
     image_dir: Optional[str],
     start_index: int = 0,
+    output_format: str = "json",
+    embed_images: bool = False,
 ) -> None:
-    error_records = build_error_output(
-        samples,
-        pipeline_config_path,
-        image_dir,
-        start_index=start_index,
-    )
     error_path = Path(error_output_path)
     error_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _iter_records():
+        pipeline_map, defaults = load_pipeline_config(pipeline_config_path)
+        for offset, sample in enumerate(samples):
+            sample_index = start_index + offset
+            sampled_failure = getattr(sample, "sampled_failure", None)
+            if not sampled_failure:
+                continue
+            image_id = getattr(sample, "image_id", "")
+            image_path = getattr(sample, "image_path", None)
+            pipeline_info = pipeline_map.get(sampled_failure, defaults)
+
+            resolved_path = resolve_image_path(image_id, image_path, image_dir)
+            if not resolved_path:
+                raise ValueError(
+                    f"Image path not found for image_id={image_id}. "
+                    "Provide --image_dir or include image_path in probing_results."
+                )
+
+            record_id = getattr(sample, "id", None)
+            if record_id is None:
+                try:
+                    record_id = int(str(image_id))
+                except (TypeError, ValueError):
+                    record_id = sample_index
+
+            prefill_claim = getattr(sample, "prefill_claim", None)
+            prefill_prefilled_values = getattr(sample, "prefill_prefilled_values", None)
+            prefill_payload: Dict[str, object] = {}
+            if isinstance(prefill_claim, str) and prefill_claim.strip():
+                prefill_payload["claim"] = prefill_claim
+            if isinstance(prefill_prefilled_values, dict) and len(prefill_prefilled_values) > 0:
+                prefill_payload["prefilled_values"] = prefill_prefilled_values
+
+            source_a: Dict[str, object] = {"original_id": image_id, "image_path": resolved_path}
+            if embed_images:
+                source_a["jpg"] = encode_image_base64(resolved_path)
+
+            yield {
+                "sample_index": sample_index,
+                "id": record_id,
+                "source_a": source_a,
+                "prefill": prefill_payload,
+                "pipeline_type": pipeline_info.get("pipeline_type", ""),
+                "pipeline_name": pipeline_info.get("pipeline_name", ""),
+            }
+
     with open(error_path, "w", encoding="utf-8") as f:
-        json.dump(error_records, f, ensure_ascii=False, indent=2)
+        if output_format == "jsonl":
+            _write_jsonl_stream(f, _iter_records())
+        else:
+            _write_json_array_stream(f, _iter_records())

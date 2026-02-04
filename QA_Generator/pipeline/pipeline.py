@@ -754,32 +754,91 @@ class VQAPipeline:
         all_question_errors = []  # 生成question步骤出错的数据
         all_answer_validation_failed = []  # answer检验不通过的数据
         
-        # 读取输入文件
-        with open(input_file, 'r', encoding='utf-8') as f:
-            all_input_data = json.load(f)
-        
-        if not isinstance(all_input_data, list):
-            raise ValueError(f"输入文件应该包含一个数组，但得到: {type(all_input_data)}")
-        
-        total_records = len(all_input_data)
-        if max_samples:
-            all_input_data = all_input_data[:max_samples]
-            total_records = len(all_input_data)
+        def _is_jsonl(path: Path) -> bool:
+            if path.suffix.lower() == ".jsonl":
+                return True
+            # Heuristic: try to detect by first non-space char
+            try:
+                with open(path, "r", encoding="utf-8") as rf:
+                    while True:
+                        ch = rf.read(1)
+                        if ch == "":
+                            return False
+                        if ch.isspace():
+                            continue
+                        # JSON array starts with '[', JSONL typically starts with '{'
+                        return ch == "{"
+            except Exception:
+                return False
+
+        def _iter_input_records(path: Path):
+            """Iterate input records in bounded memory. Supports JSON array and JSONL."""
+            if _is_jsonl(path):
+                with open(path, "r", encoding="utf-8") as rf:
+                    for line in rf:
+                        s = line.strip()
+                        if not s:
+                            continue
+                        yield json.loads(s)
+            else:
+                with open(path, "r", encoding="utf-8") as rf:
+                    data = json.load(rf)
+                if not isinstance(data, list):
+                    raise ValueError(f"输入文件应该包含一个数组或JSONL，但得到: {type(data)}")
+                for item in data:
+                    yield item
+
+        is_streaming_input = _is_jsonl(input_file)
+        record_iter = _iter_input_records(input_file)
         
         # 单一进度条（需要 tqdm）
         pbar = None
         if progress_bar and HAS_TQDM and tqdm:
-            pbar = tqdm(total=total_records, desc="VQA生成", unit="条", ncols=80, mininterval=1.0)
+            # For JSONL streaming, total is unknown; tqdm will show an indeterminate bar.
+            pbar = tqdm(total=None if is_streaming_input else 0, desc="VQA生成", unit="条", ncols=80, mininterval=1.0)
+
+        # If input is JSON array, we can compute total for tqdm by re-loading only the top-level list length.
+        # Keep memory bounded by not storing the list: only count length when needed.
+        if pbar is not None and not is_streaming_input:
+            try:
+                with open(input_file, "r", encoding="utf-8") as rf:
+                    tmp = json.load(rf)
+                if not isinstance(tmp, list):
+                    raise ValueError
+                total_records = len(tmp)
+                if max_samples:
+                    total_records = min(total_records, int(max_samples))
+                pbar.total = total_records
+                pbar.refresh()
+            except Exception:
+                # Fallback: unknown total
+                pbar.total = None
+                pbar.refresh()
         
-        # 分批处理
-        for batch_idx in range(0, total_records, batch_size):
-            batch_num = (batch_idx // batch_size) + 1
-            total_batches = (total_records + batch_size - 1) // batch_size
-            batch_data = all_input_data[batch_idx:batch_idx + batch_size]
+        # 分批处理（流式：只保留一个 batch 的内存）
+        batch_num = 0
+        processed_records = 0
+        while True:
+            batch_data = []
+            for _ in range(batch_size):
+                try:
+                    item = next(record_iter)
+                except StopIteration:
+                    break
+                batch_data.append(item)
+                processed_records += 1
+                if max_samples and processed_records >= int(max_samples):
+                    break
+            if not batch_data:
+                break
+            batch_num += 1
             
             if pbar is None:
                 print(f"\n{'=' * 80}")
-                print(f"处理批次 {batch_num}/{total_batches} (记录 {batch_idx + 1}-{min(batch_idx + batch_size, total_records)})")
+                if max_samples:
+                    print(f"处理批次 {batch_num} (已处理 {processed_records}/{max_samples})")
+                else:
+                    print(f"处理批次 {batch_num} (已处理 {processed_records})")
                 print(f"{'=' * 80}")
             
             # 创建临时批次文件（优化：不使用indent以减少序列化时间）
