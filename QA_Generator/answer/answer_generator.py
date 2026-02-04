@@ -12,6 +12,7 @@ from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 from QA_Generator.logging.logger import get_logger, log_warning, log_error, log_debug
 from QA_Generator.utils.model_response_logger import log_model_response
+from QA_Generator.utils.json_parse_utils import extract_json_from_response
 
 # 错误记录中模型原始响应的最大保留长度
 _RAW_RESPONSE_MAX = 500
@@ -347,9 +348,9 @@ class AnswerGenerator:
         else:
             correct_answer_text = str(correct_answer_raw).strip() if correct_answer_raw else ""
         
-        # 最终验证
-        if not correct_answer_text or len(correct_answer_text.strip()) < 2:
-            log_error(f"正确答案为空或格式不正确: '{correct_answer_text}'，原始值: {correct_answer}")
+        # 最终验证（单数字如计数题 "2"/"21" 合法，仅拒绝空或无效）
+        if not correct_answer_text or not correct_answer_text.strip():
+            log_error(f"正确答案为空: '{correct_answer_text}'，原始值: {correct_answer}")
             return {
                 "answer": None,
                 "explanation": explanation,
@@ -461,17 +462,14 @@ class AnswerGenerator:
         cleaned_wrong_options = [clean_option_text(opt) for opt in wrong_options]
         cleaned_correct_answer = clean_option_text(correct_answer_text)
         
-        # 验证清理后的选项是否有效（不能是单个字符如 "{" 或空字符串）
+        # 验证清理后的选项是否有效（单数字/字母如 "2"/"A" 合法，仅拒绝空或无效标点）
         def validate_option(opt_text, opt_name):
             """验证选项文本是否有效"""
             if not opt_text or len(opt_text.strip()) == 0:
                 log_warning(f"{opt_name} 选项为空")
                 return False
-            if opt_text.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?"]:
-                log_warning(f"{opt_name} 选项是单个标点符号: '{opt_text}'，这可能是解析错误")
-                return False
-            if len(opt_text.strip()) < 2:
-                log_warning(f"{opt_name} 选项太短: '{opt_text}'，可能不是有效的选项文本")
+            if opt_text.strip() in ["{", "}", "[", "]", "(", ")", ",", ".", ":", ";", "!", "?", "null", "None", "undefined"]:
+                log_warning(f"{opt_name} 选项是无效标点/占位符: '{opt_text}'，这可能是解析错误")
                 return False
             return True
         
@@ -949,32 +947,25 @@ Important: Each option should be brief and similar in style to "{correct_answer}
             return "", ""
         
         # 策略1: 尝试解析JSON格式（优先）
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_clean, re.DOTALL)
-        if json_match:
-            try:
-                import json
-                json_str = json_match.group(0)
-                result = json.loads(json_str)
-                # 尝试多种可能的字段名
-                answer = (
-                    result.get("answer") or result.get("Answer") or 
-                    result.get("text") or result.get("Text") or
-                    result.get("option") or result.get("Option") or
-                    ""
-                )
-                explanation = (
-                    result.get("explanation") or result.get("Explanation") or
-                    result.get("reason") or result.get("Reason") or
-                    ""
-                )
-                if answer:
-                    answer = str(answer).strip().strip('"\'')
-                if explanation:
-                    explanation = str(explanation).strip()
-                if answer:
-                    return answer, explanation
-            except (json.JSONDecodeError, ValueError, AttributeError):
-                pass  # JSON解析失败，继续尝试其他格式
+        result = extract_json_from_response(response_clean)
+        if result is not None:
+            answer = (
+                result.get("answer") or result.get("Answer") or
+                result.get("text") or result.get("Text") or
+                result.get("option") or result.get("Option") or
+                ""
+            )
+            explanation = (
+                result.get("explanation") or result.get("Explanation") or
+                result.get("reason") or result.get("Reason") or
+                ""
+            )
+            if answer:
+                answer = str(answer).strip().strip('"\'')
+            if explanation:
+                explanation = str(explanation).strip()
+            if answer:
+                return answer, explanation
         
         # 策略2: 提取 "Answer: ..." 格式（标准文本格式）
         answer_match = re.search(r'Answer\s*[:：]\s*(.+?)(?:\n|Explanation|$)', response_clean, re.IGNORECASE | re.MULTILINE | re.DOTALL)
@@ -1018,12 +1009,9 @@ Important: Each option should be brief and similar in style to "{correct_answer}
         
         # 如果答案看起来像JSON片段，尝试提取
         if answer.startswith('{') and '}' in answer:
-            try:
-                import json
-                answer_dict = json.loads(answer)
+            answer_dict = extract_json_from_response(answer)
+            if answer_dict:
                 answer = answer_dict.get("answer") or answer_dict.get("Answer") or str(answer_dict)
-            except:
-                pass
         
         return answer, explanation
     
@@ -1044,28 +1032,20 @@ Important: Each option should be brief and similar in style to "{correct_answer}
             return []
         
         # 策略1: 尝试解析JSON格式（优先）
-        json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_clean, re.DOTALL)
-        if json_match:
-            try:
-                import json
-                json_str = json_match.group(0)
-                result = json.loads(json_str)
-                # 尝试多种可能的字段名
-                if isinstance(result, dict):
-                    # 尝试 options, wrong_options, alternatives 等字段
-                    options_list = (
-                        result.get("options") or result.get("wrong_options") or
-                        result.get("alternatives") or result.get("wrong_answers") or
-                        []
-                    )
-                    if isinstance(options_list, list) and options_list:
-                        options = [str(opt).strip().strip('"\'') for opt in options_list if opt]
-                elif isinstance(result, list):
-                    options = [str(opt).strip().strip('"\'') for opt in result if opt]
-                if options:
-                    return options[:expected_count]
-            except (json.JSONDecodeError, ValueError, AttributeError):
-                pass  # JSON解析失败，继续尝试其他格式
+        result = extract_json_from_response(response_clean)
+        if result is not None:
+            if isinstance(result, dict):
+                options_list = (
+                    result.get("options") or result.get("wrong_options") or
+                    result.get("alternatives") or result.get("wrong_answers") or
+                    []
+                )
+                if isinstance(options_list, list) and options_list:
+                    options = [str(opt).strip().strip('"\'') for opt in options_list if opt]
+            elif isinstance(result, list):
+                options = [str(opt).strip().strip('"\'') for opt in result if opt]
+            if options:
+                return options[:expected_count]
         
         # 策略2: 标准格式 "Option 1: ... Option 2: ..."
         pattern = r'Option\s+\d+\s*[:：.]\s*(.+?)(?=\n\s*Option\s+\d+\s*[:：.]|$)'

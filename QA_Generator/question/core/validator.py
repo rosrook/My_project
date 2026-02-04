@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, Tuple
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 from QA_Generator.utils.model_response_logger import log_model_response
+from QA_Generator.utils.json_parse_utils import extract_json_from_response, parse_bool
 
 
 class QuestionValidator:
@@ -157,13 +158,10 @@ reason: <short explanation>"""
             )
             
             # 解析响应（优先JSON，其次文本格式）
-            import json
-            import re
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                is_valid = result.get("valid", False)
-                reason = result.get("reason", "验证失败")
+            result = extract_json_from_response(response)
+            if result is not None:
+                is_valid = parse_bool(result.get("valid"), False)
+                reason = str(result.get("reason", "验证失败"))
                 return is_valid, reason
 
             valid_match = re.search(r'valid\s*[:：]\s*(true|false|yes|no)', response, re.IGNORECASE)
@@ -329,18 +327,11 @@ reason: <short explanation>"""
             )
             
             # 解析响应（优先JSON，其次文本格式）
-            try:
-                result = json.loads(response_text)
-                is_valid = result.get("valid", False)
-                reason = result.get("reason", "验证失败")
+            result = extract_json_from_response(response_text)
+            if result is not None:
+                is_valid = parse_bool(result.get("valid"), False)
+                reason = str(result.get("reason", "验证失败"))
                 return is_valid, reason
-            except json.JSONDecodeError:
-                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                if json_match:
-                    result = json.loads(json_match.group())
-                    is_valid = result.get("valid", False)
-                    reason = result.get("reason", "验证失败")
-                    return is_valid, reason
 
             valid_match = re.search(r'valid\s*[:：]\s*(true|false|yes|no)', response_text, re.IGNORECASE)
             reason_match = re.search(r'reason\s*[:：]\s*(.+)', response_text, re.IGNORECASE)

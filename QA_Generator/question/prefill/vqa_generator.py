@@ -834,42 +834,59 @@ class VQAGeneratorPrefill:
                         slots[slot] = value
 
             debug_record["slots"] = slots
-            # STEP 4: 问题生成
+            # STEP 4 + 5: 问题生成与验证（支持校验失败后重生成，最多 3 次）
             question_type = self._select_question_type()
             debug_record["question_type"] = question_type
-            # 构建 prefill_object 用于问题生成（向后兼容）
             prefill_object = {
                 "claim": claim,
                 "prefilled_values": prefilled_values,
                 "source": "simplified"
             }
-            question = await self.question_generator.generate_question_async(
-                image_base64=image_base64,
-                pipeline_config=pipeline_config,
-                slots=slots,
-                prefill_object=prefill_object,
-                question_type=question_type,
-                async_client=async_client
-            )
-            if not question:
-                debug_record["error_stage"] = "question_generation"
-                debug_record["error_reason"] = "问题生成失败（返回空）"
-                return ("err", {
-                    "record_index": idx,
-                    "id": record.get("id"),
-                    "error_stage": "question_generation",
-                    "error_reason": "问题生成失败（返回空）",
-                    "timestamp": datetime.now().isoformat()
-                }, fallback_events, record, pipeline_name, debug_record)
+            max_retries = 3
+            question = None
+            reason = None
+            for retry_count in range(max_retries + 1):
+                retry_ctx = None
+                if retry_count > 0:
+                    retry_ctx = {
+                        "previous_question": question,
+                        "validation_reason": reason or "验证失败",
+                        "retry_count": retry_count,
+                    }
+                question = await self.question_generator.generate_question_async(
+                    image_base64=image_base64,
+                    pipeline_config=pipeline_config,
+                    slots=slots,
+                    prefill_object=prefill_object,
+                    question_type=question_type,
+                    async_client=async_client,
+                    retry_context=retry_ctx,
+                )
+                if not question:
+                    debug_record["error_stage"] = "question_generation"
+                    debug_record["error_reason"] = "问题生成失败（返回空）"
+                    return ("err", {
+                        "record_index": idx,
+                        "id": record.get("id"),
+                        "error_stage": "question_generation",
+                        "error_reason": "问题生成失败（返回空）",
+                        "timestamp": datetime.now().isoformat()
+                    }, fallback_events, record, pipeline_name, debug_record)
 
-            # STEP 5: 异步验证
-            is_valid, reason = await self.validator.validate_async(
-                question=question,
-                image_base64=image_base64,
-                pipeline_config=pipeline_config,
-                global_constraints=self.global_constraints,
-                async_client=async_client
-            )
+                is_valid, reason = await self.validator.validate_async(
+                    question=question,
+                    image_base64=image_base64,
+                    pipeline_config=pipeline_config,
+                    global_constraints=self.global_constraints,
+                    async_client=async_client
+                )
+                if is_valid:
+                    if retry_count > 0:
+                        print(f"[成功] 记录 {idx} 经过 {retry_count} 次重试后问题验证通过")
+                    break
+                if retry_count < max_retries:
+                    print(f"[重试] 记录 {idx} 问题验证失败 ({reason})，正在重新生成 ({retry_count + 1}/{max_retries})...")
+
             if not is_valid:
                 debug_record["error_stage"] = "question_validation"
                 debug_record["error_reason"] = reason or "问题验证失败"
@@ -877,7 +894,7 @@ class VQAGeneratorPrefill:
                     "record_index": idx,
                     "id": record.get("id"),
                     "error_stage": "question_validation",
-                    "error_reason": reason or "问题验证失败",
+                    "error_reason": f"经过 {max_retries} 次重试后仍验证失败: {reason or '问题验证失败'}",
                     "timestamp": datetime.now().isoformat()
                 }, fallback_events, record, pipeline_name, debug_record)
 

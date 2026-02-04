@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, Tuple
 
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.logging.logger import log_warning, log_debug, log_debug_dict
+from QA_Generator.utils.json_parse_utils import extract_json_from_response
 
 
 class AnswerRepairer:
@@ -145,15 +146,9 @@ Return ONLY a JSON object in this format:
         log_debug(response[:800] + "..." if len(response) > 800 else response)
 
         # 解析 JSON
-        try:
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if not json_match:
-                return None, "未找到JSON格式修复结果"
-            import json
-
-            data = json.loads(json_match.group())
-        except Exception as e:
-            return None, f"解析修复JSON失败: {e}"
+        data = extract_json_from_response(response)
+        if data is None:
+            return None, "未找到JSON格式修复结果"
 
         action = str(data.get("action") or "").upper()
         new_answer = str(data.get("new_answer") or "").strip().upper()
@@ -224,15 +219,9 @@ Return ONLY a JSON object in this format:
         log_debug(response[:800] + "..." if len(response) > 800 else response)
 
         # 解析 JSON
-        try:
-            json_match = re.search(r"\{.*\}", response, re.DOTALL)
-            if not json_match:
-                return None, "未找到JSON格式修复结果"
-            import json
-
-            data = json.loads(json_match.group())
-        except Exception as e:
-            return None, f"解析修复JSON失败: {e}"
+        data = extract_json_from_response(response)
+        if data is None:
+            return None, "未找到JSON格式修复结果"
 
         action = str(data.get("action") or "").upper()
         new_answer_raw = data.get("new_answer")

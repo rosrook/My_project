@@ -9,6 +9,7 @@ import json
 import re
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
+from QA_Generator.utils.json_parse_utils import extract_json_from_response
 
 
 class PrefillProcessor:
@@ -281,12 +282,9 @@ confidence: 0.0"""
         if not response_text:
             return {}
 
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except Exception:
-                pass
+        parsed = extract_json_from_response(response_text)
+        if parsed:
+            return parsed
 
         name_match = re.search(r'name\s*[:：]\s*(.+)', response_text, re.IGNORECASE)
         category_match = re.search(r'category\s*[:：]\s*(.+)', response_text, re.IGNORECASE)

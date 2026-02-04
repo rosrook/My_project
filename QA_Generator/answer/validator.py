@@ -2,16 +2,22 @@
 答案校验模块
 包含格式检查与修复、VQA验证等功能
 """
-import json
 import re
 from typing import Dict, Any, List, Optional, Tuple
 
 # 错误记录中模型原始响应的最大保留长度
 _RAW_RESPONSE_MAX = 500
+
 from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.logging.logger import log_warning, log_debug, log_debug_dict
 from QA_Generator.answer.answer_repair import AnswerRepairer
 from QA_Generator.utils.model_response_logger import log_model_response
+from QA_Generator.utils.json_parse_utils import (
+    extract_json_from_response,
+    parse_bool,
+    parse_float,
+    parse_issues,
+)
 
 
 class AnswerValidator:
@@ -190,9 +196,8 @@ class AnswerValidator:
         # 首先修复答案格式：如果 answer 是 JSON 字符串格式，解析并提取纯文本
         answer_raw = fixed_result.get("answer", "")
         if isinstance(answer_raw, str) and answer_raw.strip().startswith("{") and answer_raw.strip().endswith("}"):
-            try:
-                import json
-                answer_dict = json.loads(answer_raw.strip().strip('"\''))
+            answer_dict = extract_json_from_response(answer_raw.strip().strip('"\''))
+            if answer_dict is not None:
                 # 提取 Answer 字段
                 cleaned_answer = answer_dict.get("Answer") or answer_dict.get("answer") or answer_dict.get("option") or answer_dict.get("text")
                 if cleaned_answer and isinstance(cleaned_answer, str):
@@ -203,9 +208,7 @@ class AnswerValidator:
                         if explanation and isinstance(explanation, str):
                             fixed_result["explanation"] = explanation.strip()
                     log_debug(f"修复了 JSON 字符串格式的答案: {answer_raw[:50]}... -> {fixed_result['answer']}")
-            except (json.JSONDecodeError, ValueError):
-                # 如果解析失败，保持原样
-                pass
+            # 如果解析失败，保持原样
         
         # 检查占位符（使用修复后的结果）
         placeholder_issues = self._check_placeholders(fixed_result)
@@ -556,6 +559,15 @@ class AnswerValidator:
                 log_warning(f"VQA验证抢救成功: {report['rescue_reason']}")
                 return report
         
+        # 抢救策略5: 置信度>=0.9且is_correct=true，但answer_validation返回is_valid=false
+        # 常见于LLM自相矛盾（validation_reason支持答案但is_valid=false），以高置信度判断为准
+        if confidence_score >= 0.9 and is_correct and not answer_validation.get("passed", True):
+            report["rescue_successful"] = True
+            report["passed"] = True
+            report["rescue_reason"] = f"置信度{confidence_score:.2f}>=0.9且is_correct=true，答案验证与置信度评估矛盾，以高置信度为准"
+            log_warning(f"VQA验证抢救成功: {report['rescue_reason']}")
+            return report
+        
         # 所有抢救策略都失败，标记为不通过
         report["passed"] = False
         report["rescue_reason"] = "所有抢救策略均失败，严格验证不通过"
@@ -606,20 +618,17 @@ Return a JSON object:
                 context={"question": question, "sub_stage": "perplexity_analysis"},
             )
             # 解析JSON响应
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                clarity_score = result.get("clarity_score", 0.5)
-                is_clear = result.get("is_clear", False)
-                issues = result.get("issues", [])
-                
+            result = extract_json_from_response(response)
+            if result is not None:
+                clarity_score = parse_float(result.get("clarity_score"), 0.5)
+                is_clear = parse_bool(result.get("is_clear"), False)
+                issues = parse_issues(result.get("issues"))
                 return {
                     "passed": is_clear and clarity_score >= 0.7,
                     "clarity_score": clarity_score,
-                    "ambiguity_level": result.get("ambiguity_level", "medium"),
+                    "ambiguity_level": str(result.get("ambiguity_level", "medium")),
                     "issues": issues
                 }
-            
             return {
                 "passed": False,
                 "clarity_score": 0.5,
@@ -729,21 +738,21 @@ Return a JSON object:
             )
             # 解析JSON响应
             raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                is_correct = result.get("is_correct", False)
-                confidence = result.get("confidence", 0.5)
-                
+            result = _extract_json_from_response(response)
+            if result is not None:
+                is_correct = parse_bool(result.get("is_correct"), False)
+                confidence = parse_float(result.get("confidence"), 0.5)
+                alt_opts = result.get("alternative_options", [])
+                if not isinstance(alt_opts, list):
+                    alt_opts = []
                 return {
                     "passed": is_correct and confidence >= 0.7,
                     "is_correct": is_correct,
                     "confidence": confidence,
-                    "correctness_reason": result.get("correctness_reason", ""),
-                    "alternative_options": result.get("alternative_options", []),
+                    "correctness_reason": str(result.get("correctness_reason", "")),
+                    "alternative_options": alt_opts,
                     "raw_response_truncated": raw_trunc if raw_trunc else None,
                 }
-            
             return {
                 "passed": False,
                 "is_correct": False,
@@ -902,20 +911,17 @@ Return a JSON object:
             )
             # 解析JSON响应
             raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                result = json.loads(json_match.group())
-                is_valid = result.get("is_valid", False)
-                issues = result.get("issues", [])
-                
+            result = _extract_json_from_response(response)
+            if result is not None:
+                is_valid = parse_bool(result.get("is_valid"), False)
+                issues = parse_issues(result.get("issues"))
                 return {
                     "passed": is_valid and len(issues) == 0,
                     "is_valid": is_valid,
-                    "validation_reason": result.get("validation_reason", ""),
+                    "validation_reason": str(result.get("validation_reason", "")),
                     "issues": issues,
                     "raw_response_truncated": raw_trunc if raw_trunc else None,
                 }
-            
             return {
                 "passed": False,
                 "is_valid": False,

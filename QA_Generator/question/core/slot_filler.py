@@ -10,6 +10,7 @@ from QA_Generator.clients.gemini_client import GeminiClient
 from QA_Generator.clients.async_client import AsyncGeminiClient
 from QA_Generator.logging.logger import log_debug
 from QA_Generator.utils.model_response_logger import log_model_response
+from QA_Generator.utils.json_parse_utils import extract_json_from_response
 
 
 class SlotFiller:
@@ -390,9 +391,8 @@ value: <string>
                     temperature=0.3
                 )
 
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                parsed = json.loads(json_match.group())
+            parsed = extract_json_from_response(response)
+            if parsed:
                 value = parsed.get("value")
                 if isinstance(value, str):
                     value = value.strip()
@@ -538,24 +538,19 @@ Return your response as a JSON object:
             )
             
             # 尝试解析 JSON
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                try:
-                    parsed = json.loads(json_match.group())
-                    if isinstance(parsed, dict):
-                        # 验证所有 required_slots 都有值
-                        result = {}
-                        for slot in required_slots:
-                            value = parsed.get(slot)
-                            if isinstance(value, str) and value.strip():
-                                result[slot] = value.strip()
-                            else:
-                                # 缺少必需槽位，返回 None
-                                log_debug(f"LLM response missing required slot '{slot}'")
-                                return None
-                        return result
-                except json.JSONDecodeError:
-                    pass
+            parsed = extract_json_from_response(response)
+            if parsed and isinstance(parsed, dict):
+                # 验证所有 required_slots 都有值
+                result = {}
+                for slot in required_slots:
+                    value = parsed.get(slot)
+                    if isinstance(value, str) and value.strip():
+                        result[slot] = value.strip()
+                    else:
+                        # 缺少必需槽位，返回 None
+                        log_debug(f"LLM response missing required slot '{slot}'")
+                        return None
+                return result
             
             # 如果 JSON 解析失败，尝试其他格式
             log_debug(f"Failed to parse LLM response as JSON: {response[:200]}")

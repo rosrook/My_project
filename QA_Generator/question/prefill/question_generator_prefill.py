@@ -39,7 +39,8 @@ class QuestionGeneratorPrefill:
         pipeline_config: Dict[str, Any],
         slots: Dict[str, str],
         prefill_object: Dict[str, Any],  # 预填充的对象信息（必需）
-        question_type: Optional[str] = None
+        question_type: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """
         生成VQA问题（使用预填充对象）
@@ -83,15 +84,20 @@ class QuestionGeneratorPrefill:
             question_constraints=question_constraints,
             slots=slots,
             prefill_object=prefill_object,
-            question_type=question_type
+            question_type=question_type,
+            retry_context=retry_context,
         )
+        
+        temperature = 0.7
+        if retry_context:
+            temperature = 0.7 + min(0.15 * retry_context.get("retry_count", 0), 0.2)
         
         try:
             # 使用LLM生成问题
             response = self.gemini_client.analyze_image(
                 image_input=image_input,
                 prompt=prompt,
-                temperature=0.7,
+                temperature=temperature,
                 context="question_generation_prefill"
             )
             
@@ -112,11 +118,23 @@ class QuestionGeneratorPrefill:
         question_constraints: list,
         slots: Dict[str, str],
         prefill_object: Dict[str, Any],  # 预填充对象（必需）
-        question_type: Optional[str] = None
+        question_type: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         构建问题生成prompt（强调使用预填充对象）
+        retry_context: 重试时传入，包含 previous_question, validation_reason, retry_count
         """
+        retry_hint = ""
+        if retry_context:
+            prev_q = retry_context.get("previous_question")
+            reason = retry_context.get("validation_reason", "验证失败")
+            retry_hint = "\n[RETRY] A previous question failed validation. "
+            if prev_q and str(prev_q).strip():
+                retry_hint += f"Previous question was: \"{str(prev_q)[:150]}\". "
+            retry_hint += f"Failure reason: {str(reason)[:200]}. "
+            retry_hint += "Please generate a DIFFERENT question that addresses the validation failure. Re-examine the requirements carefully.\n"
+        
         # 槽位信息
         slot_info = ""
         if slots:
@@ -145,7 +163,7 @@ class QuestionGeneratorPrefill:
             question_type_instruction = "\nQuestion Type: FILL IN THE BLANK\n- Generate a question that requires a direct answer\n- The question should be phrased to expect a direct textual or numerical answer\n"
         
         prompt = f"""You are a VQA question generation expert. Generate a natural language question based on the given specifications.
-
+{retry_hint}
 Pipeline Intent: {intent}
 Description: {description}
 {object_info}
@@ -230,7 +248,8 @@ Generate a natural, fluent question that follows the template and constraints. R
         prefill_object: Dict[str, Any],
         question_type: Optional[str] = None,
         async_client: Optional[AsyncGeminiClient] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        retry_context: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
         """
         异步生成问题（使用预填充对象）
@@ -276,8 +295,13 @@ Generate a natural, fluent question that follows the template and constraints. R
             question_constraints=question_constraints,
             slots=slots,
             prefill_object=prefill_object,
-            question_type=question_type
+            question_type=question_type,
+            retry_context=retry_context,
         )
+        
+        temperature = 0.7
+        if retry_context:
+            temperature = 0.7 + min(0.15 * retry_context.get("retry_count", 0), 0.2)
         
         try:
             if async_client is None:
@@ -285,13 +309,13 @@ Generate a natural, fluent question that follows the template and constraints. R
                     response = await client.analyze_image_async(
                         image_input=image_base64,
                         prompt=prompt,
-                        temperature=0.7
+                        temperature=temperature
                     )
             else:
                 response = await async_client.analyze_image_async(
                     image_input=image_base64,
                     prompt=prompt,
-                    temperature=0.7
+                    temperature=temperature
                 )
             
             log_model_response(
