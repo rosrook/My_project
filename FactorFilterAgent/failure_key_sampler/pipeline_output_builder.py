@@ -227,7 +227,8 @@ def build_error_output(
                 "sample_index": sample_index,
                 "id": record_id,
                 "source_a": {
-                    "original_id": image_id,
+                    "id": str(image_id),
+                    "original_id": str(image_id),
                     # NOTE: for large-scale runs, prefer storing image_path only and let QA_Generator load & base64 it on demand.
                     "image_path": resolved_path,
                     "jpg": encode_image_base64(resolved_path),
@@ -542,7 +543,11 @@ def write_error_output_from_failure_root(
                 if isinstance(prefilled_values, dict) and len(prefilled_values) > 0:
                     prefill_payload["prefilled_values"] = prefilled_values
 
-                source_a: Dict[str, object] = {"original_id": str(image_id), "image_path": image_path}
+                source_a: Dict[str, object] = {
+                    "id": str(image_id),
+                    "original_id": str(image_id),
+                    "image_path": image_path,
+                }
                 if embed_images:
                     source_a["jpg"] = encode_image_base64(image_path)
 

@@ -582,8 +582,15 @@ Important guidelines:
             if _log_path:
                 try:
                     Path(_log_path).parent.mkdir(parents=True, exist_ok=True)
+                    claim_id = claim_template.get("claim_id", "")
+                    image_id = ""
+                    if "_template_" in str(claim_id):
+                        image_id = str(claim_id).split("_template_")[0]
+                    elif claim_id:
+                        image_id = str(claim_id)
                     record = {
-                        "claim_id": claim_template.get("claim_id", ""),
+                        "image_id": image_id,
+                        "claim_id": claim_id,
                         "claim_template": template_text,
                         "prompt": prompt,
                         "response": response_text,
@@ -605,19 +612,27 @@ Important guidelines:
                 else:
                     raise ValueError(f"Could not parse JSON from response: {response_text[:200]}")
             
-            # Build completion result
+            # Build completion result (include image_id for trace_id in Judge logs)
+            claim_id = claim_template.get("claim_id", "")
+            completion_image_id = ""
+            if "_template_" in str(claim_id):
+                completion_image_id = str(claim_id).split("_template_")[0]
+            elif claim_id:
+                completion_image_id = str(claim_id)
             completion = {
                 "completed_claim": parsed.get("completed_claim", ""),
                 "is_related": parsed.get("is_related", True),
                 "explanation": parsed.get("explanation", ""),
                 "filled_values": parsed.get("filled_values", {}),
-                "claim_id": claim_template.get("claim_id", ""),
+                "claim_id": claim_id,
                 "content_type": claim_template.get("content_type", "relation"),
+                "image_id": completion_image_id or None,
                 "metadata": {
                     "original_template": template_text,
                     "placeholders": placeholders,
                     "response_text": response_text,
-                    "source": "template_completion"
+                    "source": "template_completion",
+                    "image_id": completion_image_id or None,
                 }
             }
             

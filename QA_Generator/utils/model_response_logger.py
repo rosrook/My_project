@@ -3,12 +3,20 @@
 
 当环境变量 MODEL_RESPONSE_LOG_DIR 被设置时，将各阶段模型调用的 prompt 与 response 记录到 JSONL 文件。
 用于排查槽位填充失败、问题生成失败、答案生成失败等问题。
+
+每条记录包含 trace_id（若已设置），便于跨 Step 1/2/3 锁定同一条记录。
 """
 import json
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from datetime import datetime
+
+try:
+    from QA_Generator.utils.debug_trace_context import get_trace_id
+except ImportError:
+    def get_trace_id() -> Optional[str]:
+        return None
 
 
 def _get_log_dir() -> Optional[Path]:
@@ -58,6 +66,9 @@ def log_model_response(
             "prompt_length": len(prompt),
             "response_length": len(response),
         }
+        trace_id = get_trace_id()
+        if trace_id is not None:
+            record["trace_id"] = trace_id
         if context is not None:
             record["context"] = context
         if record_index is not None:

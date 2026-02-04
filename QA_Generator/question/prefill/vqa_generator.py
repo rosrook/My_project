@@ -27,6 +27,7 @@ from QA_Generator.clients.async_client import AsyncGeminiClient
 from .object_prefill import PrefillProcessor
 from .prefill_processor_simplified import PrefillProcessorSimplified
 from .question_generator_prefill import QuestionGeneratorPrefill
+from QA_Generator.utils.debug_trace_context import set_trace_context, get_trace_id
 
 
 class VQAGeneratorPrefill:
@@ -379,6 +380,17 @@ class VQAGeneratorPrefill:
             # 确定该记录应该使用的pipeline
             record_pipeline = self._extract_pipeline_from_record(record)
             pipelines_to_use = [record_pipeline] if record_pipeline else pipeline_names
+
+            image_id = source_a.get("original_id") or source_a.get("id") or ""
+            if isinstance(image_id, (int, float)):
+                image_id = str(image_id)
+            set_trace_context(
+                record_index=idx,
+                sample_index=record.get("sample_index"),
+                image_id=image_id or None,
+                record_id=record.get("id"),
+                pipeline_name=record_pipeline or (pipelines_to_use[0] if pipelines_to_use else None),
+            )
             
             # 为确定的pipeline生成问题
             for pipeline_name in pipelines_to_use:
@@ -405,7 +417,8 @@ class VQAGeneratorPrefill:
                     # 添加原始数据信息
                     result["sample_index"] = record.get("sample_index")
                     result["id"] = record.get("id")
-                    result["source_a_id"] = source_a.get("id")
+                    result["source_a_id"] = source_a.get("id") or source_a.get("original_id")
+                    result["trace_id"] = get_trace_id()
                     # 添加图片的base64编码
                     image_base64 = self._extract_image_base64(source_a, image_input)
                     if image_base64:
@@ -670,6 +683,17 @@ class VQAGeneratorPrefill:
                     "timestamp": datetime.now().isoformat()
                 }, fallback_events, record, pipeline_name, debug_record)
 
+            image_id = source_a.get("original_id") or source_a.get("id") or ""
+            if isinstance(image_id, (int, float)):
+                image_id = str(image_id)
+            set_trace_context(
+                record_index=idx,
+                sample_index=record.get("sample_index"),
+                image_id=image_id or None,
+                record_id=record.get("id"),
+                pipeline_name=pipeline_name,
+            )
+
             image_input = self._extract_image_input(source_a)
             image_base64 = self._extract_image_base64(source_a, image_input)
             if not image_base64:
@@ -871,7 +895,8 @@ class VQAGeneratorPrefill:
                 "timestamp": datetime.now().isoformat(),
                 "sample_index": record.get("sample_index"),
                 "id": record.get("id"),
-                "source_a_id": source_a.get("id"),
+                "source_a_id": source_a.get("id") or source_a.get("original_id"),
+                "trace_id": get_trace_id(),
                 "image_base64": image_base64
             }
 

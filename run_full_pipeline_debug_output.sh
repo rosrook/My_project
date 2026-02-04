@@ -34,6 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # =========================
 # 调试输出根目录（所有模型返回值记录存放于此）
 # =========================
+DEBUG_RUN_ID="${DEBUG_RUN_ID:-run_$(date +%Y%m%d_%H%M%S)}"
 DEBUG_OUTPUT_DIR="${DEBUG_OUTPUT_DIR:-${SCRIPT_DIR}/debug_output_$(date +%Y%m%d_%H%M%S)}"
 
 # =========================
@@ -129,6 +130,7 @@ cd "${PROJECT_ROOT}"
 echo "=========================================="
 echo "Pipeline 错误输出检测模式"
 echo "=========================================="
+echo "调试运行 ID (trace_id 前缀): ${DEBUG_RUN_ID}"
 echo "调试输出根目录: ${DEBUG_OUTPUT_DIR}"
 echo "  - Step 1 Judge 记录: ${JUDGE_PROMPT_LOG_PATH}"
 echo "  - Step 1 Baseline 记录: ${BASELINE_RESPONSE_LOG_PATH}"
@@ -215,10 +217,11 @@ fi
 STEP3_ARGS+=(--debug-questions)
 STEP3_ARGS+=(--debug-question-dir "${MODEL_RESPONSE_LOG_DIR}/questions")
 
-# 启用 Step 3 模型返回值记录
+# 启用 Step 3 模型返回值记录（含 trace_id 标号）
 STEP3_ENV="OPENAI_API_KEY=${OPENAI_API_KEY} OPENAI_BASE_URL=${OPENAI_BASE_URL} MODEL_NAME=${MODEL_NAME}"
 STEP3_ENV="${STEP3_ENV} QA_DEBUG=1"
 STEP3_ENV="${STEP3_ENV} MODEL_RESPONSE_LOG_DIR=${MODEL_RESPONSE_LOG_DIR}"
+STEP3_ENV="${STEP3_ENV} DEBUG_RUN_ID=${DEBUG_RUN_ID}"
 
 if [[ -n "${LOG_FILE}" ]]; then
   (cd "${QA_OUTPUT_DIR}" && eval "${STEP3_ENV}" python "${PROJECT_ROOT}/QA_Generator/pipeline/pipeline.py" "${STEP3_ARGS[@]}" > "${LOG_FILE}" 2>&1)
@@ -231,8 +234,10 @@ echo ""
 echo "✅ 错误输出检测流程完成。"
 echo ""
 echo "=========================================="
-echo "模型返回值记录汇总"
+echo "模型返回值记录汇总（含 trace_id 标号）"
 echo "=========================================="
+echo "trace_id 格式: [DEBUG_RUN_ID_]B{batch}_R{record}_S{sample}_I{image_id}"
+echo "  用于跨 Step 1/2/3 锁定同一条记录，例如: grep 'I<image_id>' *.jsonl"
 echo "Step 1 (对象选择 + 预填充 + 验证):"
 echo "  - Judge prompt+response: ${JUDGE_PROMPT_LOG_PATH}"
 echo "  - Baseline 完成返回值:   ${BASELINE_RESPONSE_LOG_PATH}"

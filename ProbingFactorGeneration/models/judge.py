@@ -570,8 +570,16 @@ Please respond in JSON format:
             )
             response_text = response.choices[0].message.content
             if self._log_response and self._prompt_log_path:
+                claim_id = claim_template.get("claim_id", "")
+                image_id = ""
+                if "_template_" in str(claim_id):
+                    image_id = str(claim_id).split("_template_")[0]
+                elif claim_id:
+                    image_id = str(claim_id)
                 await self._log_judge_prompt_async({
                     "judge_call": "prefill",
+                    "image_id": image_id,
+                    "claim_id": claim_id,
                     "claim_template": template_text,
                     "prefill_slots": prefill_slots,
                     "prompt": prompt,

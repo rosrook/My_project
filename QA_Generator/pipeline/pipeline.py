@@ -35,6 +35,7 @@ from QA_Generator.logging.logger import (
     log_debug,
     log_debug_dict,
 )
+from QA_Generator.utils.debug_trace_context import set_trace_context, get_trace_id
 
 
 # 错误详情字段最大长度（避免记录过大导致IO/内存问题）
@@ -361,6 +362,7 @@ class VQAPipeline:
         concurrency: int = 5,
         request_delay: float = 0.1,
         suppress_progress: bool = False,
+        batch_num: int = 1,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
         异步从问题数据生成答案（并发调用，参考vlmtool/generate_vqa的实现）
@@ -384,6 +386,17 @@ class VQAPipeline:
         async with AsyncGeminiClient(max_concurrent=concurrency, request_delay=request_delay) as client:
             async def process_one(idx: int, record: Dict[str, Any]):
                 """处理单个问题记录"""
+                image_id = record.get("source_a_id") or record.get("id") or ""
+                if isinstance(image_id, (int, float)):
+                    image_id = str(image_id)
+                set_trace_context(
+                    record_index=idx,
+                    sample_index=record.get("sample_index"),
+                    image_id=image_id or None,
+                    record_id=record.get("id"),
+                    pipeline_name=record.get("pipeline_name"),
+                    batch_num=batch_num,
+                )
                 try:
                     # ========== 步骤1: 提取输入数据 ==========
                     question = record.get("question")
@@ -410,6 +423,7 @@ class VQAPipeline:
                             "error_details": self._extract_error_details("input_validation", "缺少question字段"),
                             "sample_index": record.get("sample_index"),
                             "source_a_id": record.get("source_a_id"),
+                            "trace_id": get_trace_id(),
                         })
                     if not question_type:
                         return ("err", {
@@ -420,6 +434,7 @@ class VQAPipeline:
                             "error_details": self._extract_error_details("input_validation", "缺少question_type字段"),
                             "sample_index": record.get("sample_index"),
                             "source_a_id": record.get("source_a_id"),
+                            "trace_id": get_trace_id(),
                         })
                     if not image_base64:
                         return ("err", {
@@ -430,6 +445,7 @@ class VQAPipeline:
                             "error_details": self._extract_error_details("input_validation", "缺少image_base64字段"),
                             "sample_index": record.get("sample_index"),
                             "source_a_id": record.get("source_a_id"),
+                            "trace_id": get_trace_id(),
                         })
                     
                     prefill_object = record.get("prefill_object")
@@ -532,6 +548,7 @@ class VQAPipeline:
                                     "retry_count": retry_count,
                                     "sample_index": record.get("sample_index"),
                                     "source_a_id": record.get("source_a_id"),
+                                    "trace_id": get_trace_id(),
                                 })
                         
                         # ========== 步骤3: 校验和修复 ==========
@@ -598,6 +615,7 @@ class VQAPipeline:
                             "validation_report": validation_report,
                             "sample_index": record.get("sample_index"),
                             "source_a_id": record.get("source_a_id"),
+                            "trace_id": get_trace_id(),
                         })
                     
                     # ========== 步骤4: 构建最终输出结果 ==========
@@ -647,7 +665,8 @@ class VQAPipeline:
                         "id": record.get("id"),
                         "source_a_id": record.get("source_a_id"),
                         "timestamp": record.get("timestamp", ""),
-                        "generated_at": datetime.now().isoformat()
+                        "generated_at": datetime.now().isoformat(),
+                        "trace_id": get_trace_id(),
                     }
                     
                     log_debug(f"[记录 {idx}] ========== 处理完成 ==========\n")
@@ -665,6 +684,7 @@ class VQAPipeline:
                         "error_details": exc_details,
                         "sample_index": record.get("sample_index"),
                         "source_a_id": record.get("source_a_id"),
+                        "trace_id": get_trace_id(),
                     })
             
             # 创建所有任务
@@ -956,6 +976,7 @@ class VQAPipeline:
                             concurrency=concurrency,
                             request_delay=request_delay,
                             suppress_progress=(pbar is not None),
+                            batch_num=batch_num,
                         )
                     else:
                         # 使用串行处理（兼容模式）
@@ -1020,7 +1041,8 @@ class VQAPipeline:
                                 "vqa_validation": {"passed": False}
                             },
                             "timestamp": corresponding_question.get("timestamp") if corresponding_question else datetime.now().isoformat(),
-                            "generated_at": datetime.now().isoformat()
+                            "generated_at": datetime.now().isoformat(),
+                            "trace_id": error_item.get("trace_id"),
                         }
                         all_answer_validation_failed.append(failed_item)
                     
@@ -1340,6 +1362,7 @@ class VQAPipeline:
                 "id": answer.get("id"),
                 "sample_index": answer.get("sample_index"),
                 "source_a_id": answer.get("source_a_id"),
+                "trace_id": answer.get("trace_id"),
                 
                 # 问题和答案
                 "question": answer.get("question"),
