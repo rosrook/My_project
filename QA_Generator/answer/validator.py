@@ -738,7 +738,7 @@ Return a JSON object:
             )
             # 解析JSON响应
             raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
-            result = _extract_json_from_response(response)
+            result = extract_json_from_response(response)
             if result is not None:
                 is_correct = parse_bool(result.get("is_correct"), False)
                 confidence = parse_float(result.get("confidence"), 0.5)
@@ -911,7 +911,7 @@ Return a JSON object:
             )
             # 解析JSON响应
             raw_trunc = (response or "")[:_RAW_RESPONSE_MAX]
-            result = _extract_json_from_response(response)
+            result = extract_json_from_response(response)
             if result is not None:
                 is_valid = parse_bool(result.get("is_valid"), False)
                 issues = parse_issues(result.get("issues"))
