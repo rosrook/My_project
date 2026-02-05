@@ -152,6 +152,7 @@ fi
 
 # Step 1 uses auto-optimization internally (request_delay=0.0, auto-concurrency)
 # USE_SINGLE_DEVICE_MAP=1: avoid DTensor mixing error (device_map="auto" can trigger distributed tensor parallelism)
+# Clear debug env vars so we don't inherit from run_full_pipeline_debug_output.sh
 OPENAI_API_KEY="${OPENAI_API_KEY}" \
 OPENAI_BASE_URL="${OPENAI_BASE_URL}" \
 MODEL_NAME="${MODEL_NAME}" \
@@ -159,6 +160,9 @@ USE_LB_CLIENT="${USE_LB_CLIENT}" \
 API_KEY="${API_KEY}" \
 BASE_URL="${BASE_URL}" \
 USE_SINGLE_DEVICE_MAP=1 \
+JUDGE_PROMPT_LOG_PATH= \
+JUDGE_LOG_RESPONSE= \
+BASELINE_RESPONSE_LOG_PATH= \
 torchrun --nproc_per_node="${NPROC_PER_NODE}" \
   ProbingFactorGeneration/examples/run_complete_pipeline.py \
   "${STEP1_ARGS[@]}"
@@ -202,9 +206,12 @@ if [[ -n "${ANSWER_CONFIG}" ]]; then
 fi
 
 # Build Step 3 env (QA_DEBUG controls slot_filler/gemini_client/pipeline DEBUG output)
+# When QA_DEBUG is off: explicitly clear debug vars so we don't inherit from run_full_pipeline_debug_output.sh
 STEP3_ENV="OPENAI_API_KEY=${OPENAI_API_KEY} OPENAI_BASE_URL=${OPENAI_BASE_URL} MODEL_NAME=${MODEL_NAME}"
 if [[ "${QA_DEBUG}" == "1" || "${QA_DEBUG}" == "true" || "${QA_DEBUG}" == "yes" ]]; then
   STEP3_ENV="${STEP3_ENV} QA_DEBUG=1"
+else
+  STEP3_ENV="${STEP3_ENV} QA_DEBUG= MODEL_RESPONSE_LOG_DIR= DEBUG_RUN_ID="
 fi
 
 # Step 3: Execute QA Generator pipeline (outputs will be saved in QA_OUTPUT_DIR)

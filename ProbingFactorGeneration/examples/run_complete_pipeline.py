@@ -289,6 +289,15 @@ async def run_pipeline_with_failure_sampling(
     rank = int(os.environ.get("RANK", "0"))
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
 
+    # CRITICAL: Set CUDA_VISIBLE_DEVICES IMMEDIATELY for GPU isolation
+    # This must be done BEFORE any torch import or CUDA initialization
+    # Otherwise, all processes will see all GPUs and default to GPU 0
+    if world_size > 1 and use_local_baseline:
+        # Set CUDA_VISIBLE_DEVICES to only show the GPU assigned to this process
+        # This ensures each process only sees and uses its assigned GPU
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(local_rank)
+        print(f"[RANK {rank}] Set CUDA_VISIBLE_DEVICES={local_rank} for GPU isolation")
+    
     # 分布式模式下，每个 rank 分配 target_failure_count 的一部分，使全局总量约为 target_failure_count
     per_rank_target = target_failure_count
     if world_size > 1:
@@ -297,11 +306,16 @@ async def run_pipeline_with_failure_sampling(
         per_rank_target = base_per_rank + (1 if rank < remainder else 0)
     
     # Manually bind GPU if torchrun is used and torch is available
+    # Note: After setting CUDA_VISIBLE_DEVICES, local_rank maps to cuda:0 in this process
     if world_size > 1:
         try:
             import torch
             if torch.cuda.is_available():
-                torch.cuda.set_device(local_rank)
+                # After CUDA_VISIBLE_DEVICES is set, we always use device 0
+                # because each process only sees one GPU (its assigned GPU)
+                torch.cuda.set_device(0)
+                actual_gpu_id = local_rank  # The actual physical GPU ID
+                print(f"[RANK {rank}] Using GPU {actual_gpu_id} (visible as cuda:0 in this process)")
         except Exception:
             pass
     
@@ -348,11 +362,14 @@ async def run_pipeline_with_failure_sampling(
         pass
     
     # Initialize models with auto-optimized settings
+    # Note: In distributed mode, CUDA_VISIBLE_DEVICES is already set above,
+    # so each process only sees one GPU (its assigned GPU) as cuda:0.
+    # Therefore, gpu_id should always be 0 (or None) in distributed mode.
     if use_local_baseline and baseline_model_path:
         baseline_model = BaselineModel(
             model_path=baseline_model_path,
             use_local_model=True,
-            gpu_id=local_rank if world_size > 1 else 0,
+            gpu_id=0 if world_size > 1 else 0,  # Always 0 after CUDA_VISIBLE_DEVICES is set
             max_concurrent=None,
             request_delay=0.0
         )

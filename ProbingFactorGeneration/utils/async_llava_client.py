@@ -103,10 +103,23 @@ class AsyncLLaVAClient:
         self.request_delay = request_delay or MODEL_CONFIG.get("REQUEST_DELAY", 0.0)
         
         # Set GPU visibility (for process isolation)
-        if gpu_id is not None:
+        # IMPORTANT: In distributed mode (torchrun), CUDA_VISIBLE_DEVICES should be set
+        # BEFORE this code runs (in run_complete_pipeline.py). Here we only set it for
+        # non-distributed single-GPU usage.
+        # Check if we're in distributed mode (WORLD_SIZE > 1)
+        world_size = int(os.environ.get("WORLD_SIZE", "1"))
+        if world_size <= 1 and gpu_id is not None:
+            # Only set CUDA_VISIBLE_DEVICES in non-distributed mode
+            # In distributed mode, it's already set by run_complete_pipeline.py
             os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
             if os.getenv("VERBOSE", "false").lower() == "true":
                 print(f"[INFO] GPU binding: GPU {gpu_id}")
+        elif world_size > 1:
+            # In distributed mode, CUDA_VISIBLE_DEVICES is already set
+            # gpu_id should be 0 (each process sees only one GPU as cuda:0)
+            if os.getenv("VERBOSE", "false").lower() == "true":
+                local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+                print(f"[INFO] Distributed mode: Using GPU {local_rank} (visible as cuda:0)")
         
         # Determine device
         if device is None:
