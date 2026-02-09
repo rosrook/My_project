@@ -105,7 +105,7 @@ def calculate_optimal_concurrency(
     
     if data_size < 10:
         # Very small batches: use all data
-        optimal = min(data_size, 5)
+        optimal = min(max(data_size, 1), 5)  # Ensure at least 1
     elif data_size < 100:
         # Small batches: moderate concurrency
         optimal = min(20, max(data_size // 5, 5))
@@ -117,8 +117,8 @@ def calculate_optimal_concurrency(
         # For 10000 images: 10000/100 = 100
         optimal = min(100, max(data_size // 100, 20))
     
-    # Ensure within bounds
-    return max(min_concurrent, min(max_concurrent, optimal))
+    # Ensure within bounds and at least 1
+    return max(1, max(min_concurrent, min(max_concurrent, optimal)))
 
 
 def estimate_processing_time(
@@ -176,6 +176,9 @@ def estimate_processing_time(
     
     # Calculate time per stage (with concurrency)
     # Time = (total_requests / concurrency) * time_per_request
+    # Protect against division by zero
+    baseline_max_concurrent = max(1, baseline_max_concurrent)  # Ensure at least 1
+    judge_max_concurrent = max(1, judge_max_concurrent)  # Ensure at least 1
     baseline_time = (baseline_requests / baseline_max_concurrent) * baseline_time_per_request
     judge_time = (judge_requests / judge_max_concurrent) * judge_time_per_request
     

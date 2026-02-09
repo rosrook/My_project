@@ -301,6 +301,8 @@ async def run_pipeline_with_failure_sampling(
     # 分布式模式下，每个 rank 分配 target_failure_count 的一部分，使全局总量约为 target_failure_count
     per_rank_target = target_failure_count
     if world_size > 1:
+        # Ensure world_size is at least 1 to avoid division by zero
+        world_size = max(1, world_size)
         base_per_rank = target_failure_count // world_size
         remainder = target_failure_count % world_size
         per_rank_target = base_per_rank + (1 if rank < remainder else 0)

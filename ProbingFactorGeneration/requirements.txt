@@ -12,6 +12,7 @@ packaging>=21.0  # Required by tensorboard and other packages
 
 # Async support
 aiohttp>=3.8.0  # Required for async HTTP client (if not using LBOpenAIAsyncClient)
+openai>=1.0.0  # Required for AsyncGeminiClient (provides AsyncOpenAI)
 # Note: AsyncGeminiClient is now provided via utils.async_client module
 
 # Optional: for async compatibility (useful when calling sync methods from async context)
